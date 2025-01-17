@@ -10,6 +10,9 @@
 #define CBX_SET 1.0
 #define RX_BUF_SIZE 8
 
+#define KEY_PRESSED     GPIO_PIN_RESET
+#define NOT_PRESSED     GPIO_PIN_SET
+
 #define BCC_GET_TH_CTX(threshold) \
     (uint16_t)(((((threshold) * 10U) / 195U) > 0xFF) ? \
     0xFF : (((threshold) * 10U) / 195U))

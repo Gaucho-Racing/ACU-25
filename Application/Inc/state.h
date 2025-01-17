@@ -1,5 +1,6 @@
 #ifndef STATE_H
 #define STATE_H
+
 typedef enum {
     SHUTDOWN, 
     CHARGE, 
@@ -7,4 +8,5 @@ typedef enum {
     NORMAL, 
     STANDBY
 } State;
+
 #endif
