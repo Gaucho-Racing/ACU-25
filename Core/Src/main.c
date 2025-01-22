@@ -52,7 +52,7 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void print_LPUART(char* arr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -121,7 +121,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+    print_LPUART("Hello World\n");
+    LL_mDelay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -174,7 +175,14 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void print_LPUART(char* arr) {
+  uint32_t idx = 0;
+  while (arr[idx]) {
+    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
+    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
+    idx++;
+  }
+}
 /* USER CODE END 4 */
 
 /**

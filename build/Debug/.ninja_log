@@ -1,0 +1,27 @@
+# ninja log v6
+73	590	7592199205999642	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_exti.c.obj	9baf43f66ec7ab41
+13	602	7592199205396801	CMakeFiles/ACU-25.dir/Core/Src/gpio.c.obj	b90acfc76c6d95f5
+43	629	7592199205700211	CMakeFiles/ACU-25.dir/Core/Src/stm32g4xx_it.c.obj	15b913f9bffee8d
+34	660	7592199205620184	CMakeFiles/ACU-25.dir/Core/Src/tim.c.obj	7d0742e7da6fd284
+3	691	7592199205303290	CMakeFiles/ACU-25.dir/Core/Src/main.c.obj	6b7d91dac4ae3d03
+19	703	7592199205470246	CMakeFiles/ACU-25.dir/Core/Src/usart.c.obj	8a38b165a814faaf
+27	704	7592199205540198	CMakeFiles/ACU-25.dir/Core/Src/spi.c.obj	ed68f1db8251c6c7
+87	705	7592199206144830	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_gpio.c.obj	abc678faaae1f36f
+111	706	7592199206376688	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_rcc.c.obj	782ea133579c00e2
+98	716	7592199206255667	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_lpuart.c.obj	7d23f8bcc007dbf0
+54	731	7592199205814327	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_utils.c.obj	a4d908554687b3e8
+147	732	7592199206749489	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_spi.c.obj	2a38035ce6decc4e
+121	759	7592199206486705	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_dma.c.obj	fa42c2b5dbb3e7ac
+692	818	7592199212190252	CMakeFiles/ACU-25.dir/startup_stm32g474xx.s.obj	69b77737d25e8b97
+630	823	7592199211574867	CMakeFiles/ACU-25.dir/Core/Src/sysmem.c.obj	c26ec8205c54de5e
+134	832	7592199206616718	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_pwr.c.obj	c81060d26f3e9e83
+660	868	7592199211876995	CMakeFiles/ACU-25.dir/Core/Src/syscalls.c.obj	7f8af3ee09055760
+603	943	7592199211304782	CMakeFiles/ACU-25.dir/Core/Src/system_stm32g4xx.c.obj	66eceb39b7894083
+592	1005	7592199211194842	CMakeFiles/ACU-25.dir/Drivers/STM32G4xx_HAL_Driver/Src/stm32g4xx_ll_tim.c.obj	1f78b2eed97b59f3
+31	255	7592199814589237	ACU-25.elf	241274489487bbf1
+45	2206	7592248937855642	CMakeFiles/ACU-25.dir/Core/Src/main.c.obj	6b7d91dac4ae3d03
+2206	3262	7592248959466259	ACU-25.elf	241274489487bbf1
+6	1079	7592267508552538	CMakeFiles/ACU-25.dir/Core/Src/main.c.obj	6b7d91dac4ae3d03
+1080	1486	7592267519289612	ACU-25.elf	241274489487bbf1
+3	244	7592269287275652	CMakeFiles/ACU-25.dir/Core/Src/main.c.obj	6b7d91dac4ae3d03
+244	390	7592269289683985	ACU-25.elf	241274489487bbf1
