@@ -52,6 +52,8 @@ Mkfile.old
 dkms.conf
 
 # Others
-/build/
 .DS_Store
 .vscode/
+build/
+
+
