@@ -31,6 +31,7 @@
 # Executables
 *.exe
 *.out
+*.bak
 *.app
 *.i*86
 *.x86_64
@@ -52,8 +53,21 @@ Mkfile.old
 dkms.conf
 
 # Others
+build
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+CMakeUserPresets.json
+.ccls-cache
+
+# VSCode
 .DS_Store
-.vscode/
-build/
-
-
+.vscode

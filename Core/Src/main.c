@@ -25,11 +25,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <math.h>
+#include "../../Application/Inc/acu.h"
+#include "../../Application/Inc/state.h"
+#include "../../Application/Test/debug.c"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
 
 /* USER CODE END PTD */
 
@@ -46,17 +50,88 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+ACU acu;
+Battery battery;
+State state = STANDBY;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+
+// printing
 void print_LPUART(char* arr);
+void print_float_LPUART(float value);
+void print_measurement_LPUART(Measurements type, float value);
+
+// communication
+uint8_t spi_send_string(const uint8_t *data, uint16_t length);
+uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// printing
+void print_LPUART(char* arr) {
+  uint32_t idx = 0; // index
+  while (arr[idx]) {
+    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
+    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
+    idx++;
+  }
+}
+void print_float_LPUART(float value){
+  char buffer[8];
+  char *sign = (value < 0) ? "-": ""; // get sign
+  float signedFloat = (value < 0) ? -value : value;
+
+  int upper = (int)signedFloat;
+  float diff = signedFloat-upper;
+  int lower = (int)trunc(1000 * diff);
+
+  sprintf(buffer, "%s%d.%.03d\n", sign, upper, lower);
+  print_LPUART(buffer);
+}
+void print_measurement_LPUART(Measurements type, float value){
+  
+  switch (type){
+    case VOLTAGE:
+      print_LPUART("Volts: ");
+      break;
+    case TEMPERATURE:
+      print_LPUART("Temp: ");
+      break;
+    default:
+      print_LPUART("Error: ");
+      break;
+    }
+    print_float_LPUART(value);
+}
+
+// communication
+uint8_t spi_read_string(uint8_t *buffer, uint16_t length){
+
+    uint32_t counter = 0;
+    while (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
+
+    for (uint16_t i = 0; i < length; i++) {
+      buffer[i] = LL_SPI_ReceiveData8(SPI2);
+    }
+    return 0;
+}
+uint8_t spi_send_string(const uint8_t *data, uint16_t length) {
+
+    uint32_t counter = 0;
+    while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
+
+    for (uint16_t i = 0; i < length; i++) {
+      LL_SPI_TransmitData8(SPI1, (uint8_t)(data[i]));
+    }
+    while (LL_SPI_IsActiveFlag_BSY(SPI1));
+    return 0;
+}
 
 /* USER CODE END 0 */
 
@@ -112,7 +187,20 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM5_Init();
   MX_LPUART1_UART_Init();
+
   /* USER CODE BEGIN 2 */
+
+  // state default
+
+  /* Enable the SPI peripherals */
+  LL_SPI_Enable(SPI1);
+  LL_SPI_Enable(SPI2);
+
+  print_LPUART("Hello World\n");
+  print_measurement_LPUART(TEMPERATURE, 3.14);
+  print_measurement_LPUART(TEMPERATURE, -43120.14);
+  print_LPUART("\n\n");
+  LL_mDelay(1000);
 
   /* USER CODE END 2 */
 
@@ -121,10 +209,41 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    print_LPUART("Hello World\n");
-    LL_mDelay(1000);
+
+    // print_LPUART("About to transmit data\n");
+    // const char *message = "hello friends!\n";
+    // spi1_send_string(message);
+    // spi2_send_string(message);
+    // print_LPUART("Transmission done.\n\n");
+    // LL_mDelay(1000);
+    
+    acu_init();
+    battery_init();
+
+    // while loop
+    switch(state){
+      case (STANDBY):
+        standby();
+        break;
+      case (PRECHARGE):
+        precharge();
+        break;
+      case (CHARGE):
+        charge();
+        break;
+      case (NORMAL):
+        normal();
+        break;
+      case (SHITDOWN):
+        shitdown();
+        break;
+      default:
+        break;
+    }
     /* USER CODE BEGIN 3 */
   }
+  LL_SPI_Disable(SPI1);
+  LL_SPI_Disable(SPI2);
   /* USER CODE END 3 */
 }
 
@@ -175,14 +294,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void print_LPUART(char* arr) {
-  uint32_t idx = 0;
-  while (arr[idx]) {
-    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
-    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
-    idx++;
-  }
-}
 /* USER CODE END 4 */
 
 /**
@@ -196,6 +307,7 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+    print_LPUART("Error has occured!\n");
   }
   /* USER CODE END Error_Handler_Debug */
 }
