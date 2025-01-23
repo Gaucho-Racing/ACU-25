@@ -26,11 +26,23 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include <math.h> 
+#include <stdlib.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+typedef enum {
+  VOLTAGE,
+  TEMPERATURE,
+  SOC,
+  BALLTEMP,
+  IMD,
+  AIRS,
+  FANS
+} MEASUREMENTS;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -53,6 +65,8 @@
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 void print_LPUART(char* arr);
+void print_float_LPUART(float value);
+void print_measurement_LPUART(MEASUREMENTS type, float value);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -122,6 +136,9 @@ int main(void)
   {
     /* USER CODE END WHILE */
     print_LPUART("Hello World\n");
+    print_measurement_LPUART(TEMPERATURE, 3.14);
+    print_measurement_LPUART(TEMPERATURE, -43120.14);
+    print_LPUART("\n\n");
     LL_mDelay(1000);
     /* USER CODE BEGIN 3 */
   }
@@ -175,13 +192,44 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
 void print_LPUART(char* arr) {
-  uint32_t idx = 0;
+  uint32_t idx = 0; // index
   while (arr[idx]) {
     while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
     LL_LPUART_TransmitData8(LPUART1, arr[idx]);
     idx++;
   }
+}
+
+void print_float_LPUART(float value){
+
+  char buffer[8];
+  char *sign = (value < 0) ? "-": ""; // get sign
+  float signedFloat = (value < 0) ? -value : value;
+
+  int upper = (int)signedFloat;
+  float diff = signedFloat-upper;
+  int lower = (int)trunc(1000 * diff);
+
+  sprintf(buffer, "%s%d.%.03d\n", sign, upper, lower);
+  print_LPUART(buffer);
+}
+
+void print_measurement_LPUART(MEASUREMENTS type, float value){
+  
+  switch (type){
+    case VOLTAGE:
+      print_LPUART("Volts: ");
+      break;
+    case TEMPERATURE:
+      print_LPUART("Temp: ");
+      break;
+    default:
+      print_LPUART("Error: ");
+      break;
+    }
+    print_float_LPUART(value);
 }
 /* USER CODE END 4 */
 
