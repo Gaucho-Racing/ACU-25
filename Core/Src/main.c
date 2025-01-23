@@ -25,11 +25,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <math.h>
+#include "../../Application/Inc/acu.h"
+#include "../../Application/Test/debug.c"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
 
 /* USER CODE END PTD */
 
@@ -46,18 +49,106 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+ACU acu;
+Battery battery;
+State state;
+
+/* TEST BUFFERS, NOT REAL ONES */
+uint8_t aTxBuffer[] = "**** WHASSUPPPPPPP ****";
+uint8_t ubNbDataToTransmit = sizeof(aTxBuffer);
+__IO uint8_t ubTransmissionComplete = 0;
+
+/* Buffer used for reception */
+uint8_t aRxBuffer[sizeof(aTxBuffer)];
+uint8_t ubNbDataToReceive  = sizeof(aTxBuffer);
+__IO uint8_t ubReceptionComplete = 0;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+
+// printing
 void print_LPUART(char* arr);
+void print_float_LPUART(float value);
+void print_measurement_LPUART(Measurements type, float value);
+
+// communication
+void spi1_send_string(const char *data);
+void spi2_send_string(const char *data);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+// printing - for testing purposes
+void print_LPUART(char* arr) {
+  uint32_t idx = 0; // index
+  while (arr[idx]) {
+    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
+    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
+    idx++;
+  }
+}
+void print_float_LPUART(float value){
+
+  char buffer[8];
+  char *sign = (value < 0) ? "-": ""; // get sign
+  float signedFloat = (value < 0) ? -value : value;
+
+  int upper = (int)signedFloat;
+  float diff = signedFloat-upper;
+  int lower = (int)trunc(1000 * diff);
+
+  sprintf(buffer, "%s%d.%.03d\n", sign, upper, lower);
+  print_LPUART(buffer);
+}
+void print_measurement_LPUART(Measurements type, float value){
+  
+  switch (type){
+    case VOLTAGE:
+      print_LPUART("Volts: ");
+      break;
+    case TEMPERATURE:
+      print_LPUART("Temp: ");
+      break;
+    default:
+      print_LPUART("Error: ");
+      break;
+    }
+    print_float_LPUART(value);
+}
+
+// communication - for testing purposes
+void spi1_send_string(const char *data) {
+    while (*data) {
+        // Wait until TXE flag is set (transmit buffer is empty)
+        while (!LL_SPI_IsActiveFlag_TXE(SPI1));
+
+        // Transmit one byte
+        LL_SPI_TransmitData8(SPI1, (uint8_t)(*data));
+
+        // Increment to the next character
+        data++;
+    }
+    // Wait until BSY flag is cleared (SPI is not busy anymore)
+    while (LL_SPI_IsActiveFlag_BSY(SPI1));
+}
+void spi2_send_string(const char *data) {
+    while (*data) {
+        // Wait until TXE flag is set (transmit buffer is empty)
+        while (!LL_SPI_IsActiveFlag_TXE(SPI2));
+
+        // Transmit one byte
+        LL_SPI_TransmitData8(SPI2, (uint8_t)(*data));
+
+        // Increment to the next character
+        data++;
+    }
+    // Wait until BSY flag is cleared (SPI is not busy anymore)
+    while (LL_SPI_IsActiveFlag_BSY(SPI2));
+}
 /* USER CODE END 0 */
 
 /**
@@ -112,7 +203,21 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM5_Init();
   MX_LPUART1_UART_Init();
+
   /* USER CODE BEGIN 2 */
+
+  // state default
+  state = SHITDOWN;
+
+  /* Enable the SPI peripherals */
+  LL_SPI_Enable(SPI1);
+  LL_SPI_Enable(SPI2);  
+
+  print_LPUART("Hello World\n");
+  print_measurement_LPUART(TEMPERATURE, 3.14);
+  print_measurement_LPUART(TEMPERATURE, -43120.14);
+  print_LPUART("\n\n");
+  LL_mDelay(1000);
 
   /* USER CODE END 2 */
 
@@ -121,10 +226,16 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    print_LPUART("Hello World\n");
+
+    // print_LPUART("About to transmit data\n");
+    const char *message = "hello friends!\n";
+    spi1_send_string(message);
+    // print_LPUART("Transmission done.\n\n");
     LL_mDelay(1000);
     /* USER CODE BEGIN 3 */
   }
+  LL_SPI_Disable(SPI1);
+  LL_SPI_Disable(SPI2);
   /* USER CODE END 3 */
 }
 
@@ -175,14 +286,6 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void print_LPUART(char* arr) {
-  uint32_t idx = 0;
-  while (arr[idx]) {
-    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
-    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
-    idx++;
-  }
-}
 /* USER CODE END 4 */
 
 /**
@@ -196,6 +299,7 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
+    print_LPUART("Error has occured!\n");
   }
   /* USER CODE END Error_Handler_Debug */
 }

@@ -34,4 +34,11 @@
 #define BCC_DEVICE_CNT_MAX 63U
 #define BCC_RX_BUF_SIZE_TPL (6U * (0x7FU + 1U))
 
+typedef enum {
+    VOLTAGE, 
+    TEMPERATURE,
+    BALL_TEMP,
+    SOC
+} Measurements;
+
 #endif

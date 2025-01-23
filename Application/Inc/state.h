@@ -2,11 +2,19 @@
 #define STATE_H
 
 typedef enum {
-    SHUTDOWN, 
-    CHARGE, 
-    PRE_CHARGE,
+    STANDBY,
+    PRECHARGE,
+    CHARGE,
     NORMAL, 
-    STANDBY
+    SHITDOWN
 } State;
+
+void shitdown();
+void standby();
+void precharge();
+void charge();
+void normal();
+void system_check();
+void check_charge();
 
 #endif
