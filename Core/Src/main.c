@@ -34,7 +34,6 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -67,7 +66,6 @@ void print_measurement_LPUART(Measurements type, float value);
 // communication
 uint8_t spi_send_string(const uint8_t *data, uint16_t length);
 uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
-
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -209,13 +207,6 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
-    // print_LPUART("About to transmit data\n");
-    // const char *message = "hello friends!\n";
-    // spi1_send_string(message);
-    // spi2_send_string(message);
-    // print_LPUART("Transmission done.\n\n");
-    // LL_mDelay(1000);
     
     acu_init();
     battery_init();
@@ -240,6 +231,12 @@ int main(void)
       default:
         break;
     }
+    print_LPUART("Hello World\n");
+    print_measurement_LPUART(TEMPERATURE, 3.14);
+    print_measurement_LPUART(TEMPERATURE, -43120.14);
+    print_LPUART("\n\n");
+    LL_mDelay(1000);
+
     /* USER CODE BEGIN 3 */
   }
   LL_SPI_Disable(SPI1);
@@ -294,6 +291,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
 /* USER CODE END 4 */
 
 /**
