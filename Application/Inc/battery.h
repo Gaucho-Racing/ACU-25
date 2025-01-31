@@ -3,8 +3,8 @@
 #define BATTERY_H
 
 #include "config.h"
-#include "bcc.h"
-#include "MC33771C.h"
+#include "bcc_communication.h"
+#include "string.h"
 
 typedef struct
 {
@@ -85,10 +85,8 @@ typedef struct
 } Battery;
 
 
-void read_battery();
-void send_battery();
-Battery_Status battery_init();
-Battery_Status battery_status();
-Battery_Status cell_balancing();
+bcc_status_t battery_init(Battery *bty);
+bcc_status_t init_registers(Battery * bty);
+bcc_status_t read_device_measurements(Battery * bty);
 
 #endif

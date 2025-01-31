@@ -1,11 +1,3 @@
-
-/*!
- * @file bcc_communication.h
- *
- * This file provides access to the basic low-level functions for both TPL and
- * SPI communication with MC33771C and MC33772C BCC devices.
- */
-
 #ifndef __BCC_COMMUNICATION_H
 #define __BCC_COMMUNICATION_H
 

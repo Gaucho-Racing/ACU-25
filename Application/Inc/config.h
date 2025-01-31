@@ -10,6 +10,11 @@
 #define CBX_SET 1.0
 #define RX_BUF_SIZE 8
 
+#define PIN_BCC_TX_CS 0
+#define PIN_BCC_TX_RST -1 // likely not used
+#define PIN_BCC_EN 6
+#define PIN_BCC_INT 9
+
 #define SPI_LOOP_TIMEOUT 500
 
 #define KEY_PRESSED     GPIO_PIN_RESET
@@ -32,9 +37,5 @@ typedef enum {
     BALL_TEMP,
     SOC
 } Measurements;
-
-typedef enum {
-    OV, UV, OT, UT, OK
-} Battery_Status;
 
 #endif
