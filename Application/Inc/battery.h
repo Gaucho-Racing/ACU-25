@@ -3,29 +3,71 @@
 #define BATTERY_H
 
 #include "config.h"
-#include <stdint.h>
-#include <stdio.h>
-
-typedef struct {
-
-    // standards
-    uint8_t device_count; //  num devices
-    uint16_t cellCnt[BCC_DEVICE_CNT_MAX]; // # connected cells to each BCC. [0] BCC with CID=1, [1] BCC with CID=2, etc.
-
-    // driver data
-    uint16_t cellMap[BCC_DEVICE_CNT_MAX]; 
-    uint8_t msgCntr[BCC_DEVICE_CNT_MAX + 1]; 
-    uint8_t rxBuf[BCC_RX_BUF_SIZE_TPL];
-    uint8_t txBuf[13];
-} config;
+#include "bcc.h"
+#include "MC33771C.h"
 
 typedef struct
 {
-    float cell_soc[140];
-    float bal_temp[140]; 
-    float cell_temp[140];
-    float cell_volt[140];
-    uint8_t cell_balancing[140];
+    const uint8_t address;
+    const uint16_t defaultVal;
+    const float value;
+} bcc_init_reg_t;
+
+static const bcc_init_reg_t init_regs[INIT_REG_CNT] = {
+    {MC33771C_GPIO_CFG1_OFFSET, MC33771C_GPIO_CFG1_POR_VAL, GPIO_CFG1},
+    {MC33771C_GPIO_CFG2_OFFSET, MC33771C_GPIO_CFG2_POR_VAL, GPIO_CFG2},
+    {MC33771C_TH_ALL_CT_OFFSET, MC33771C_TH_ALL_CT_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT14_OFFSET, MC33771C_TH_CT14_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT13_OFFSET, MC33771C_TH_CT13_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT12_OFFSET, MC33771C_TH_CT12_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT11_OFFSET, MC33771C_TH_CT11_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT10_OFFSET, MC33771C_TH_CT10_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT9_OFFSET, MC33771C_TH_CT9_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT8_OFFSET, MC33771C_TH_CT8_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT7_OFFSET, MC33771C_TH_CT7_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT6_OFFSET, MC33771C_TH_CT6_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT5_OFFSET, MC33771C_TH_CT5_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT4_OFFSET, MC33771C_TH_CT4_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT3_OFFSET, MC33771C_TH_CT3_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT2_OFFSET, MC33771C_TH_CT2_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_CT1_OFFSET, MC33771C_TH_CT1_POR_VAL, PRM_CELL_MAX_VOLT},
+    {MC33771C_TH_AN6_OT_OFFSET, MC33771C_TH_AN6_OT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN5_OT_OFFSET, MC33771C_TH_AN5_OT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN4_OT_OFFSET, MC33771C_TH_AN4_OT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN3_OT_OFFSET, MC33771C_TH_AN3_OT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN2_OT_OFFSET, MC33771C_TH_AN2_OT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN1_OT_OFFSET, MC33771C_TH_AN1_OT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN0_OT_OFFSET, MC33771C_TH_AN0_OT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN6_UT_OFFSET, MC33771C_TH_AN6_UT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN5_UT_OFFSET, MC33771C_TH_AN5_UT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN4_UT_OFFSET, MC33771C_TH_AN4_UT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN3_UT_OFFSET, MC33771C_TH_AN3_UT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN2_UT_OFFSET, MC33771C_TH_AN2_UT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN1_UT_OFFSET, MC33771C_TH_AN1_UT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_TH_AN0_UT_OFFSET, MC33771C_TH_AN0_UT_POR_VAL, CELL_MAX_TEMP},
+    {MC33771C_CB1_CFG_OFFSET, MC33771C_CB1_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB2_CFG_OFFSET, MC33771C_CB2_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB3_CFG_OFFSET, MC33771C_CB3_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB4_CFG_OFFSET, MC33771C_CB4_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB5_CFG_OFFSET, MC33771C_CB5_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB6_CFG_OFFSET, MC33771C_CB6_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB7_CFG_OFFSET, MC33771C_CB7_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB8_CFG_OFFSET, MC33771C_CB8_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB9_CFG_OFFSET, MC33771C_CB9_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB10_CFG_OFFSET, MC33771C_CB10_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB11_CFG_OFFSET, MC33771C_CB11_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB12_CFG_OFFSET, MC33771C_CB12_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB13_CFG_OFFSET, MC33771C_CB13_CFG_POR_VAL, CBX_SET},
+    {MC33771C_CB14_CFG_OFFSET, MC33771C_CB14_CFG_POR_VAL, CBX_SET}
+};
+
+typedef struct
+{
+    float cell_soc[NUM_CELL_IC*NUM_TOTAL_IC];
+    float bal_temp[NUM_CELL_IC*NUM_TOTAL_IC]; 
+    float cell_temp[NUM_CELL_IC*NUM_TOTAL_IC];
+    float cell_volt[NUM_CELL_IC*NUM_TOTAL_IC];
+    uint8_t cell_balancing[NUM_CELL_IC*NUM_TOTAL_IC];
     
     // stacks
     float stackVoltage[10];
@@ -34,21 +76,19 @@ typedef struct
     // stats
     float minCellVolt, maxCellVolt;
     float minChargeVolt, maxChargeVolt;
+    float batVoltage, batSOC;
+    float max_output_current;
 
-    // configuration
-    config driver_config;
+    // config
+    bcc_drv_config_t drvConfig;
 
-    // function pointers
-    void (*check_fuse)();
-    void (*check_status)();
-    void (*check_voltage)();
-    void (*print_measurements)();
-    void (*check_temperature)();
-    void (*read_device_measurements)();
-    void (*cell_balancing)(uint8_t, uint8_t, uint8_t, uint8_t);
+} Battery;
 
-    uint8_t (*system_check)(uint8_t);
 
-} battery;
+void read_battery();
+void send_battery();
+Battery_Status battery_init();
+Battery_Status battery_status();
+Battery_Status cell_balancing();
 
 #endif
