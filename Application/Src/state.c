@@ -15,9 +15,8 @@ void charge(){
 void normal(){
 
 }
-void system_check(){
 
-}
+// Other functions
 void check_charge(){
     
 }

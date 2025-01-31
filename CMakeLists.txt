@@ -54,7 +54,7 @@ file(GLOB_RECURSE APP_SOURCES Application/Src/*.c)
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+    # Don't ask me why they aren't the same thing, idk, but it was yelling at me b4hand so...
     ${APP_SOURCES}
     Application/Src/
 )
