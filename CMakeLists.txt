@@ -45,19 +45,24 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
+# get rid of unused-parameter
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wno-unused-parameter)
+
 # Add source files from Application/Src
 file(GLOB_RECURSE APP_SOURCES Application/Src/*.c)
+
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${APP_SOURCES}
+    Application/Src/
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
-    Application/Inc
+    Application/Inc/
 )
 
 # Add project symbols (macros)

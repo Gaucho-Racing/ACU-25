@@ -25,10 +25,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <math.h>
-#include "../../Application/Inc/acu.h"
-#include "../../Application/Inc/state.h"
-#include "../../Application/Test/debug.c"
+#include "acu.h"
+#include "state.h"
+#include "mcu.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,11 +46,11 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-
 /* USER CODE BEGIN PV */
 ACU acu;
 Battery battery;
-State state = STANDBY;
+State state;
+uint32_t BCC_MCU_Timeout_Start;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,9 +62,9 @@ void print_LPUART(char* arr);
 void print_float_LPUART(float value);
 void print_measurement_LPUART(Measurements type, float value);
 
-// communication
-uint8_t spi_send_string(const uint8_t *data, uint16_t length);
-uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
+// communication - generic, to delete later
+uint8_t spi_send(const uint8_t *data, uint16_t length);
+uint8_t spi_read(uint8_t *buffer, uint16_t length);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -109,7 +108,7 @@ void print_measurement_LPUART(Measurements type, float value){
 }
 
 // communication
-uint8_t spi_read_string(uint8_t *buffer, uint16_t length){
+uint8_t spi_read(uint8_t *buffer, uint16_t length){
 
     uint32_t counter = 0;
     while (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
@@ -119,7 +118,7 @@ uint8_t spi_read_string(uint8_t *buffer, uint16_t length){
     }
     return 0;
 }
-uint8_t spi_send_string(const uint8_t *data, uint16_t length) {
+uint8_t spi_send(const uint8_t *data, uint16_t length) {
 
     uint32_t counter = 0;
     while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
@@ -209,7 +208,7 @@ int main(void)
     /* USER CODE END WHILE */
     
     acu_init();
-    battery_init();
+    battery_init(&battery);
 
     // while loop
     switch(state){
