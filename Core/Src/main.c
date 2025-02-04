@@ -22,6 +22,7 @@
 #include "spi.h"
 #include "tim.h"
 #include "gpio.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "acu.h" // fetch bcc & other componentes here
@@ -45,6 +46,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+
 /* USER CODE BEGIN PV */
 
 // Devices & Sensors
@@ -76,6 +78,8 @@ void DWT_Delay_Init(void); // going to initialize our delay stuff
 // void print_measurement_LPUART(bcc_measurements type, float value);
 // uint8_t spi_send(const uint8_t *data, uint16_t length);
 // uint8_t spi_read(uint8_t *buffer, uint16_t length);
+
+void print_bcc_status(bcc_status_t bccStatus);
 
 /* USER CODE END PFP */
 
@@ -179,7 +183,8 @@ int setup(){
   bcc_error = BCC_Init(&(battery.drvConfig));
   uint8_t counter = TRIES;
   while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
-    print_lpuart("failed BCC_Init...\n");
+    print_lpuart("failed BCC_Init...");
+    print_bcc_status(bcc_error);
     LL_mDelay(1000);
     print_lpuart("retrying...\n");
     bcc_error = BCC_Init(&(battery.drvConfig));
@@ -283,7 +288,6 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM5_Init();
   MX_LPUART1_UART_Init();
-
   /* USER CODE BEGIN 2 */
 
   // enable delays to be calculated via 
@@ -295,11 +299,11 @@ int main(void)
   LL_SPI_Enable(SPI1);
   LL_SPI_Enable(SPI2);
 
-  // print_LPUART("Hello World\n");
+  print_lpuart("Hello World\n");
   // print_measurement_LPUART(TEMPERATURE, 3.14);
   // print_measurement_LPUART(TEMPERATURE, -43120.14);
   // print_LPUART("\n\n");
-  // LL_mDelay(1000);
+  LL_mDelay(1000);
 
   if(setup() != 0) state = SHITDOWN;
   
@@ -313,9 +317,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    // while loop
     switch(state){
       case (STANDBY):
         standby();
@@ -335,11 +336,11 @@ int main(void)
       default:
         break;
     }
-    // print_LPUART("Hello World\n");
+    print_lpuart("Hello World\n");
     // print_measurement_LPUART(TEMPERATURE, 3.14);
     // print_measurement_LPUART(TEMPERATURE, -43120.14);
-    // print_LPUART("\n\n");
-    // LL_mDelay(1000);
+    LL_mDelay(1000);
+    /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
@@ -395,7 +396,52 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void print_bcc_status(bcc_status_t bccStatus){
+  switch (bccStatus)
+  {
+  case BCC_STATUS_SUCCESS:
+      print_lpuart("Success\n");
+      break;
+  case BCC_STATUS_PARAM_RANGE:
+      print_lpuart("Parameter out of range\n");
+      break;
+  case BCC_STATUS_SPI_FAIL:
+      print_lpuart("SPI failed\n");
+      break;
+  case BCC_STATUS_COM_TIMEOUT:
+      print_lpuart("communication timeout\n");
+      break;
+  case BCC_STATUS_COM_ECHO:
+      print_lpuart("Echo frame doesn't correspond to sent frame\n");
+      break;
+  case BCC_STATUS_COM_CRC:
+      print_lpuart("CRC error\n");
+      break;
+  case BCC_STATUS_COM_MSG_CNT:
+      print_lpuart("Message counter mismatch\n");
+      break;
+  case BCC_STATUS_COM_NULL:
+      print_lpuart("NULL message\n");
+      break;
+  case BCC_STATUS_DIAG_FAIL:
+      print_lpuart("Diagnoctic mode not allowed\n");
+      break;
+  case BCC_STATUS_EEPROM_ERROR:
+      print_lpuart("EEPROM communication error\n");
+      break;
+  case BCC_STATUS_EEPROM_PRESENT:
+      print_lpuart("EEPROM device not detected\n");
+      break;
+  case BCC_STATUS_DATA_RDY:
+      print_lpuart("New convertion already running\n");
+      break;
+  case BCC_STATUS_TIMEOUT_START:
+      print_lpuart("BCC_MCU_StartTimeout function error\n");
+  default:
+      print_lpuart("Unknown status\n");
+      break;
+  }
+}
 /* USER CODE END 4 */
 
 /**

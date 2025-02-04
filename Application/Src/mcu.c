@@ -36,12 +36,10 @@ bool BCC_MCU_TimeoutExpired(void){
 
 void BCC_MCU_Assert(const bool x) {
   if (!x) print("BCC_MCU_Assert failed\n");
-  if (!x) print("BCC_MCU_Assert failed\n");
 }
 
 // ideally won't be using this
 bcc_status_t BCC_MCU_TransferSpi(const uint8_t drvInstance, uint8_t txBuf[], uint8_t rxBuf[]){
-    return BCC_STATUS_SUCCESS;
     return BCC_STATUS_SUCCESS;
 }
 
