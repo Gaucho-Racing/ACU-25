@@ -22,12 +22,11 @@
 #include "spi.h"
 #include "tim.h"
 #include "gpio.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "acu.h"
-#include "state.h"
-#include "mcu.h"
+#include "acu.h" // fetch bcc & other componentes here
+#include "mcu.h" // might not need
+#include "state.h" // fetch states
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,78 +46,85 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+
+// Devices & Sensors
 ACU acu;
 Battery battery;
-State state;
+
+uint16_t bcc_faults;
+bcc_status_t bcc_error;
 uint32_t BCC_MCU_Timeout_Start;
+
+// communication stuff - bcc
+uint32_t spiRx[10]; // Array to store received SPI data.
+volatile int spiRxIdx; //  Index for received SPI data
+volatile int spiRxComplete = 0; // Flag to indicate if SPI reception is complete
+
+// Theoretical stuff
+State state;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-// printing
-void print_LPUART(char* arr);
-void print_float_LPUART(float value);
-void print_measurement_LPUART(Measurements type, float value);
+// to delete functions
+void print_lpuart(char* arr);
+void DWT_Delay_Init(void); // going to initialize our delay stuff
 
-// communication - generic, to delete later
-uint8_t spi_send(const uint8_t *data, uint16_t length);
-uint8_t spi_read(uint8_t *buffer, uint16_t length);
+// void print_float_LPUART(float value);
+// void print_measurement_LPUART(bcc_measurements type, float value);
+// uint8_t spi_send(const uint8_t *data, uint16_t length);
+// uint8_t spi_read(uint8_t *buffer, uint16_t length);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-// printing
-void print_LPUART(char* arr) {
-  uint32_t idx = 0; // index
-  while (arr[idx]) {
-    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
-    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
-    idx++;
+/**************************************** printing
+  void print_float_LPUART(float value){
+    char buffer[8];
+    char *sign = (value < 0) ? "-": ""; // get sign
+    float signedFloat = (value < 0) ? -value : value;
+
+    int upper = (int)signedFloat;
+    float diff = signedFloat-upper;
+    int lower = (int)trunc(1000 * diff);
+
+    sprintf(buffer, "%s%d.%.03d\n", sign, upper, lower);
+    print_LPUART(buffer);
   }
-}
-void print_float_LPUART(float value){
-  char buffer[8];
-  char *sign = (value < 0) ? "-": ""; // get sign
-  float signedFloat = (value < 0) ? -value : value;
-
-  int upper = (int)signedFloat;
-  float diff = signedFloat-upper;
-  int lower = (int)trunc(1000 * diff);
-
-  sprintf(buffer, "%s%d.%.03d\n", sign, upper, lower);
-  print_LPUART(buffer);
-}
-void print_measurement_LPUART(Measurements type, float value){
+  void print_measurement_LPUART(bcc_measurements type, float value){
+    
+    switch (type){
+      case VOLTAGE:
+        print_LPUART("Volts: ");
+        break;
+      case TEMPERATURE:
+        print_LPUART("Temp: ");
+        break;
+      default:
+        print_LPUART("Error: ");
+        break;
+      }
+      print_float_LPUART(value);
+  }
+*/
+/**************************************** communication
   
-  switch (type){
-    case VOLTAGE:
-      print_LPUART("Volts: ");
-      break;
-    case TEMPERATURE:
-      print_LPUART("Temp: ");
-      break;
-    default:
-      print_LPUART("Error: ");
-      break;
-    }
-    print_float_LPUART(value);
-}
+  uint8_t spi_read(uint8_t *buffer, uint16_t length){
 
-// communication
-uint8_t spi_read(uint8_t *buffer, uint16_t length){
+      uint32_t counter = 0;
+      while (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
 
-    uint32_t counter = 0;
-    while (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
+      for (uint16_t i = 0; i < length; i++) {
+        buffer[i] = LL_SPI_ReceiveData8(SPI2);
+      }
+      return 0;
+  }
 
-    for (uint16_t i = 0; i < length; i++) {
-      buffer[i] = LL_SPI_ReceiveData8(SPI2);
-    }
-    return 0;
-}
-uint8_t spi_send(const uint8_t *data, uint16_t length) {
+  uint8_t spi_send(const uint8_t *data, uint16_t length) {
 
     uint32_t counter = 0;
     while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
@@ -128,8 +134,101 @@ uint8_t spi_send(const uint8_t *data, uint16_t length) {
     }
     while (LL_SPI_IsActiveFlag_BSY(SPI1));
     return 0;
+} */
+
+void print_lpuart(char* arr) {
+  uint32_t idx = 0; // index
+  while (arr[idx]) {
+    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
+    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
+    idx++;
+  }
 }
 
+// Enable DWT_Delay
+void DWT_Delay_Init(void){
+
+  // do we need to check (!CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk)?
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0;  // Reset counter
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; // Enable counter
+}
+
+
+
+
+// setup for bcc
+int setup(){
+  // setup battery configuring
+  print_lpuart("configuring bcc...\n");
+  battery.drvConfig.commMode = BCC_MODE_TPL;
+  battery.drvConfig.drvInstance = 0U;
+  battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
+  battery.drvConfig.loopBack = false;
+  for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+      battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
+      battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
+  }
+
+  // configure registers
+  init_registers(&battery);
+  LL_mDelay(1000);
+  
+  // init bcc
+  print_lpuart("calling BCC_Init...\n");
+  bcc_error = BCC_Init(&(battery.drvConfig));
+  uint8_t counter = TRIES;
+  while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
+    print_lpuart("failed BCC_Init...\n");
+    LL_mDelay(1000);
+    print_lpuart("retrying...\n");
+    bcc_error = BCC_Init(&(battery.drvConfig));
+  }
+  if (counter == 0){
+    state = SHITDOWN;
+    print_lpuart("you goon...\n");
+    return -1;
+  }
+  clear_faults(&(battery.drvConfig));
+  print_lpuart("successful BCC_Init...\n");
+
+  // configure cell balancing
+  for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
+  {
+      if((BCC_CB_Enable(&(battery.drvConfig), (bcc_cid_t)i+1,  true)) != BCC_STATUS_SUCCESS) {
+          print_lpuart("failed BCC_CB_Enable for cid [insert] ...\n");
+          state = SHITDOWN;
+          print_lpuart("you goon...\n");
+          return -1;
+      }
+  }
+  print_lpuart("successful BCC_CB_Enable...\n");
+  
+  print_lpuart("reading device measurements...\n");
+  if((bcc_error = read_device_measurements(&battery)) != BCC_STATUS_SUCCESS){
+      state = SHITDOWN;
+      print_lpuart("failed read_device_measurements...\n");
+      return -1;
+  }
+  BCC_MCU_WaitUs(500);
+  if((bcc_faults = check_volt(&battery)) != BCC_FS_FAULT3){ // default BCC_FS_FAULT3 to be no fault FOR NOW
+      state = SHITDOWN;
+      print_lpuart("failed check_volt...\n");
+      return -1;
+  }
+  
+  if((bcc_faults = check_temp(&battery)) != BCC_FS_FAULT3){
+      state = SHITDOWN;
+      print_lpuart("failed check_temp...\n");
+      return -1;
+  }
+  
+  print_lpuart("passed initial checks...\n");
+  // configure state
+  state = STANDBY;
+
+  return 0;
+}
 /* USER CODE END 0 */
 
 /**
@@ -187,17 +286,26 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
+  // enable delays to be calculated via 
+  DWT_Delay_Init();
+
   // state default
 
   /* Enable the SPI peripherals */
   LL_SPI_Enable(SPI1);
   LL_SPI_Enable(SPI2);
 
-  print_LPUART("Hello World\n");
-  print_measurement_LPUART(TEMPERATURE, 3.14);
-  print_measurement_LPUART(TEMPERATURE, -43120.14);
-  print_LPUART("\n\n");
-  LL_mDelay(1000);
+  // print_LPUART("Hello World\n");
+  // print_measurement_LPUART(TEMPERATURE, 3.14);
+  // print_measurement_LPUART(TEMPERATURE, -43120.14);
+  // print_LPUART("\n\n");
+  // LL_mDelay(1000);
+
+  if(setup() != 0) state = SHITDOWN;
+  
+  // setup acu
+  acu.bty = &battery;
+  acu.rx_buff = spiRx;
 
   /* USER CODE END 2 */
 
@@ -206,9 +314,6 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    
-    acu_init();
-    battery_init(&battery);
 
     // while loop
     switch(state){
@@ -230,11 +335,11 @@ int main(void)
       default:
         break;
     }
-    print_LPUART("Hello World\n");
-    print_measurement_LPUART(TEMPERATURE, 3.14);
-    print_measurement_LPUART(TEMPERATURE, -43120.14);
-    print_LPUART("\n\n");
-    LL_mDelay(1000);
+    // print_LPUART("Hello World\n");
+    // print_measurement_LPUART(TEMPERATURE, 3.14);
+    // print_measurement_LPUART(TEMPERATURE, -43120.14);
+    // print_LPUART("\n\n");
+    // LL_mDelay(1000);
 
     /* USER CODE BEGIN 3 */
   }
@@ -304,7 +409,7 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
-    print_LPUART("Error has occured!\n");
+    // print_LPUART("Error has occured!\n");
   }
   /* USER CODE END Error_Handler_Debug */
 }

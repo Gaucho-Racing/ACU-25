@@ -1,6 +1,47 @@
 #include "battery.h"
 
-bcc_status_t read_device_measurements(Battery * bty) {
+void clear_faults(bcc_drv_config_t * drvConfig)
+{
+    bcc_status_t status;
+    for (uint8_t ic = 1; ic <= NUM_CELL_IC; ic++)
+    {
+        bcc_cid_t cid = (bcc_cid_t)ic;
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_CELL_OV);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_CELL_UV);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_CB_OPEN);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_CB_SHORT);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_GPIO_STATUS);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_AN_OT_UT);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_GPIO_SHORT);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_COMM);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_FAULT1);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_FAULT2);
+        status = BCC_Fault_ClearStatus(drvConfig, cid, BCC_FS_FAULT3);
+        if(status != BCC_STATUS_SUCCESS) return;
+    }
+}
+
+bcc_status_t init_registers(Battery * bty)
+{
+    uint8_t cid, i;
+    bcc_status_t status;
+    for (cid = 1; cid <= bty->drvConfig.devicesCnt; cid++)
+    {
+        for (i = 0; i < INIT_REG_CNT; i++)
+        {
+            if (init_regs[i].value != init_regs[i].defaultVal)
+            {
+                status = BCC_Reg_Write(&(bty->drvConfig), (bcc_cid_t)cid,
+                        init_regs[i].address, init_regs[i].value);
+                    if(status != BCC_STATUS_SUCCESS) return status;
+            }
+        }
+    }
+    return BCC_STATUS_SUCCESS;
+}
+
+bcc_status_t read_device_measurements(Battery * bty) 
+{
     
     uint32_t measurements[NUM_CELL_IC];
     int16_t temp_measures[NUM_CELL_IC];
@@ -42,66 +83,99 @@ bcc_status_t read_device_measurements(Battery * bty) {
     return BCC_STATUS_SUCCESS;
 }
 
-bcc_status_t init_registers(Battery * bty)
+bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable)
 {
-    uint8_t cid, i;
-    bcc_status_t status;
-    for (cid = 1; cid <= bty->drvConfig.devicesCnt; cid++)
-    {
-        for (i = 0; i < INIT_REG_CNT; i++)
+    bcc_status_t errors = BCC_STATUS_SUCCESS;
+
+    // set groups
+    if(all){
+        for(uint8_t i = 0; i < NUM_TOTAL_IC; i++) // should be 1 right now
         {
-            if (init_regs[i].value != init_regs[i].defaultVal)
+            for(uint8_t j = 0; j < NUM_CELL_IC; j++) // should be 14 right now
             {
-                status = BCC_Reg_Write(&(bty->drvConfig), (bcc_cid_t)cid,
-                        init_regs[i].address, init_regs[i].value);
-                    if(status != BCC_STATUS_SUCCESS) return status;
+                
+                if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)i+1,  j, enable, 0)) != BCC_STATUS_SUCCESS) {
+                    // BCC_Fault_GetStatus(&(bty->drvConfig), i, buff);
+                    // BCC_Fault_GetStatus(&(bty->drvConfig), i, buff);
+                    return errors;
+                }
+                bty->cell_balancing[i*j+j] = enable == true ? 255 : 0;
+            }
+        }
+        return errors;
+    }
+    
+    if(cellIndex >= NUM_CELL_IC){
+        // Serial.println("Invalid cell index");
+        return errors;
+    }
+
+    // set individuals
+    if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), cid, cellIndex, enable, 0)) != BCC_STATUS_SUCCESS) {
+        // BCC_Fault_GetStatus(&(bty->drvConfig), cid, buff);
+        // BCC_Fault_GetStatus(&(bty->drvConfig), cid, buff);
+        return errors;
+    }
+    bty->cell_balancing[(uint8_t)cid*cellIndex+cellIndex] = enable == true ? 255 : 0;
+    return errors;
+}
+
+bcc_status_t check_temp(Battery *bty){
+    for(int i = 0; i < NUM_TOTAL_IC; i++){
+        for(int j = 0; j < (NUM_CELL_IC); i++){
+            if(bty->cell_temp[i*NUM_CELL_IC + j] > CELL_MAX_TEMP){
+                bty->faults = BCC_FS_AN_OT_UT;
+                return BCC_STATUS_DIAG_FAIL;
+            }
+            if(bty->cell_temp[i*NUM_CELL_IC + j] < CELL_MIN_TEMP){
+                bty->faults = BCC_FS_AN_OT_UT;
+                return BCC_STATUS_DIAG_FAIL;
             }
         }
     }
     return BCC_STATUS_SUCCESS;
 }
 
-bcc_status_t battery_init(Battery *bty){
-    // init BCC, TPL, Regs
-    bcc_status_t errors = BCC_STATUS_SUCCESS;
-    
-    errors = init_registers(bty);
-    if(errors != BCC_STATUS_SUCCESS) return errors;
-
-    // configure cell balancing
-    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
-    {
-        bcc_status_t status = BCC_CB_Enable(&(bty->drvConfig), (bcc_cid_t)i+1,  true);
-        if(status != BCC_STATUS_SUCCESS) return status;
+bcc_status_t check_volt(Battery *bty) {
+    for(int i = 0; i < NUM_TOTAL_IC; i++){
+        for(int j = 0; j < NUM_CELL_IC; j++){
+            if(bty->cell_volt[i*NUM_CELL_IC + j] > CELL_MAX_VOLT){
+                bty->faults = BCC_FS_CELL_OV;
+                return BCC_STATUS_DIAG_FAIL;
+            }
+            else if(bty->cell_volt[i*NUM_CELL_IC + j] < CELL_MIN_VOLT){
+                bty->faults = BCC_FS_CELL_UV;
+                return BCC_STATUS_DIAG_FAIL;
+            }
+        }
     }
-
-    read_device_measurements(bty);
-    BCC_MCU_WaitUs(500);
-
-    // print("cell_OV_Threshold: ");
-    // print_float(CELL_MAX_VOLT);
-    // print(", cell_UV_Threshold: ");
-    // print_float(CELL_MIN_VOLT);
-    // print("\n");
-
-    if(errors != BCC_STATUS_SUCCESS) return errors;
-
-    // diagnose cell voltages
-    // check_volt();
-    // if(errors != BCC_STATUS_SUCCESS) return errors;
-
-    // diagnose cell temp
-    // print("cell_OT_Threshold: ");
-    // print_float(CELL_MAX_TEMP);
-    // print(", cell_UT_Threshold: ");
-    // print_float(CELL_MIN_TEMP);
-    // print("\n");
-
-    // check_temp();
-
-    if(errors != BCC_STATUS_SUCCESS) return errors;
-
-    // enable cell balancing
-    // toggleCellBalancing(true, true, BCC_CID_UNASSIG, 0);
     return BCC_STATUS_SUCCESS;
+}
+
+bool system_check(Battery *bty, bool startup){
+    bcc_status_t errors = BCC_STATUS_SUCCESS;
+    if((errors = read_device_measurements(bty))!= BCC_STATUS_SUCCESS){
+        return errors;
+    }
+    if((errors = check_temp(bty))!= BCC_STATUS_SUCCESS){
+        return false;
+    }
+    if((errors = check_volt(bty))!= BCC_STATUS_SUCCESS){
+        return false;
+    }
+    return errors;
+}
+
+bool check_faults(Battery *bty) {
+    
+    uint16_t fault;
+    bcc_status_t status = BCC_STATUS_SUCCESS; // status of all devices
+    bool faults = false;
+
+    for(int i = 0; i <= NUM_TOTAL_IC; i++){    
+        if((status = BCC_Fault_GetStatus(&(bty->drvConfig), (bcc_cid_t)i, &fault)) != BCC_STATUS_SUCCESS){
+            faults = true;
+        }
+    }
+    return faults;
 }

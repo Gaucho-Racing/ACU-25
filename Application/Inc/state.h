@@ -3,6 +3,7 @@
 
 #include "acu.h"
 
+// Typedef
 typedef enum {
     STANDBY,
     PRECHARGE,
@@ -11,15 +12,19 @@ typedef enum {
     SHITDOWN
 } State;
 
+// State Functions
 void shitdown();
 void standby();
 void precharge();
 void charge();
 void normal();
-void system_check();
+
+// Other Functions
 void check_charge();
 
+// Externs
 extern ACU acu;
 extern Battery battery;
+extern uint16_t bcc_faults;
 extern State state;
 #endif
