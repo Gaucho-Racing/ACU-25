@@ -56,6 +56,7 @@ Battery battery;
 uint16_t bcc_faults;
 bcc_status_t bcc_error;
 uint32_t BCC_MCU_Timeout_Start;
+uint32_t BCC_MCU_Timeout_length = 0;
 
 // communication stuff - bcc
 uint32_t spiRx[10]; // Array to store received SPI data.
@@ -72,13 +73,12 @@ void SystemClock_Config(void);
 
 // to delete functions
 void print_lpuart(char* arr);
-void DWT_Delay_Init(void); // going to initialize our delay stuff
 
 // void print_float_LPUART(float value);
 // void print_measurement_LPUART(bcc_measurements type, float value);
 // uint8_t spi_send(const uint8_t *data, uint16_t length);
 // uint8_t spi_read(uint8_t *buffer, uint16_t length);
-
+void DWT_Delay_Init();
 void print_bcc_status(bcc_status_t bccStatus);
 
 /* USER CODE END PFP */
@@ -149,15 +149,6 @@ void print_lpuart(char* arr) {
   }
 }
 
-// Enable DWT_Delay
-void DWT_Delay_Init(void){
-
-  // do we need to check (!CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk)?
-    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-    DWT->CYCCNT = 0;  // Reset counter
-    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; // Enable counter
-}
-
 
 
 
@@ -170,13 +161,9 @@ int setup(){
   battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
   battery.drvConfig.loopBack = false;
   for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
-      battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
-      battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
+    battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
+    battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
   }
-
-  // configure registers
-  init_registers(&battery);
-  LL_mDelay(1000);
   
   // init bcc
   print_lpuart("calling BCC_Init...\n");
@@ -194,6 +181,8 @@ int setup(){
     print_lpuart("you goon...\n");
     return -1;
   }
+
+  init_registers(&battery);
   clear_faults(&(battery.drvConfig));
   print_lpuart("successful BCC_Init...\n");
 
@@ -289,15 +278,15 @@ int main(void)
   MX_TIM5_Init();
   MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
-  // enable delays to be calculated via 
   DWT_Delay_Init();
 
-  // state default
-
   /* Enable the SPI peripherals */
+  BCC_MCU_WriteCsbPin(0, 1);
   LL_SPI_Enable(SPI1);
   LL_SPI_Enable(SPI2);
+
+  // enable microsecond timer
+  LL_TIM_EnableCounter(TIM5);
 
   print_lpuart("Hello World\n");
   // print_measurement_LPUART(TEMPERATURE, 3.14);
@@ -396,6 +385,15 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+// Enable DWT_Delay
+void DWT_Delay_Init(void){
+  // do we need to check (!CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk)?
+  // don't know but it works so I'm not touching this
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;  // Reset counter
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; // Enable counter
+}
+
 void print_bcc_status(bcc_status_t bccStatus){
   switch (bccStatus)
   {
@@ -437,6 +435,7 @@ void print_bcc_status(bcc_status_t bccStatus){
       break;
   case BCC_STATUS_TIMEOUT_START:
       print_lpuart("BCC_MCU_StartTimeout function error\n");
+      break;
   default:
       print_lpuart("Unknown status\n");
       break;
@@ -455,7 +454,8 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
-    // print_LPUART("Error has occured!\n");
+    print_LPUART("Error has occured!\n");
+    LL_mDelay(100);
   }
   /* USER CODE END Error_Handler_Debug */
 }

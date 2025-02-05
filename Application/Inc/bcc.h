@@ -41,7 +41,7 @@ extern "C" {
 
 /*! @brief Number of consecutive bytes reserved for each SPI frame in buffers
  * passed to BCC_MCU_Transfer* functions (i.e. SPI frame alignment). */
-#define BCC_MSG_SIZE              8U
+#define BCC_MSG_SIZE              6U
 
 /*! @brief Index to Register data byte (higher byte) of SPI frame in the
  * buffers passed to BCC_MCU_Transfer* functions.

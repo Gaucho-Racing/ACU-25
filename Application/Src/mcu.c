@@ -1,37 +1,36 @@
 #include "mcu.h"
 
 extern uint32_t BCC_MCU_Timeout_Start;
+extern uint32_t BCC_MCU_Timeout_length;
 extern uint32_t spiRx[10];
+extern void print_lpuart(char* arr);
+
+#define SYSTICK_LOAD (SystemCoreClock/1000000U)
+#define SYSTICK_DELAY_CALIB (SYSTICK_LOAD >> 1)
 
 // use LL_mDelay() to set delay
 void BCC_MCU_WaitMs(uint16_t delay) {
     LL_mDelay(delay);
-    LL_mDelay(delay);
 }
 
-// unfortunately no LL_uDelay() :( so we do this heinous stuff
 void BCC_MCU_WaitUs(uint32_t delay) {
     uint32_t clk_cycle_start = DWT->CYCCNT;
-
-     // Convert microseconds to CPU cycles
-    uint32_t clk_cycles = (SystemCoreClock / 1e6) * delay; 
+    uint32_t clk_cycles = (SystemCoreClock / 1000000U) * delay;
     while ((DWT->CYCCNT - clk_cycle_start) < clk_cycles);
 }
 
 bcc_status_t BCC_MCU_StartTimeout(uint32_t timeoutUs){
-    BCC_MCU_Timeout_Start = DWT->CYCCNT;
-    BCC_MCU_WaitUs(timeoutUs);
-    bool result = BCC_MCU_TimeoutExpired();
-    if(result == false){
-        return BCC_STATUS_TIMEOUT_START;
-    }
+    char printBuffer[256];
+    sprintf(printBuffer, "BCC_MCU_StartTimeout:%lu\n", timeoutUs);
+    print_lpuart(printBuffer);
+    BCC_MCU_Timeout_Start = TIM5->CNT;
+    BCC_MCU_Timeout_length = timeoutUs;
     return BCC_STATUS_SUCCESS;
+    // don't know how this thing would fail
 }
 
-// i think?
 bool BCC_MCU_TimeoutExpired(void){
-    uint32_t time = (SystemCoreClock / 1e6) * 1000;
-    return (DWT->CYCCNT - BCC_MCU_Timeout_Start) < time;
+    return (TIM5->CNT - BCC_MCU_Timeout_Start) > BCC_MCU_Timeout_length;
 }
 
 void BCC_MCU_Assert(const bool x) {
@@ -52,7 +51,6 @@ bcc_status_t BCC_MCU_TransferTpl(const uint8_t drvInstance, uint8_t txBuf[], uin
 
     // send
     if(spi_send_string(txBuf, BCC_MSG_SIZE) != 0) return BCC_STATUS_SPI_FAIL;
-    BCC_MCU_WaitUs(1);
     // receive
     for (uint16_t rxCount = 0; rxCount < recvTrCnt; rxCount++) {
         memset(buffer, '\0', BCC_MSG_SIZE);
@@ -98,6 +96,5 @@ void BCC_MCU_WriteEnPin(const uint8_t drvInstance, const uint8_t value) {
 
 // use GPIOB11
 uint32_t BCC_MCU_ReadIntbPin(const uint8_t drvInstance) {
-    return (LL_GPIO_ReadInputPort(GPIOB)&(1U<<11)) != 0;
-    return 1;
+    return (GPIOB->IDR&(1U<<11)) != 0;
 }
