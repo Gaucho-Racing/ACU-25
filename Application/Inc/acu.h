@@ -20,10 +20,6 @@ typedef struct {
     Charger * chgr;
     Imd * imd;
 
-    uint32_t fd_canBuff[8];      // connection to ECU
-
-    uint32_t * tx_buff;       // full duplex master, NSS disabled ==> BCC
-    uint32_t * rx_buff;       // full duplex slave, NSS enabled   ==> BCC
 } ACU;
 
 void acu_init();

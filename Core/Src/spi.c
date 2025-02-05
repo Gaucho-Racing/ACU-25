@@ -135,6 +135,10 @@ void MX_SPI2_Init(void)
   GPIO_InitStruct.Alternate = LL_GPIO_AF_5;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /* SPI2 interrupt Init */
+  NVIC_SetPriority(SPI2_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),0, 0));
+  NVIC_EnableIRQ(SPI2_IRQn);
+
   /* USER CODE BEGIN SPI2_Init 1 */
 
   /* USER CODE END SPI2_Init 1 */

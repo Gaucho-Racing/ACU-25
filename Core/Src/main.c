@@ -58,10 +58,11 @@ bcc_status_t bcc_error;
 uint32_t BCC_MCU_Timeout_Start;
 uint32_t BCC_MCU_Timeout_length = 0;
 
-// communication stuff - bcc
-uint32_t spiRx[10]; // Array to store received SPI data.
-volatile int spiRxIdx; //  Index for received SPI data
-volatile int spiRxComplete = 0; // Flag to indicate if SPI reception is complete
+// communication stuff - TPL
+volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data
+volatile uint8_t TPL_RxBufferLevel = 0; // Number of bytes to be read
+volatile uint8_t TPL_RxBufferBottom = 0; // Index of oldest data
+volatile uint8_t TPL_RxBufferTop = 0; // Index of newest data
 
 // Theoretical stuff
 State state;
@@ -284,6 +285,7 @@ int main(void)
   BCC_MCU_WriteCsbPin(0, 1);
   LL_SPI_Enable(SPI1);
   LL_SPI_Enable(SPI2);
+  LL_SPI_EnableIT_RXNE(SPI2);
 
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
@@ -298,7 +300,6 @@ int main(void)
   
   // setup acu
   acu.bty = &battery;
-  acu.rx_buff = spiRx;
 
   /* USER CODE END 2 */
 

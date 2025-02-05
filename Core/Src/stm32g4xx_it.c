@@ -41,12 +41,15 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+extern volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data
+extern volatile uint8_t TPL_RxBufferLevel; // Number of bytes to be read
+extern volatile uint8_t TPL_RxBufferBottom; // Index of oldest data
+extern volatile uint8_t TPL_RxBufferTop; // Index of newest data
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-
+extern void print_lpuart(char* arr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -197,6 +200,25 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32g4xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles SPI2 global interrupt.
+  */
+void SPI2_IRQHandler(void)
+{
+  /* USER CODE BEGIN SPI2_IRQn 0 */
+  if (TPL_RxBufferLevel == 255U) return;
+  if (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {
+    print_lpuart("This shouldn't happen...");
+    return;
+  }
+  /* USER CODE END SPI2_IRQn 0 */
+  /* USER CODE BEGIN SPI2_IRQn 1 */
+  TPL_RxBufferLevel++;
+  TPL_RxBuffer[TPL_RxBufferTop] = LL_SPI_ReceiveData8(SPI2);
+  TPL_RxBufferTop++;
+  /* USER CODE END SPI2_IRQn 1 */
+}
 
 /* USER CODE BEGIN 1 */
 
