@@ -183,7 +183,12 @@ int setup(){
     return -1;
   }
 
-  init_registers(&battery);
+  bcc_error = init_registers(&battery);
+  while (bcc_error != BCC_STATUS_SUCCESS) {
+    print_lpuart("failed init_registers...");
+    LL_mDelay(1000);
+    bcc_error = init_registers(&battery);
+  }
   clear_faults(&(battery.drvConfig));
   print_lpuart("successful BCC_Init...\n");
 
@@ -300,13 +305,14 @@ int main(void)
   
   // setup acu
   acu.bty = &battery;
-
+  print_lpuart("Hello World\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    system_check(&battery, false);
     switch(state){
       case (STANDBY):
         standby();
@@ -326,10 +332,8 @@ int main(void)
       default:
         break;
     }
-    print_lpuart("Hello World\n");
     // print_measurement_LPUART(TEMPERATURE, 3.14);
     // print_measurement_LPUART(TEMPERATURE, -43120.14);
-    LL_mDelay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -455,8 +459,8 @@ void Error_Handler(void)
   __disable_irq();
   while (1)
   {
-    print_LPUART("Error has occured!\n");
-    LL_mDelay(100);
+    print_lpuart("Error has occured!\n");
+    LL_mDelay(1000);
   }
   /* USER CODE END Error_Handler_Debug */
 }

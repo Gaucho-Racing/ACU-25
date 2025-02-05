@@ -153,9 +153,9 @@ bcc_status_t check_volt(Battery *bty) {
 }
 
 bool system_check(Battery *bty, bool startup){
-    bcc_status_t errors = BCC_STATUS_SUCCESS;
-    if((errors = read_device_measurements(bty))!= BCC_STATUS_SUCCESS){
-        return errors;
+    bcc_status_t errors = read_device_measurements(bty);
+    if(errors != BCC_STATUS_SUCCESS){
+        return false;
     }
     if((errors = check_temp(bty))!= BCC_STATUS_SUCCESS){
         return false;
@@ -163,7 +163,7 @@ bool system_check(Battery *bty, bool startup){
     if((errors = check_volt(bty))!= BCC_STATUS_SUCCESS){
         return false;
     }
-    return errors;
+    return true;
 }
 
 bool check_faults(Battery *bty) {
