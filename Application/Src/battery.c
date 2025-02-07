@@ -106,7 +106,7 @@ bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellInd
     }
     
     if(cellIndex >= NUM_CELL_IC){
-        // Serial.println("Invalid cell index");
+        // print("Invalid cell index");
         return errors;
     }
 
@@ -152,6 +152,10 @@ bcc_status_t check_volt(Battery *bty) {
     return BCC_STATUS_SUCCESS;
 }
 
+bcc_status_t check_fuse(Battery *bty){
+    return BCC_STATUS_SUCCESS;
+}
+
 bool system_check(Battery *bty, bool startup){
     bcc_status_t errors = read_device_measurements(bty);
     if(errors != BCC_STATUS_SUCCESS){
@@ -161,6 +165,9 @@ bool system_check(Battery *bty, bool startup){
         return false;
     }
     if((errors = check_volt(bty))!= BCC_STATUS_SUCCESS){
+        return false;
+    }
+    if((errors = check_fuse(bty))!= BCC_STATUS_SUCCESS){
         return false;
     }
     return true;
@@ -178,4 +185,81 @@ bool check_faults(Battery *bty) {
         }
     }
     return faults;
+}
+
+// dump temp measurements
+void print_temperature(Battery * bty){
+    float_t min_temp = __FLT_MAX__, max_temp = __FLT_MIN__;
+    print("Cell Temp: ------------------------------\n");
+    for(int i = 0; i < (NUM_TOTAL_IC); i++){
+
+        print("Row ");
+        print_decimal(i);
+        print(" => ");
+
+        for (int j = 0; j < NUM_CELL_IC; j++){
+            
+            print("[Cell ");
+            print_decimal(j);
+            min_temp = fmin(min_temp, bty->cell_temp[i]);
+            max_temp = fmax(max_temp, bty->cell_temp[i]);
+
+            print_float(bty->cell_temp[i] * 0.1);
+            if(bty->cell_temp[i] < CELL_MIN_TEMP){
+                print("| Under] ");
+
+            } else if (bty->cell_temp[i] > CELL_MAX_TEMP){
+                print("| Over] ");
+            }
+            else{
+                print("] ");
+            }
+        }
+        print("\n");
+        print("Min temp: ");
+        print_float(min_temp);
+        print(" | Max temp: ");
+        print_float(max_temp);
+        print("\n");
+    }
+    print("-----------------------------------------\n");
+}
+
+// dump voltage measurements
+void print_voltage(Battery *bty){
+    float_t min_volt = __FLT_MAX__, max_volt = __FLT_MIN__;
+    print("Cell Voltage: --------------------------\n");
+    for(int i = 0; i < (NUM_TOTAL_IC); i++){
+        
+        print("Row ");
+        print_decimal(i);
+        print(" => ");
+
+        for (int j = 0; j < NUM_CELL_IC; j++){
+            
+            print("[Cell ");
+            print_decimal(j);
+
+            min_volt = fmin(min_volt, bty->cell_volt[i]);
+            max_volt = fmax(max_volt, bty->cell_volt[i]);
+
+            print_float(bty->cell_volt[i]);
+            if(bty->cell_volt[i] < CELL_MIN_VOLT){
+                print("| Under] ");
+
+            } else if (bty->cell_volt[i] > CELL_MAX_VOLT){
+                print("| Over] ");
+            }
+            else{
+                print("] ");
+            }
+        }
+        print("\n");
+        print("Min volt: ");
+        print_float(min_volt);
+        print(" | Max volt: ");
+        print_float(max_volt);
+        print("\n");
+    }
+    print("-----------------------------------------\n");
 }

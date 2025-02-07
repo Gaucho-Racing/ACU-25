@@ -211,13 +211,13 @@ int setup(){
       return -1;
   }
   BCC_MCU_WaitUs(500);
-  if((bcc_faults = check_volt(&battery)) != BCC_FS_FAULT3){ // default BCC_FS_FAULT3 to be no fault FOR NOW
+  if((bcc_faults = check_volt(&battery)) != BCC_STATUS_SUCCESS){ 
       state = SHITDOWN;
       print_lpuart("failed check_volt...\n");
       return -1;
   }
   
-  if((bcc_faults = check_temp(&battery)) != BCC_FS_FAULT3){
+  if((bcc_faults = check_temp(&battery)) != BCC_STATUS_SUCCESS){
       state = SHITDOWN;
       print_lpuart("failed check_temp...\n");
       return -1;

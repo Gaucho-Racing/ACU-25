@@ -93,9 +93,13 @@ bcc_status_t read_device_measurements(Battery * bty);
 bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable);
 bcc_status_t check_volt(Battery *bty);
 bcc_status_t check_temp(Battery *bty);
+bcc_status_t check_fuse(Battery *bty);
 
 bool system_check(Battery *bty, bool startup);
 bool check_faults(Battery *bty);
 void clear_faults(bcc_drv_config_t * drvConfig);
+
+void print_temperature(Battery * bty);
+void print_voltage(Battery *bty);
 
 #endif

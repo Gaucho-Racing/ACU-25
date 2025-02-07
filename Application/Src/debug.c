@@ -26,7 +26,13 @@ void print_float(float value){
   float diff = signedFloat-upper;
   int lower = (int)trunc(1000 * diff);
 
-  sprintf(buffer, "%s%d.%.03d\n", sign, upper, lower);
+  sprintf(buffer, "%s%d.%.03d", sign, upper, lower);
+  print(buffer);
+}
+
+void print_decimal(int value){
+  char buffer[8];
+  sprintf(buffer, "%d ", value);
   print(buffer);
 }
 
