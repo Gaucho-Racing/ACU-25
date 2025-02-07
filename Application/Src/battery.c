@@ -1,5 +1,10 @@
 #include "battery.h"
 
+extern void print_lpuart(char* arr);
+extern void print_bcc_status(bcc_status_t bccStatus);
+extern void print_bcc_fault(bcc_fault_status_t fault);
+
+
 void clear_faults(bcc_drv_config_t * drvConfig)
 {
     bcc_status_t status;
@@ -40,6 +45,18 @@ bcc_status_t init_registers(Battery * bty)
     return BCC_STATUS_SUCCESS;
 }
 
+void print_temp(const float * temperatures, const uint8_t cid, uint8_t index){
+    char printBuff[32];
+    sprintf(printBuff, "Row %u, Cell %u: %.3f\n", cid, index, temperatures[index]);
+    print_lpuart(printBuff);
+}
+
+void print_volt(const float * voltages, const uint8_t cid, uint8_t index){
+    char printBuff[32];
+    sprintf(printBuff, "Row %u, Cell %u: %.3f\n", cid, index, voltages[index]);
+    print_lpuart(printBuff);
+}
+
 bcc_status_t read_device_measurements(Battery * bty) 
 {
     
@@ -47,36 +64,58 @@ bcc_status_t read_device_measurements(Battery * bty)
     int16_t temp_measures[NUM_CELL_IC];
     bcc_status_t error;
 
-    bzero(measurements, NUM_TOTAL_IC);
+    bzero(measurements, sizeof(measurements));
 
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
         BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true); // pause b4 read
 
-        if(true){ // get cell & stack voltage
+        if(true){
             BCC_Meas_StartAndWait(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_AVG_1);
             error = BCC_Meas_GetCellVoltages(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
-            if(error != BCC_STATUS_SUCCESS) return error;
-            for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-                bty->cell_volt[i*NUM_CELL_IC + j] = measurements[j] * 1e-6f;
+            if(error != BCC_STATUS_SUCCESS) {
+                print_lpuart("\nerror in BCC_Meas_GetCellVoltages: ");
+                print_bcc_status(error);
+                // return error;
             }
-            bzero(measurements, NUM_TOTAL_IC);
+            for (uint8_t j = 0; j < NUM_CELL_IC; j++){
+                bty->cell_volt[(i*NUM_CELL_IC)+j] = (measurements[j] * 1e-6f);
+            }
+
+            bzero(measurements, sizeof(measurements));
             error = BCC_Meas_GetStackVoltage(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
-            if(error != BCC_STATUS_SUCCESS) return error;
+
+            if(error != BCC_STATUS_SUCCESS) {
+                // print_lpuart("\nerror in BCC_Meas_GetStackVoltage: ");
+                // print_bcc_status(error);
+                // return error;
+            }
         }
 
-        if(true){ // get IC temperature
-            bzero(temp_measures, NUM_CELL_IC);
+        if(true){
+            bzero(temp_measures, sizeof(temp_measures));
             error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, temp_measures);
-            bty->icTemp[i] = temp_measures[i] * 0.1f; // when printing make sure to multiply by 0.1
+            bty->icTemp[i] = temp_measures[i] * 0.1f;
+            if(error != BCC_STATUS_SUCCESS) {
+                print_lpuart("error in BCC_Meas_GetIcTemperature: ");
+                print_bcc_status(error);
+                // return error;
+            }
         }
 
-        // if(true){
-        //     for(uint8_t j = 0; j < 32; j++) { // TODO: fix this loop
-        //         uint8_t readByte;
-        //         error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
-        //         if (error == BCC_STATUS_SUCCESS) bty->cell_temp[i*NUM_CELL_IC + j] = (float)readByte;
-        //     }
-        // }
+        if(true){
+            for(uint8_t j = 0; j < 32; j++) { // TODO: fix this loop
+                uint8_t readByte;
+                error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
+                if (error == BCC_STATUS_SUCCESS) {
+                    bty->cell_temp[i*NUM_CELL_IC + j] = (float)(readByte * 0.1f);
+                }
+                if(error != BCC_STATUS_SUCCESS) {
+                    print_lpuart("error in BCC_EEPROM_Read: ");
+                    print_bcc_status(error);
+                    // return error;
+                }
+            }
+        }
 
         BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), false); // resume after read
     }
@@ -86,49 +125,56 @@ bcc_status_t read_device_measurements(Battery * bty)
 bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable)
 {
     bcc_status_t errors = BCC_STATUS_SUCCESS;
-
-    // set groups
+    // set all
     if(all){
-        for(uint8_t i = 0; i < NUM_TOTAL_IC; i++) // should be 1 right now
+        for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
         {
-            for(uint8_t j = 0; j < NUM_CELL_IC; j++) // should be 14 right now
-            {
-                
-                if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)i+1,  j, enable, 0)) != BCC_STATUS_SUCCESS) {
-                    // BCC_Fault_GetStatus(&(bty->drvConfig), i, buff);
-                    // BCC_Fault_GetStatus(&(bty->drvConfig), i, buff);
-                    return errors;
-                }
-                bty->cell_balancing[i*j+j] = enable == true ? 255 : 0;
+            for(uint8_t j = 0; j < NUM_CELL_IC; j++){
+
+                bcc_status_t errors;
+                bty->cell_balancing[i*NUM_CELL_IC+j] = 0;
+
+                // putting this here for now => to delete later
+                if(j < 2){
+                    if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)(i+1), j, true, 0)) != BCC_STATUS_SUCCESS){
+                        print_lpuart("failed BCC_CB_SetIndividual\n");
+                        print_bcc_status(errors);
+                        return -1;
+                    }
+                    bty->cell_balancing[i*NUM_CELL_IC+j] = enable == true ? 255 : 0;
+                } 
             }
         }
         return errors;
     }
-    
-    if(cellIndex >= NUM_CELL_IC){
-        // print("Invalid cell index");
-        return errors;
-    }
+    else{
+        // set some
+        if(cellIndex >= NUM_CELL_IC){
+            print_lpuart("Invalid cell index");
+            return errors;
+        }
 
-    // set individuals
-    if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), cid, cellIndex, enable, 0)) != BCC_STATUS_SUCCESS) {
-        // BCC_Fault_GetStatus(&(bty->drvConfig), cid, buff);
-        // BCC_Fault_GetStatus(&(bty->drvConfig), cid, buff);
-        return errors;
+        // set individuals
+        if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), cid, cellIndex, enable, 0)) != BCC_STATUS_SUCCESS) {
+            print_lpuart("Failed BCC_CB_SetIndividual\n");
+            return errors;
+        }
+        bty->cell_balancing[(uint8_t)cid*cellIndex+cellIndex] = enable == true ? 255 : 0;
     }
-    bty->cell_balancing[(uint8_t)cid*cellIndex+cellIndex] = enable == true ? 255 : 0;
     return errors;
 }
 
 bcc_status_t check_temp(Battery *bty){
-    for(int i = 0; i < NUM_TOTAL_IC; i++){
-        for(int j = 0; j < (NUM_CELL_IC); i++){
+    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+        for(uint8_t j = 0; j < (NUM_CELL_IC); i++){
             if(bty->cell_temp[i*NUM_CELL_IC + j] > CELL_MAX_TEMP){
                 bty->faults = BCC_FS_AN_OT_UT;
+                print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
             }
             if(bty->cell_temp[i*NUM_CELL_IC + j] < CELL_MIN_TEMP){
                 bty->faults = BCC_FS_AN_OT_UT;
+                print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
             }
         }
@@ -137,14 +183,16 @@ bcc_status_t check_temp(Battery *bty){
 }
 
 bcc_status_t check_volt(Battery *bty) {
-    for(int i = 0; i < NUM_TOTAL_IC; i++){
-        for(int j = 0; j < NUM_CELL_IC; j++){
+    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+        for(uint8_t j = 0; j < NUM_CELL_IC; j++){
             if(bty->cell_volt[i*NUM_CELL_IC + j] > CELL_MAX_VOLT){
                 bty->faults = BCC_FS_CELL_OV;
+                print_bcc_fault(BCC_FS_CELL_OV);
                 return BCC_STATUS_DIAG_FAIL;
             }
             else if(bty->cell_volt[i*NUM_CELL_IC + j] < CELL_MIN_VOLT){
                 bty->faults = BCC_FS_CELL_UV;
+                print_bcc_fault(BCC_FS_CELL_UV);
                 return BCC_STATUS_DIAG_FAIL;
             }
         }
@@ -158,9 +206,7 @@ bcc_status_t check_fuse(Battery *bty){
 
 bool system_check(Battery *bty, bool startup){
     bcc_status_t errors = read_device_measurements(bty);
-    if(errors != BCC_STATUS_SUCCESS){
-        return false;
-    }
+    if(errors != BCC_STATUS_SUCCESS){ return false; }
     if((errors = check_temp(bty))!= BCC_STATUS_SUCCESS){
         return false;
     }
@@ -179,7 +225,7 @@ bool check_faults(Battery *bty) {
     bcc_status_t status = BCC_STATUS_SUCCESS; // status of all devices
     bool faults = false;
 
-    for(int i = 0; i <= NUM_TOTAL_IC; i++){    
+    for(uint8_t i = 0; i <= NUM_TOTAL_IC; i++){    
         if((status = BCC_Fault_GetStatus(&(bty->drvConfig), (bcc_cid_t)i, &fault)) != BCC_STATUS_SUCCESS){
             faults = true;
         }
@@ -187,79 +233,56 @@ bool check_faults(Battery *bty) {
     return faults;
 }
 
-// dump temp measurements
-void print_temperature(Battery * bty){
-    float_t min_temp = __FLT_MAX__, max_temp = __FLT_MIN__;
-    print("Cell Temp: ------------------------------\n");
-    for(int i = 0; i < (NUM_TOTAL_IC); i++){
-
-        print("Row ");
-        print_decimal(i);
-        print(" => ");
-
-        for (int j = 0; j < NUM_CELL_IC; j++){
-            
-            print("[Cell ");
-            print_decimal(j);
-            min_temp = fmin(min_temp, bty->cell_temp[i]);
-            max_temp = fmax(max_temp, bty->cell_temp[i]);
-
-            print_float(bty->cell_temp[i] * 0.1);
-            if(bty->cell_temp[i] < CELL_MIN_TEMP){
-                print("| Under] ");
-
-            } else if (bty->cell_temp[i] > CELL_MAX_TEMP){
-                print("| Over] ");
-            }
-            else{
-                print("] ");
-            }
-        }
-        print("\n");
-        print("Min temp: ");
-        print_float(min_temp);
-        print(" | Max temp: ");
-        print_float(max_temp);
-        print("\n");
+// dump cell balancing measurements
+void print_cell_balancing(Battery * bty){
+    print_lpuart("Cell Balancing: --------------------------\n");
+    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+        for (uint8_t j = 0; j < NUM_CELL_IC; j++){
+            char buff[64];
+            sprintf(buff, "Row %u, Cell %u: %d, Volt: %.3f\n", i, ((i*NUM_CELL_IC) + j), bty->cell_balancing[(i*NUM_CELL_IC) + j], bty->cell_volt[(i*NUM_CELL_IC) + j]);
+            print_lpuart(buff);
+        }        
     }
-    print("-----------------------------------------\n");
+    print_lpuart("-----------------------------------------\n");
+}
+
+// dump temp measurements
+void print_temperature(Battery * bty){    
+    print_lpuart("Cell Temp: ------------------------------\n");
+
+    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+        float min_temp = __FLT_MAX__, max_temp = __FLT_MIN__;
+        for (uint8_t j = 0; j < NUM_CELL_IC; j++){
+            
+            const float curr_temp = bty->cell_temp[(i*NUM_CELL_IC) + j];
+            print_temp(bty->cell_temp, i, ((i*NUM_CELL_IC) + j));
+            min_temp = fminf(min_temp, curr_temp);
+            max_temp = fmaxf(max_temp, curr_temp);  
+        }
+        char buff[64];
+        sprintf(buff, "Min temp: %.3f | Max temp: %.3f\n", min_temp, max_temp);
+        print_lpuart(buff);
+    }
+    print_lpuart("-----------------------------------------\n");
 }
 
 // dump voltage measurements
 void print_voltage(Battery *bty){
-    float_t min_volt = __FLT_MAX__, max_volt = __FLT_MIN__;
-    print("Cell Voltage: --------------------------\n");
-    for(int i = 0; i < (NUM_TOTAL_IC); i++){
-        
-        print("Row ");
-        print_decimal(i);
-        print(" => ");
-
-        for (int j = 0; j < NUM_CELL_IC; j++){
+    
+    print_lpuart("Cell Voltage: ------------------------------\n");
+    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+        float min_volt = __FLT_MAX__, max_volt = __FLT_MIN__;
+        for (uint8_t j = 0; j < NUM_CELL_IC; j++){
             
-            print("[Cell ");
-            print_decimal(j);
-
-            min_volt = fmin(min_volt, bty->cell_volt[i]);
-            max_volt = fmax(max_volt, bty->cell_volt[i]);
-
-            print_float(bty->cell_volt[i]);
-            if(bty->cell_volt[i] < CELL_MIN_VOLT){
-                print("| Under] ");
-
-            } else if (bty->cell_volt[i] > CELL_MAX_VOLT){
-                print("| Over] ");
-            }
-            else{
-                print("] ");
-            }
+            const float curr_volt = bty->cell_volt[(i*NUM_CELL_IC) + j];
+            print_volt(bty->cell_volt, i, ((i*NUM_CELL_IC) + j));
+            min_volt = fminf(min_volt, curr_volt);
+            max_volt = fmaxf(max_volt, curr_volt);  
         }
-        print("\n");
-        print("Min volt: ");
-        print_float(min_volt);
-        print(" | Max volt: ");
-        print_float(max_volt);
-        print("\n");
+        char buff[64];
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Min volt: %.3f | Max volt: %.3f\n", min_volt, max_volt);
+        print_lpuart(buff);
     }
-    print("-----------------------------------------\n");
+    print_lpuart("-----------------------------------------\n");
 }

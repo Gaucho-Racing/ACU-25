@@ -74,72 +74,14 @@ void SystemClock_Config(void);
 
 // to delete functions
 void print_lpuart(char* arr);
-
-// void print_float_LPUART(float value);
-// void print_measurement_LPUART(bcc_measurements type, float value);
-// uint8_t spi_send(const uint8_t *data, uint16_t length);
-// uint8_t spi_read(uint8_t *buffer, uint16_t length);
 void DWT_Delay_Init();
 void print_bcc_status(bcc_status_t bccStatus);
+void print_bcc_fault(bcc_fault_status_t fault);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-/**************************************** printing
-  void print_float_LPUART(float value){
-    char buffer[8];
-    char *sign = (value < 0) ? "-": ""; // get sign
-    float signedFloat = (value < 0) ? -value : value;
-
-    int upper = (int)signedFloat;
-    float diff = signedFloat-upper;
-    int lower = (int)trunc(1000 * diff);
-
-    sprintf(buffer, "%s%d.%.03d\n", sign, upper, lower);
-    print_LPUART(buffer);
-  }
-  void print_measurement_LPUART(bcc_measurements type, float value){
-    
-    switch (type){
-      case VOLTAGE:
-        print_LPUART("Volts: ");
-        break;
-      case TEMPERATURE:
-        print_LPUART("Temp: ");
-        break;
-      default:
-        print_LPUART("Error: ");
-        break;
-      }
-      print_float_LPUART(value);
-  }
-*/
-/**************************************** communication
-  
-  uint8_t spi_read(uint8_t *buffer, uint16_t length){
-
-      uint32_t counter = 0;
-      while (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
-
-      for (uint16_t i = 0; i < length; i++) {
-        buffer[i] = LL_SPI_ReceiveData8(SPI2);
-      }
-      return 0;
-  }
-
-  uint8_t spi_send(const uint8_t *data, uint16_t length) {
-
-    uint32_t counter = 0;
-    while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {if(counter++ > SPI_LOOP_TIMEOUT) return 1;}
-
-    for (uint16_t i = 0; i < length; i++) {
-      LL_SPI_TransmitData8(SPI1, (uint8_t)(data[i]));
-    }
-    while (LL_SPI_IsActiveFlag_BSY(SPI1));
-    return 0;
-} */
 
 void print_lpuart(char* arr) {
   uint32_t idx = 0; // index
@@ -152,6 +94,47 @@ void print_lpuart(char* arr) {
 
 
 
+void print_bcc_fault(bcc_fault_status_t fault){
+  switch (fault)
+  {
+  case BCC_FS_CELL_OV:
+      print_lpuart("CT overvoltage fault (register CELL_OV_FLT).\n");
+      break;
+  case BCC_FS_CELL_UV:
+      print_lpuart("CT undervoltage fault (register CELL_UV_FLT).\n");
+      break;
+  case BCC_FS_CB_OPEN:
+      print_lpuart("Open CB fault (register CB_OPEN_FLT).\n");
+      break;
+  case BCC_FS_CB_SHORT:
+      print_lpuart("Short CB fault (register CB_SHORT_FLT).\n");
+      break;
+  case BCC_FS_GPIO_STATUS:
+      print_lpuart("GPIO status (register GPIO_STS).\n");
+      break;
+  case BCC_FS_AN_OT_UT:
+      print_lpuart("AN over and undertemperature (register AN_OT_UT_FLT). \n");
+      break;
+  case BCC_FS_GPIO_SHORT:
+      print_lpuart("Short GPIO/open AN diagnostic (register GPIO_SHORT_ANx_OPEN_STS). \n");
+      break;
+  case BCC_FS_COMM:
+      print_lpuart("Number of communication errors detected (register COM_STATUS).\n");
+      break;
+  case BCC_FS_FAULT1:
+      print_lpuart("Fault status (register FAULT1_STATUS).\n");
+      break;
+  case BCC_FS_FAULT2:
+      print_lpuart("Fault status (register FAULT2_STATUS).\n");
+      break;
+  case BCC_FS_FAULT3:
+      print_lpuart("Fault status (register FAULT3_STATUS).\n");
+      break;
+  default:
+      print_lpuart("Unknown status\n");
+      break;
+  }
+}
 
 // setup for bcc
 int setup(){
@@ -193,13 +176,20 @@ int setup(){
   print_lpuart("successful BCC_Init...\n");
 
   // configure cell balancing
+  print_lpuart("enabling cell balancing...\n");
   for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
   {
-      if((BCC_CB_Enable(&(battery.drvConfig), (bcc_cid_t)i+1,  true)) != BCC_STATUS_SUCCESS) {
+      if((BCC_CB_Enable(&(battery.drvConfig), (bcc_cid_t)(i+1),  true)) != BCC_STATUS_SUCCESS) {
           print_lpuart("failed BCC_CB_Enable for cid [insert] ...\n");
           state = SHITDOWN;
+          for(uint8_t j = 0; j < NUM_CELL_IC; j++){
+            battery.cell_balancing[i*NUM_CELL_IC+j] = 100;
+          }
           print_lpuart("you goon...\n");
           return -1;
+      }
+      for(uint8_t j = 0; j < NUM_CELL_IC; j++){
+        battery.cell_balancing[i*NUM_CELL_IC+j] = 0;
       }
   }
   print_lpuart("successful BCC_CB_Enable...\n");
@@ -211,15 +201,18 @@ int setup(){
       return -1;
   }
   BCC_MCU_WaitUs(500);
+  print_lpuart("\n");
   if((bcc_faults = check_volt(&battery)) != BCC_STATUS_SUCCESS){ 
       state = SHITDOWN;
-      print_lpuart("failed check_volt...\n");
+      print_lpuart("failed check_volt: ");
+      print_bcc_status(bcc_faults);
       return -1;
   }
   
   if((bcc_faults = check_temp(&battery)) != BCC_STATUS_SUCCESS){
       state = SHITDOWN;
-      print_lpuart("failed check_temp...\n");
+      print_lpuart("failed check_temp: ");
+      print_bcc_fault(bcc_faults);
       return -1;
   }
   
@@ -296,23 +289,40 @@ int main(void)
   LL_TIM_EnableCounter(TIM5);
 
   print_lpuart("Hello World\n");
-  // print_measurement_LPUART(TEMPERATURE, 3.14);
-  // print_measurement_LPUART(TEMPERATURE, -43120.14);
-  // print_LPUART("\n\n");
   LL_mDelay(1000);
 
   if(setup() != 0) state = SHITDOWN;
   
   // setup acu
   acu.bty = &battery;
-  print_lpuart("Hello World\n");
+  print_lpuart("Linked ACU....Loading\n");
+
+  // turn on cell balancing
+  print_lpuart("turning on cell balancing...\n");
+  // config_cell_balancing(&battery, 0, 0, true, true);
+  print_lpuart("successful config_cell_balancing, 30 seconds to come into affect...\n");
+
+  print_lpuart("entering loop...\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    print_lpuart("system_check...\n");
     system_check(&battery, false);
+    
+    print_lpuart("Reading voltage...\n");
+    print_voltage(&battery);
+
+    // print_lpuart("Reading temperature...\n");
+    // print_temperature(&battery);
+
+    print_lpuart("Reading cell balancing...\n");
+    print_cell_balancing(&battery);
+
+    BCC_MCU_WaitMs(500);
+
     switch(state){
       case (STANDBY):
         standby();
@@ -332,8 +342,6 @@ int main(void)
       default:
         break;
     }
-    // print_measurement_LPUART(TEMPERATURE, 3.14);
-    // print_measurement_LPUART(TEMPERATURE, -43120.14);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

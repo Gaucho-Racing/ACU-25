@@ -7,35 +7,6 @@ extern volatile uint8_t TPL_RxBufferLevel; // Number of bytes to be read
 extern volatile uint8_t TPL_RxBufferBottom; // Index of oldest data
 extern volatile uint8_t TPL_RxBufferTop; // Index of newest data
 
-/******************** communication functions */
-void print(char* arr) {
-  uint32_t idx = 0;
-  while (arr[idx]) {
-    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
-    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
-    idx++;
-  }
-}
-
-void print_float(float value){
-  char buffer[8];
-  char *sign = (value < 0) ? "-": ""; // get sign
-  float signedFloat = (value < 0) ? -value : value;
-
-  int upper = (int)signedFloat;
-  float diff = signedFloat-upper;
-  int lower = (int)trunc(1000 * diff);
-
-  sprintf(buffer, "%s%d.%.03d", sign, upper, lower);
-  print(buffer);
-}
-
-void print_decimal(int value){
-  char buffer[8];
-  sprintf(buffer, "%d ", value);
-  print(buffer);
-}
-
 uint8_t spi_send_string(const uint8_t *data, uint16_t length) {
   uint32_t counter = 0;
   BCC_MCU_WriteCsbPin(0, 0); // CS LOW

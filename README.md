@@ -42,5 +42,6 @@ Transferring from Teensy to STM32
 - Press Build
 - Press Debug
     - if Debug doesn't work, open terminal in VSCode and run 
-    - `openocd -f interface/stlink.cfg -f target/stm32g4x.cfg -c "program build/Debug/ACU-25.elf verify reset exit`
+    - `openocd -f interface/stlink.cfg -f target/stm32g4x.cfg -c "program build/Debug/ACU-25.elf verify reset exit"`
+    - if it still doesn't work, try removing the 'build' folder and configuring and rebuilding, sometimes cache stuff can screw u over
     

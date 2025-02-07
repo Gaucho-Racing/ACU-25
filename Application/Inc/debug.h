@@ -19,7 +19,6 @@
 #endif
 
 // self-defined
-void print(char* arr);
 void print_float(float value);
 void print_decimal(int value);
 uint8_t spi_send_string(const uint8_t *data, uint16_t length);

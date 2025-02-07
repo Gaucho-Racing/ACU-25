@@ -17,11 +17,11 @@ typedef struct
 
 typedef struct
 {
-    float cell_soc[NUM_CELL_IC*NUM_TOTAL_IC];
-    float bal_temp[NUM_CELL_IC*NUM_TOTAL_IC]; 
-    float cell_temp[NUM_CELL_IC*NUM_TOTAL_IC];
-    float cell_volt[NUM_CELL_IC*NUM_TOTAL_IC];
-    uint8_t cell_balancing[NUM_CELL_IC*NUM_TOTAL_IC];
+    float cell_soc[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
+    float bal_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; 
+    float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
+    float cell_volt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
+    uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     
     // stacks
     float stackVoltage[10];
@@ -99,7 +99,14 @@ bool system_check(Battery *bty, bool startup);
 bool check_faults(Battery *bty);
 void clear_faults(bcc_drv_config_t * drvConfig);
 
+// print individuals
+void print_volt(const float * voltages, const uint8_t cid, uint8_t index);
+void print_temp(const float * temperatures, const uint8_t cid, uint8_t index);
+
+// print group
+void print_cell_balancing(Battery *bty);
 void print_temperature(Battery * bty);
 void print_voltage(Battery *bty);
+
 
 #endif
