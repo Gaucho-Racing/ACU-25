@@ -21,11 +21,11 @@ typedef struct
     float bal_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; 
     float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     float cell_volt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
-    uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
+    uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; // 0 = off, 255 = on, error = anything else
     
     // stacks
-    float stackVoltage[10];
-    float icTemp[10];
+    float stackVoltage[NUM_TOTAL_IC];
+    float icTemp[NUM_TOTAL_IC];
 
     // stats
     float minCellVolt, maxCellVolt;
@@ -98,6 +98,8 @@ bcc_status_t check_fuse(Battery *bty);
 bool system_check(Battery *bty, bool startup);
 bool check_faults(Battery *bty);
 void clear_faults(bcc_drv_config_t * drvConfig);
+bool do_cell_balancing(Battery * bty, bool all);
+void update_cell_voltages(Battery * bty);
 
 // print individuals
 void print_volt(const float * voltages, const uint8_t cid, uint8_t index);
@@ -106,7 +108,7 @@ void print_temp(const float * temperatures, const uint8_t cid, uint8_t index);
 // print group
 void print_cell_balancing(Battery *bty);
 void print_temperature(Battery * bty);
+void reset_discharge(Battery * bty);
 void print_voltage(Battery *bty);
-
 
 #endif

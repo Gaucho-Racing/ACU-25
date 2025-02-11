@@ -55,8 +55,11 @@ Battery battery;
 
 uint16_t bcc_faults;
 bcc_status_t bcc_error;
+
 uint32_t BCC_MCU_Timeout_Start;
 uint32_t BCC_MCU_Timeout_length = 0;
+
+uint8_t bcc_cooked_count = 0;
 
 // communication stuff - TPL
 volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data
@@ -89,50 +92,6 @@ void print_lpuart(char* arr) {
     while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
     LL_LPUART_TransmitData8(LPUART1, arr[idx]);
     idx++;
-  }
-}
-
-
-
-void print_bcc_fault(bcc_fault_status_t fault){
-  switch (fault)
-  {
-  case BCC_FS_CELL_OV:
-      print_lpuart("CT overvoltage fault (register CELL_OV_FLT).\n");
-      break;
-  case BCC_FS_CELL_UV:
-      print_lpuart("CT undervoltage fault (register CELL_UV_FLT).\n");
-      break;
-  case BCC_FS_CB_OPEN:
-      print_lpuart("Open CB fault (register CB_OPEN_FLT).\n");
-      break;
-  case BCC_FS_CB_SHORT:
-      print_lpuart("Short CB fault (register CB_SHORT_FLT).\n");
-      break;
-  case BCC_FS_GPIO_STATUS:
-      print_lpuart("GPIO status (register GPIO_STS).\n");
-      break;
-  case BCC_FS_AN_OT_UT:
-      print_lpuart("AN over and undertemperature (register AN_OT_UT_FLT). \n");
-      break;
-  case BCC_FS_GPIO_SHORT:
-      print_lpuart("Short GPIO/open AN diagnostic (register GPIO_SHORT_ANx_OPEN_STS). \n");
-      break;
-  case BCC_FS_COMM:
-      print_lpuart("Number of communication errors detected (register COM_STATUS).\n");
-      break;
-  case BCC_FS_FAULT1:
-      print_lpuart("Fault status (register FAULT1_STATUS).\n");
-      break;
-  case BCC_FS_FAULT2:
-      print_lpuart("Fault status (register FAULT2_STATUS).\n");
-      break;
-  case BCC_FS_FAULT3:
-      print_lpuart("Fault status (register FAULT3_STATUS).\n");
-      break;
-  default:
-      print_lpuart("Unknown status\n");
-      break;
   }
 }
 
@@ -215,10 +174,6 @@ int setup(){
       print_bcc_fault(bcc_faults);
       return -1;
   }
-  
-  print_lpuart("passed initial checks...\n");
-  // configure state
-  state = STANDBY;
 
   return 0;
 }
@@ -288,38 +243,44 @@ int main(void)
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
 
-  print_lpuart("Hello World\n");
+  // print_lpuart("Hello World\n");
   LL_mDelay(1000);
 
   if(setup() != 0) state = SHITDOWN;
+  state = STANDBY;
   
   // setup acu
+  acu_init(&acu);
   acu.bty = &battery;
-  print_lpuart("Linked ACU....Loading\n");
 
-  // turn on cell balancing
-  print_lpuart("turning on cell balancing...\n");
-  // config_cell_balancing(&battery, 0, 0, true, true);
-  print_lpuart("successful config_cell_balancing, 30 seconds to come into affect...\n");
+  // default: cell balancing is off
+  if((bcc_error = config_cell_balancing(&battery, 0, 0, true, 0)) != BCC_STATUS_SUCCESS){
+    print_lpuart("error configuring cell balancing b4 loop: ");
+    print_bcc_status(bcc_error); 
+    state = SHITDOWN;
+  }
 
-  print_lpuart("entering loop...\n");
+  // print_lpuart("entering loop...\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    print_lpuart("system_check...\n");
-    system_check(&battery, false);
-    
-    print_lpuart("Reading voltage...\n");
-    print_voltage(&battery);
+    // system checks & cooked counter implementation
+    if(!system_check(&battery, false)){
+      if(bcc_cooked_count >= 5){
+        bcc_cooked_count = 0;
+        if(setup() != 0) state = SHITDOWN;
+        acu.bty = &battery;
+      }
+    }
 
-    // print_lpuart("Reading temperature...\n");
-    // print_temperature(&battery);
-
-    print_lpuart("Reading cell balancing...\n");
-    print_cell_balancing(&battery);
+    #if DEBUG == 1
+      print_voltage(&battery);
+      // print_temperature(&battery);
+      // print_cell_balancing(&battery);
+    #endif
 
     BCC_MCU_WaitMs(500);
 
@@ -405,6 +366,48 @@ void DWT_Delay_Init(void){
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0;  // Reset counter
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; // Enable counter
+}
+
+void print_bcc_fault(bcc_fault_status_t fault){
+  switch (fault)
+  {
+  case BCC_FS_CELL_OV:
+      print_lpuart("CT overvoltage fault (register CELL_OV_FLT).\n");
+      break;
+  case BCC_FS_CELL_UV:
+      print_lpuart("CT undervoltage fault (register CELL_UV_FLT).\n");
+      break;
+  case BCC_FS_CB_OPEN:
+      print_lpuart("Open CB fault (register CB_OPEN_FLT).\n");
+      break;
+  case BCC_FS_CB_SHORT:
+      print_lpuart("Short CB fault (register CB_SHORT_FLT).\n");
+      break;
+  case BCC_FS_GPIO_STATUS:
+      print_lpuart("GPIO status (register GPIO_STS).\n");
+      break;
+  case BCC_FS_AN_OT_UT:
+      print_lpuart("AN over and undertemperature (register AN_OT_UT_FLT). \n");
+      break;
+  case BCC_FS_GPIO_SHORT:
+      print_lpuart("Short GPIO/open AN diagnostic (register GPIO_SHORT_ANx_OPEN_STS). \n");
+      break;
+  case BCC_FS_COMM:
+      print_lpuart("Number of communication errors detected (register COM_STATUS).\n");
+      break;
+  case BCC_FS_FAULT1:
+      print_lpuart("Fault status (register FAULT1_STATUS).\n");
+      break;
+  case BCC_FS_FAULT2:
+      print_lpuart("Fault status (register FAULT2_STATUS).\n");
+      break;
+  case BCC_FS_FAULT3:
+      print_lpuart("Fault status (register FAULT3_STATUS).\n");
+      break;
+  default:
+      print_lpuart("Unknown status\n");
+      break;
+  }
 }
 
 void print_bcc_status(bcc_status_t bccStatus){
