@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fdcan.h"
 #include "usart.h"
 #include "spi.h"
 #include "tim.h"
@@ -193,26 +194,7 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
-  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
-
-  /* System interrupt init*/
-  NVIC_SetPriorityGrouping(NVIC_PRIORITYGROUP_4);
-
-  /* SysTick_IRQn interrupt configuration */
-  NVIC_SetPriority(SysTick_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),15, 0));
-
-  /** Disable the Internal Voltage Reference buffer
-  */
-  LL_VREFBUF_Disable();
-
-  /** Configure the internal voltage reference buffer high impedance mode
-  */
-  LL_VREFBUF_EnableHIZ();
-
-  /** Disable the internal Pull-Up in Dead Battery pins of UCPD peripheral
-  */
-  LL_PWR_DisableUCPDDeadBattery();
+  HAL_Init();
 
   /* USER CODE BEGIN Init */
 
@@ -231,6 +213,7 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM5_Init();
   MX_LPUART1_UART_Init();
+  MX_FDCAN1_Init();
   /* USER CODE BEGIN 2 */
   DWT_Delay_Init();
 
@@ -352,10 +335,13 @@ void SystemClock_Config(void)
   LL_RCC_SetAHBPrescaler(LL_RCC_SYSCLK_DIV_1);
   LL_RCC_SetAPB1Prescaler(LL_RCC_APB1_DIV_1);
   LL_RCC_SetAPB2Prescaler(LL_RCC_APB2_DIV_1);
-
-  LL_Init1msTick(128000000);
-
   LL_SetSystemCoreClock(128000000);
+
+   /* Update the time base */
+  if (HAL_InitTick (TICK_INT_PRIORITY) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
