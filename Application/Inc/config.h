@@ -28,71 +28,45 @@
 #define MAX_HV_CURRENT 0
 #define MAX_DCDC_TEMP 0
 
+#define MAX_READ_COUNT 8
 #define TRIES 5 // defines how many times we can retry an action
 
-#define DEBUG 1
+#define ACU_DEBUG 0
 
-///////////////////////////////////// CANID: TBD, JUST PULLED FROM 2024
+// Send
+#define ACU_Debug_2             0x300001
+#define ACU_Debug_FD            0x300101
+#define ACU_Ping_Debug          0x300201
+#define ACU_Ping_ECU            0x300202
+#define ACU_Status_1            0x300702
+#define ACU_Status_2            0x300802
+#define ACU_Status_3            0x300902
+#define ACU_Cell_Data_1         0x300DFF
+#define ACU_Cell_Data_2         0x300EFF
+#define ACU_Cell_Data_3         0x300FFF
+#define ACU_Cell_Data_4         0x3010FF
+#define ACU_Cell_Data_5         0x3011FF
+#define ACU_DC_DC_Status        0x301202
+#define ACU_Charger_Control     0x1806E5F4
 
-#define Configure_Cell_Data 0x64                //Index 0
-#define ACU_Control 0x66                        //Index 2
-#define Battery_Limits 0x67                     //Index 3
-#define ACU_Ping_Request 0x95                   //Index 4
-#define ACU_General 0x96                        //Index 5
-#define ACU_General2 0x97                       //Index 6
-#define Powertrain_Cooling 0x98                 //Index 7
-#define Charging_Cart_Config 0x99               //Index 8
-#define Expanded_Cell_Data 0xA0                 //Index 9
-#define Condensed_Cell_Voltage_n0 0xA1          //Index 10
-#define Condensed_Cell_Voltage_n8 0xA2          //Index 11
-#define Condensed_Cell_Voltage_n16 0xA3         //Index 12
-#define Condensed_Cell_Voltage_n24 0xA4         //Index 13
-#define Condensed_Cell_Voltage_n32 0xA5         //Index 14
-#define Condensed_Cell_Voltage_n40 0xA6         //Index 15
-#define Condensed_Cell_Voltage_n48 0xA7         //Index 16
-#define Condensed_Cell_Voltage_n56 0xA8         //Index 17
-#define Condensed_Cell_Voltage_n64 0xA9         //Index 18
-#define Condensed_Cell_Voltage_n72 0xAA         //Index 19
-#define Condensed_Cell_Voltage_n80 0xAB         //Index 20
-#define Condensed_Cell_Voltage_n88 0xAC         //Index 21
-#define Condensed_Cell_Voltage_n96 0xAD         //Index 22
-#define Condensed_Cell_Voltage_n104 0xAE        //Index 23
-#define Condensed_Cell_Voltage_n112 0xAF        //Index 24
-#define Condensed_Cell_Voltage_n120 0xB0        //Index 25
-#define Condensed_Cell_Voltage_n128 0xB1        //Index 26
-#define Condensed_Cell_Voltage_n136 0xB2        //Index 27
-#define Condensed_Cell_Temp_n0 0xB3             //Index 28
-#define Condensed_Cell_Temp_n8 0xB4             //Index 29
-#define Condensed_Cell_Temp_n16 0xB5            //Index 30
-#define Condensed_Cell_Temp_n24 0xB6            //Index 31
-#define Condensed_Cell_Temp_n32 0xB7            //Index 32
-#define Condensed_Cell_Temp_n40 0xB8            //Index 33
-#define Condensed_Cell_Temp_n48 0xB9            //Index 34
-#define Condensed_Cell_Temp_n56 0xBA            //Index 35
-#define Condensed_Cell_Temp_n64 0xBB            //Index 36
-#define Condensed_Cell_Temp_n72 0xBC            //Index 37
-#define Condensed_Cell_Temp_n80 0xBD            //Index 38
-#define Condensed_Cell_Temp_n88 0xBE            //Index 39
-#define Condensed_Cell_Temp_n96 0xBF            //Index 40
-#define Condensed_Cell_Temp_n104 0xC0           //Index 41
-#define Condensed_Cell_Temp_n112 0xC1           //Index 42
-#define Condensed_Cell_Temp_n120 0xC2           //Index 43
-#define Condensed_Cell_Temp_n128 0xC3           //Index 44
-#define Condensed_Cell_Temp_n136 0xC4           //Index 45
-#define ACU_Ping_Response 0xC7                  //Index 46
-
-
-#define Charging_SDC_Ping_Request 0x14000       //Index 119
-#define Charging_SDC_Ping_Response 0x14001      //Index 120
-#define Charging_SDC_States 0x14002             //Index 121
-#define Charger_Data 0x18FF50E5                 //Index 122
-#define Charger_Control 0x1806E5F4              //Index 123
-
-#define IMD_General 0x18FF01F4                  // Retrieve from Read
-#define IMD_Voltage 0x39                        // Retrieve
-#define IMD_Request  0x18EFF4FE                  // pretty much only used for HV
-#define IMD_Response 0x18EFFEF4
-#define IMD_HV 0x5E                             // Index
-#define IMD_HV_OFFSET 32128
+// Receive
+#define Charger_Data_ACU        0x18FF50E5
+#define Debug_2_ACU             0x100003
+#define Debug_FD_ACU            0x100103
+#define Ping_ACU                0x100203
+#define Precharge_ACU           0x200A03
+#define Config_Charge_ACU       0x200B03
+#define Config_Operational_ACU  0x200C03
+#define EM_Measurements_ACU     0x10D
+#define EM_Data_1_ACU           0x30D
+#define EM_Data_2_ACU           0x30E
+#define EM_Status_ACU           0x40D
+#define EM_Temperature_ACU      0x60D
+#define IMD_Response_ACU        0x23
+#define IMD_Isolation_ACU       0x18EFF4FE
+#define IMD_Voltage_ACU         0x18EFF4FE
+#define IMD_IT_System_ACU       0x18EFF4FE
+#define IMD_Request_ACU         0x18EFF4FE
+#define IMD_General_ACU         0x18FF01F4
 
 #endif

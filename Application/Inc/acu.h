@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "battery.h"
+#include "fdcan.h"
+#include "stm32g4xx_hal_fdcan.h"
 
 typedef struct {
     uint8_t id;
@@ -36,20 +38,15 @@ typedef struct {
 
 } ACU;
 
-// extern Battery battery;
-// extern CAN_message_t msg;
-// extern States state;
-
 // void mailboxSetup();
-// void sendCANData(uint32_t ID);
-
 void acu_init(ACU * acu);
 
-void check_acu(ACU * acu);
-void can_read(ACU * acu);
-void can_send(ACU * acu);
-// void can_parse(ACU * acu);
-// void can_dump(ACU *acu);
+void acu_check(ACU * acu);
+bool can_polling(ACU * acu);
+void can_read(ACU * acu, uint32_t id);
+void can_send(ACU * acu, uint32_t id);
+void can_dump(ACU *acu);
+
 
 
 // modifiers

@@ -1,7 +1,6 @@
 #ifndef MCU_H
 #define MCU_H
 
-#include "config.h"
 #include "bcc.h"
 #include "spi.h"
 #include "tim.h"

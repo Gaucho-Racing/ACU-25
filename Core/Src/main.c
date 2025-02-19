@@ -54,13 +54,21 @@
 ACU acu;
 Battery battery;
 
+// BCC stuff
+uint8_t bcc_cooked_count = 0;
 uint16_t bcc_faults;
-bcc_status_t bcc_error;
-
 uint32_t BCC_MCU_Timeout_Start;
 uint32_t BCC_MCU_Timeout_length = 0;
+bcc_status_t bcc_error;
 
-uint8_t bcc_cooked_count = 0;
+
+// communication stuff - FDCAN
+extern FDCAN_HandleTypeDef hfdcan1;
+FDCAN_TxHeaderTypeDef TxHeader;
+FDCAN_RxHeaderTypeDef RxHeader;
+uint8_t CAN_TxBuffer[8];
+uint8_t CAN_RxBuffer[8];
+uint8_t readCount = 0;
 
 // communication stuff - TPL
 volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data
@@ -77,6 +85,7 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
 // to delete functions
+void print_can_msg(uint8_t * arr);
 void print_lpuart(char* arr);
 void DWT_Delay_Init();
 void print_bcc_status(bcc_status_t bccStatus);
@@ -88,6 +97,15 @@ void print_bcc_fault(bcc_fault_status_t fault);
 /* USER CODE BEGIN 0 */
 
 void print_lpuart(char* arr) {
+  uint32_t idx = 0; // index
+  while (arr[idx]) {
+    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
+    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
+    idx++;
+  }
+}
+
+void print_can_msg(uint8_t * arr){
   uint32_t idx = 0; // index
   while (arr[idx]) {
     while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
@@ -110,7 +128,7 @@ int setup(){
   }
   
   // init bcc
-  print_lpuart("calling BCC_Init...\n");
+  // print_lpuart("calling BCC_Init...\n");
   bcc_error = BCC_Init(&(battery.drvConfig));
   uint8_t counter = TRIES;
   while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
@@ -136,7 +154,6 @@ int setup(){
   print_lpuart("successful BCC_Init...\n");
 
   // configure cell balancing
-  print_lpuart("enabling cell balancing...\n");
   for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
   {
       if((BCC_CB_Enable(&(battery.drvConfig), (bcc_cid_t)(i+1),  true)) != BCC_STATUS_SUCCESS) {
@@ -154,7 +171,7 @@ int setup(){
   }
   print_lpuart("successful BCC_CB_Enable...\n");
   
-  print_lpuart("reading device measurements...\n");
+  // print_lpuart("reading device measurements...\n");
   if((bcc_error = read_device_measurements(&battery)) != BCC_STATUS_SUCCESS){
       state = SHITDOWN;
       print_lpuart("failed read_device_measurements...\n");
@@ -171,8 +188,8 @@ int setup(){
   
   if((bcc_faults = check_temp(&battery)) != BCC_STATUS_SUCCESS){
       state = SHITDOWN;
-      print_lpuart("failed check_temp: ");
-      print_bcc_fault(bcc_faults);
+      // print_lpuart("failed check_temp: ");
+      // print_bcc_fault(bcc_faults);
       return -1;
   }
 
@@ -223,6 +240,12 @@ int main(void)
   LL_SPI_Enable(SPI2);
   LL_SPI_EnableIT_RXNE(SPI2);
 
+  /* Enable the CAN module */
+  if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK) {
+    print_lpuart("failed to HAL_FDCAN_Start");
+    Error_Handler();
+  }
+
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
 
@@ -243,44 +266,73 @@ int main(void)
     state = SHITDOWN;
   }
 
-  // print_lpuart("entering loop...\n");
+  // Configure TxHeader
+  TxHeader.Identifier = 0x0; // Standard ID (11-bit)
+  TxHeader.IdType = FDCAN_STANDARD_ID;
+  TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+  TxHeader.DataLength = FDCAN_DLC_BYTES_8;
+  TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+  TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+  TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  TxHeader.MessageMarker = 0;
+
+  // Transmit message
+  can_send(&acu, ACU_Ping_Debug); // Error_Handler(); if failed
+
+  print_lpuart("sent random CAN message; entering loop...\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    // system checks & cooked counter implementation
+    // system checks & cooked counter
     if(!system_check(&battery, false)){
-      if(bcc_cooked_count >= 5){
-        bcc_cooked_count = 0;
-        if(setup() != 0) state = SHITDOWN;
-        acu.bty = &battery;
+      state = SHITDOWN;
+    }
+    
+    can_send(&acu, ACU_Ping_Debug);
+
+    // poll for can messages
+    if(readCount >= MAX_READ_COUNT){
+      readCount = 0;
+      if(can_polling(&acu)){
+        print_lpuart("received a message!\n");
+        can_read(&acu, RxHeader.Identifier); // parse the data
+      }
+      else{
+        print_lpuart("not received a message yet!\n");
       }
     }
+    else{}
+    
 
-    #if DEBUG == 1
-      print_voltage(&battery);
-      // print_temperature(&battery);
-      // print_cell_balancing(&battery);
-    #endif
+    // dispatch neccessary info via can
+    // can_dump(&acu);
 
+    readCount++;
     BCC_MCU_WaitMs(500);
-
+    print_lpuart("State: ");
     switch(state){
       case (STANDBY):
+        print_lpuart("STANDBY...\n");
         standby();
         break;
       case (PRECHARGE):
+        print_lpuart("PRECHARGE...\n");
         precharge();
         break;
       case (CHARGE):
+        print_lpuart("CHARGE...\n");
         charge();
         break;
       case (NORMAL):
+        print_lpuart("NORMAL...\n");
         normal();
         break;
       case (SHITDOWN):
+        print_lpuart("SHITDOWN...\n");
         shitdown();
         break;
       default:
@@ -292,6 +344,7 @@ int main(void)
   }
   LL_SPI_Disable(SPI1);
   LL_SPI_Disable(SPI2);
+  HAL_FDCAN_Stop(&hfdcan1);
   /* USER CODE END 3 */
 }
 

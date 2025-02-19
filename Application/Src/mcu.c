@@ -1,4 +1,5 @@
 #include "mcu.h"
+#include "config.h"
 
 extern uint32_t BCC_MCU_Timeout_Start;
 extern uint32_t BCC_MCU_Timeout_length;
@@ -20,9 +21,6 @@ void BCC_MCU_WaitUs(uint32_t delay) {
 }
 
 bcc_status_t BCC_MCU_StartTimeout(uint32_t timeoutUs){
-    // char printBuffer[256];
-    // sprintf(printBuffer, "BCC_MCU_StartTimeout:%luus\n", timeoutUs);
-    // print_lpuart(printBuffer);
     BCC_MCU_Timeout_Start = TIM5->CNT;
     BCC_MCU_Timeout_length = timeoutUs;
     return BCC_STATUS_SUCCESS;

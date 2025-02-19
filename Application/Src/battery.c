@@ -242,14 +242,14 @@ bcc_status_t check_temp(Battery *bty){
         for(uint8_t j = 0; j < (NUM_CELL_IC); i++){
             if(bty->cell_temp[i*NUM_CELL_IC + j] > CELL_MAX_TEMP){
                 bty->faults = BCC_FS_AN_OT_UT;
-                print_lpuart("overtemp: ");
-                print_bcc_fault(BCC_FS_AN_OT_UT);
+                // print_lpuart("overtemp: ");
+                // print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
             }
             if(bty->cell_temp[i*NUM_CELL_IC + j] < CELL_MIN_TEMP){
                 bty->faults = BCC_FS_AN_OT_UT;
-                print_lpuart("undertemp: ");
-                print_bcc_fault(BCC_FS_AN_OT_UT);
+                // print_lpuart("undertemp: ");
+                // print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
             }
         }
