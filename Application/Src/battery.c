@@ -180,13 +180,13 @@ void update_cell_voltages(Battery * bty){
 // assumes we read device measurements already
 bool do_cell_balancing(Battery * bty, bool all){
 
-    float threshold = (bty->minCellVolt + bty->maxCellVolt)/2;
+    float threshold = (bty->min_cell_volt + bty->max_cell_volt)/2;
     bcc_status_t err = BCC_STATUS_SUCCESS;
 
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
     {
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->minCellVolt > 0.02) /*&& bty->bal_temp[i*NUM_CELL_IC + j] < 70*/){
+            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->min_cell_volt > 0.02) /*&& bty->bal_temp[i*NUM_CELL_IC + j] < 70*/){
                 
                 if ((err = config_cell_balancing(bty, (bcc_cid_t)(i), j, 0, 1))!= BCC_STATUS_SUCCESS){ // resets after default = 30 seconds
                     print_bcc_status(err);

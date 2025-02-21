@@ -66,8 +66,8 @@ bcc_status_t bcc_error;
 extern FDCAN_HandleTypeDef hfdcan1;
 FDCAN_TxHeaderTypeDef TxHeader;
 FDCAN_RxHeaderTypeDef RxHeader;
-uint8_t CAN_TxBuffer[8];
-uint8_t CAN_RxBuffer[8];
+uint8_t CAN_TxBuffer[64];
+uint8_t CAN_RxBuffer[64];
 uint8_t readCount = 0;
 
 // communication stuff - TPL

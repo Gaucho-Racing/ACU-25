@@ -27,11 +27,15 @@ typedef struct
     float stackVoltage[NUM_TOTAL_IC];
     float icTemp[NUM_TOTAL_IC];
 
-    // stats
-    float minCellVolt, maxCellVolt;
-    float minChargeVolt, maxChargeVolt;
+    // CAN data stuff
+    float min_cell_volt;
+    float max_cell_volt;
+    float min_cell_temp;
+    float max_cell_temp;
+    float min_charge_volt;
+    float max_charge_volt;
+
     float batVoltage, batSOC;
-    float max_output_current;
 
     // config
     bcc_drv_config_t drvConfig;
