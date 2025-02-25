@@ -25,11 +25,35 @@
 #define MIN_BALL_TEMP 0.0 // to set later
 #define MAX_BALL_TEMP 1000.0 // to set later
 
-#define MAX_HV_CURRENT 0
-#define MAX_DCDC_TEMP 0
+//acu limits
+#define MAX_HV_CURRENT 135
+#define MAX_DCDC_TEMP 60
+#define MAX_DCDC_CURRENT 10
+#define MIN_GLV_VOLT 10
+#define MAX_GLV_VOLT 14.4
 
 #define MAX_READ_COUNT 8
 #define TRIES 5 // defines how many times we can retry an action
+
+// error margins
+#define ERRMG_GLV_SDC 4
+#define ERRMG_ISNS_VREF 0.2
+#define ERRMG_5V 0.2
+#define ERRMG_CELL_VOLT_ERR 20
+#define ERRMG_CELL_TEMP_ERR 50
+#define ERRMG_ACU_ERR 50
+
+// ADC1283 connections
+#define ADC_MUX_GLV_VOLT 7
+#define ADC_MUX_HV_VOLT 6
+#define ADC_MUX_HV_CURRENT 0
+#define ADC_MUX_SHDN_POW 1
+#define ADC_MUX_DCDC_CURRENT 5
+#define ADC_MUX_TEMP1 2
+#define ADC_MUX_TEMP2 3
+#define ADC_MUX_FAN_REF 4
+
+#define PRECHARGE_THRESHOLD 0.96 // fraction of total cell voltage
 
 #define ACU_DEBUG 0
 

@@ -53,6 +53,9 @@
 // Devices & Sensors
 ACU acu;
 Battery battery;
+ADC adc;
+
+// ADC
 
 // BCC stuff
 uint8_t bcc_cooked_count = 0;
@@ -267,20 +270,19 @@ int main(void)
   }
 
   // Configure TxHeader
-  TxHeader.Identifier = 0x0; // Standard ID (11-bit)
   TxHeader.IdType = FDCAN_STANDARD_ID;
   TxHeader.TxFrameType = FDCAN_DATA_FRAME;
-  TxHeader.DataLength = FDCAN_DLC_BYTES_8;
   TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
   TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
-  TxHeader.MessageMarker = 0;
 
-  // Transmit message
-  can_send(&acu, ACU_Ping_Debug); // Error_Handler(); if failed
+  /*
+  this->ACU_ADC.begin();
+  cur_ref = ACU_ADC.readVoltageTot(ADC_MUX_HV_CURRENT,256); //Zero current sensor offset
+  dcdc_ref = ACU_ADC.readVoltageTot(ADC_MUX_DCDC_CURRENT,256); //Zero current sensor offset
+  */
 
-  print_lpuart("sent random CAN message; entering loop...\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */

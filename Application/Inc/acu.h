@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "battery.h"
 #include "fdcan.h"
+#include "adc.h"
 #include "stm32g4xx_hal_fdcan.h"
 
 typedef struct {
@@ -27,6 +28,7 @@ typedef struct {
     Battery * bty;
     Charger * chgr;
     IMU * imu;
+    ADC * adc;
 
     // Charger stuff
     float volt_request;
@@ -60,6 +62,9 @@ typedef struct {
     float cell_OT_Threshold;
     float cell_UT_Threshold;
 
+    float cur_ref;
+    float dcdc_ref;
+
     // voltages voltages voltages...
     float volt_20v; // 20v GLV voltage
     float volt_12v; // 12v supply voltage
@@ -69,6 +74,7 @@ typedef struct {
     float max_temp;
 
     // ACU errors/warnings
+    uint8_t acuErrCount;
     uint8_t acu_errors[6];          /* Map: [OT, OV, UV, OC, UC, Precharge] */
     uint8_t acu_volt_warnings[3];   /* Map: [UV 20v, UV 12v, UV SDC] */
 
@@ -84,7 +90,7 @@ typedef struct {
 } ACU;
 
 void acu_init(ACU * acu);
-void acu_check(ACU * acu);
+void acu_check(ACU * acu, uint8_t state, bool startup);
 bool can_polling(ACU * acu);
 void can_read(ACU * acu, uint32_t id);
 void can_send(ACU * acu, uint32_t id);

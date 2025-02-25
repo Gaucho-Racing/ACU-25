@@ -15,19 +15,109 @@ void acu_init(ACU * acu){
 
     acu->cell_OT_Threshold = CELL_MAX_TEMP;
     acu->cell_UT_Threshold = CELL_MIN_TEMP;
+
+    acu->acuErrCount = 0;
+    acu->cur_ref = 0;
+    acu->dcdc_ref = 2.5;
+    
     return;
 }
-void configure_tx_header(ACU * acu, uint32_t id){
-    TxHeader.Identifier = id; // Ping ID
-}
-
-// check if the values are correct
-void acu_check(ACU * acu){
+void acu_check(ACU * acu, uint8_t state, bool startup){
     update_all(acu);
-    // bool hasErrors = false;
-    return;
-}
+    uint8_t lastAcuErrCount = acu->acuErrCount;
+    bool hasErrors = false;
 
+    // check overcurrent
+    if(acu->ts_current > MAX_HV_CURRENT){
+        print_lpuart("Overcurrent detected\n");
+        hasErrors = true;
+        acu->acuErrCount++;
+        if (acu->acuErrCount >= ERRMG_ACU_ERR){
+            acu->acuErrCount = ERRMG_ACU_ERR;
+            acu->acu_errors[3] = 1;
+        }
+        else if(acu->ts_current > MAX_HV_CURRENT*0.8){
+            print_lpuart("High Current Warning\n");
+        }
+    }
+
+    //dcdc current
+    if(acu->dcdc_current > MAX_DCDC_CURRENT){
+        print_lpuart("DCDC Overcurrent detected\n");
+        hasErrors = true;
+        acu->acuErrCount++;
+        if (acu->acuErrCount >= ERRMG_ACU_ERR){
+            acu->acuErrCount = ERRMG_ACU_ERR;
+            acu->acu_errors[3] = 1;
+        }
+    }
+
+    //glv voltage
+    if(acu->glv_voltage < MIN_GLV_VOLT){
+        if (acu->glv_voltage > 3) print_lpuart("GLV Undervolt detected\n");
+        acu->acuErrCount++;
+        hasErrors = true;
+        if (acu->acuErrCount >= ERRMG_ACU_ERR){
+            acu->acuErrCount = ERRMG_ACU_ERR;
+            acu->acu_errors[2] = 1;
+        }
+    }
+    if(acu->glv_voltage > MAX_GLV_VOLT){
+        print_lpuart("GLV Overvolt detected\n");
+        acu->acuErrCount++;
+        hasErrors = true;
+        if (acu->acuErrCount >= ERRMG_ACU_ERR){
+            acu->acuErrCount = ERRMG_ACU_ERR;
+            acu->acu_errors[1] = 1;
+        }
+    }
+    
+    //fan ref voltage
+    if(5.0 - acu->fan_Ref > ERRMG_5V){
+        print_lpuart("5V Low detected\n");
+        acu->acuErrCount++;
+        hasErrors = true;
+        if (acu->acuErrCount >= ERRMG_ACU_ERR){
+            acu->acuErrCount = ERRMG_ACU_ERR;
+            acu->acu_errors[2] = 1;
+        }
+    } else if(acu->fan_Ref - 5.0 > ERRMG_5V){
+        print_lpuart("5V High detected\n");
+        acu->acuErrCount++;
+        hasErrors = true;
+        if (acu->acuErrCount >= ERRMG_ACU_ERR){
+            acu->acuErrCount = ERRMG_ACU_ERR;
+            acu->acu_errors[1] = 1;
+        }
+    }
+
+    //shutdown voltage, should be close to GLV
+    if(fabs(acu->shutdown_volt - acu->glv_voltage) > ERRMG_GLV_SDC && !startup && state == 3){
+
+        print_lpuart("Shutdown volt not close enough of GLV\n");
+        char buff[32];
+        sprintf(buff, "%.3f\n", fabs(acu->shutdown_volt - acu->glv_voltage));
+        print_lpuart(buff);
+
+        if(acu->shutdown_volt < acu->glv_voltage) {
+            acu->acuErrCount++;
+            hasErrors = true;
+            if (acu->acuErrCount >= ERRMG_ACU_ERR){
+                acu->acuErrCount = ERRMG_ACU_ERR;
+                acu->acu_errors[2] = 1;
+            }
+        }
+        else if(acu->shutdown_volt > acu->glv_voltage){
+            acu->acuErrCount++;
+            hasErrors = true;
+            if (acu->acuErrCount >= ERRMG_ACU_ERR){
+                acu->acuErrCount = ERRMG_ACU_ERR;
+                acu->acu_errors[1] = 1;
+            }
+        }
+    }
+    acu->acuErrCount = (lastAcuErrCount == acu->acuErrCount && !hasErrors)? 0 : acu->acuErrCount;
+}
 bool can_polling(ACU * acu){
     if (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO1) > 0) {
         if (HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CAN_RxBuffer) == HAL_OK) {
@@ -291,6 +381,7 @@ void update_glv_voltage(ACU * acu){
     return;
 }
 void update_ts_voltage(ACU * acu){
+    // acu->ts_voltage = (ACU_ADC.readVoltage(ADC_MUX_HV_VOLT) * 200);
     return;
 }
 void update_ts_current(ACU * acu){
