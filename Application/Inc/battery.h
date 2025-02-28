@@ -32,10 +32,12 @@ typedef struct
     float max_cell_volt;
     float min_cell_temp;
     float max_cell_temp;
+
     float min_charge_volt;
     float max_charge_volt;
 
     float batVoltage, batSOC;
+    float max_chg_current;
 
     // config
     bcc_drv_config_t drvConfig;
@@ -93,13 +95,13 @@ static const bcc_init_reg_t init_regs[INIT_REG_CNT] = {
 };
 
 bcc_status_t init_registers(Battery * bty);
-bcc_status_t read_device_measurements(Battery * bty);
+bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t read_temp);
 bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable);
 bcc_status_t check_volt(Battery *bty);
 bcc_status_t check_temp(Battery *bty);
 bcc_status_t check_fuse(Battery *bty);
 
-bool system_check(Battery *bty, bool startup);
+void battery_check(Battery *bty, bool full_check);
 bool check_faults(Battery *bty);
 void clear_faults(bcc_drv_config_t * drvConfig);
 bool do_cell_balancing(Battery * bty, bool all);

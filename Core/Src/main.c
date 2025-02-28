@@ -45,19 +45,22 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
 
+// cycle tracker
+uint8_t cycle;
+
 // Devices & Sensors
 ACU acu;
 Battery battery;
-ADC adc;
 
 // ADC
+float cur_ref = 0;
+uint16_t adc_data[3]; // 0: ts_voltage, 1: some other voltage, 2: sdc_voltage
 
 // BCC stuff
 uint8_t bcc_cooked_count = 0;
@@ -89,13 +92,14 @@ State state;
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
-// to delete functions
-void print_can_msg(uint8_t * arr);
-void print_lpuart(char* arr);
 void DWT_Delay_Init();
+void print_lpuart(char* arr);
 void print_bcc_status(bcc_status_t bccStatus);
 void print_bcc_fault(bcc_fault_status_t fault);
+int16_t Read_ADC1_Channel(uint32_t channel);
 
+// to delete functions
+void print_can_msg(uint8_t * arr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -119,8 +123,20 @@ void print_can_msg(uint8_t * arr){
   }
 }
 
+
+
 // setup for bcc
 int setup(){
+
+  // setup ADC
+  LL_ADC_Enable(ADC1);
+  while (!LL_ADC_IsActiveFlag_ADRDY(ADC1));
+  LL_DMA_SetPeriphAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)&ADC1->DR);
+  LL_DMA_SetMemoryAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)adc_data);
+  LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_1, 3);
+  LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_1);
+  LL_ADC_REG_StartConversion(ADC1);
+
   // setup battery configuring
   print_lpuart("configuring bcc...\n");
   battery.drvConfig.commMode = BCC_MODE_TPL;
@@ -133,7 +149,6 @@ int setup(){
   }
   
   // init bcc
-  // print_lpuart("calling BCC_Init...\n");
   bcc_error = BCC_Init(&(battery.drvConfig));
   uint8_t counter = TRIES;
   while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
@@ -177,7 +192,7 @@ int setup(){
   print_lpuart("successful BCC_CB_Enable...\n");
   
   // print_lpuart("reading device measurements...\n");
-  if((bcc_error = read_device_measurements(&battery)) != BCC_STATUS_SUCCESS){
+  if((bcc_error = read_device_measurements(&battery, true, true)) != BCC_STATUS_SUCCESS){
       state = SHITDOWN;
       print_lpuart("failed read_device_measurements...\n");
       return -1;
@@ -255,8 +270,6 @@ int main(void)
 
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
-
-  // print_lpuart("Hello World\n");
   LL_mDelay(1000);
 
   if(setup() != 0) state = SHITDOWN;
@@ -279,25 +292,36 @@ int main(void)
   TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
   TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
-  TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS; 
 
-  /*
-  this->ACU_ADC.begin();
-  cur_ref = ACU_ADC.readVoltageTot(ADC_MUX_HV_CURRENT,256); //Zero current sensor offset
-  dcdc_ref = ACU_ADC.readVoltageTot(ADC_MUX_DCDC_CURRENT,256); //Zero current sensor offset
-  */
+  // COnfigure RxHeader
+  RxHeader.Identifier = 0;
+  RxHeader.IdType = FDCAN_EXTENDED_ID;
+  RxHeader.RxFrameType = FDCAN_DATA_FRAME;
+  RxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  RxHeader.DataLength = FDCAN_DLC_BYTES_8;
+  RxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+  RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+  RxHeader.RxTimestamp = 0;/* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
 
+  cur_ref = 0; // ACU_ADC.readVoltageTot(ADC_MUX_HV_CURRENT,256);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    // system checks & cooked counter
-    if(!system_check(&battery, false)){
-      state = SHITDOWN;
-    }
+    if(acu.ts_active && state == STANDBY) state = PRECHARGE;
+    else if(acu.ts_active && state > STANDBY) state = SHITDOWN;
     
+    acu.ts_voltage = adc_data[0];
+    acu.volt_12v = adc_data[1];
+    acu.volt_sdc = adc_data[2];
+
+    // system checks & cooked counter
+    battery_check(&battery, false);
+
+    // send ACU ping
     can_send(&acu, ACU_Ping_Debug);
 
     // poll for can messages
