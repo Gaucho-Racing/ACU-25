@@ -12,6 +12,15 @@
 typedef struct {
     float em_current;
     float em_voltage;
+    float energy;
+
+    uint8_t min_temp;
+    uint8_t max_temp;
+    uint8_t num_sensors;
+
+    uint8_t status; /* Map: 0: violation, 1: logging*/
+    float temps[32];
+
 } EM;
 
 typedef struct {
@@ -71,7 +80,6 @@ typedef struct {
     // ACU_Status_1
     uint8_t acu_SOC; // % charged of the Accumulator (Based on lowest cell)
     uint8_t glv_SOC; // % charged of the Low Voltage Bat
-    float glv_voltage; // NOT SURE WHERE THIS COMES IN
 
     float ts_voltage;  // output terminal voltage of ACU
     float ts_current; // current output of ACU
@@ -87,14 +95,15 @@ typedef struct {
     float hv_output_current;  // 20v output current
 
     // voltages voltages voltages...
-    float volt_12v; // 12v supply voltage
-    float volt_sdc; // voltage b4 ACU latch
+    float sdc_voltage; // voltage b4 ACU latch
+    float glv_voltage;  // from adc_data
 
     // Config_Operational_ACU
     float target_min_cell_volt;
     float target_max_cell_temp;
 
     // from GR24 => not sure if we still need to use
+    uint32_t cur_LastHighTime;
     uint32_t lastChrgRecieveTime;
     uint8_t relay_state; /* Bit 0: AIR+ State (1=closed)
                             Bit 1: AIR- State (1=closed)
@@ -108,7 +117,7 @@ typedef struct {
     // ACU errors/warnings
     uint8_t acuErrCount;
     uint16_t acu_err_warns; /*[ OT, OV, UV, OC, 
-                                UC, UV_20v, UV_12v, UV_SDC, 
+                                UC, UV_20v, UV_GLV, UV_SDC, 
                                 Precharge, 0, 0, 0, 
                                 0, 0, 0, 0]*/         
 
@@ -123,7 +132,7 @@ typedef struct {
 
 void acu_init(ACU * acu);
 void acu_check(ACU * acu, uint8_t state, bool startup);
-bool can_polling(ACU * acu);
+bool can_polling();
 void can_read_all(ACU* acu);
 void can_read(ACU * acu, uint32_t id);
 void can_send(ACU * acu, uint32_t id);
@@ -134,10 +143,8 @@ void reset_latch(ACU *acu);
 void update_adc_array_data(ACU* acu);
 void update_all(ACU * acu);
 
+float get_total_voltage(ACU* acu);
 float V2T_f(float voltage, float B); // default = 4390
 float V2T_i(int16_t voltage, float B); // default = 4390
 float V2T_complex(float vdd, float voltage, float B, float Rsns, float Rref);
-
-float get_total_voltage(ACU* acu);
-float update_and_get_ts_voltage(ACU* acu);
 #endif

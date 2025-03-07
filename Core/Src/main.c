@@ -35,6 +35,13 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef struct 
+{
+  uint8_t can_type;
+  uint8_t data[64];
+  FDCAN_RxHeaderTypeDef RxHeader;
+  FDCAN_HandleTypeDef* hfdcan;
+} CAN_RX_message;
 
 /* USER CODE END PTD */
 
@@ -58,34 +65,50 @@ uint8_t cycle;
 ACU acu;
 Battery battery;
 
-// ADC
+// ADC Data
 float cur_ref = 0;
-uint16_t adc_data[3]; // 0: ts_voltage, 1: some other voltage, 2: sdc_voltage
+uint16_t adc_data[3]; // 0: ts_voltage, 1: glv voltage, 2: sdc_voltage
 
-// BCC stuff
+// BCC
 uint8_t bcc_cooked_count = 0;
 uint16_t bcc_faults;
 uint32_t BCC_MCU_Timeout_Start;
 uint32_t BCC_MCU_Timeout_length = 0;
 bcc_status_t bcc_error;
 
-
-// communication stuff - FDCAN
-extern FDCAN_HandleTypeDef hfdcan1;
-FDCAN_TxHeaderTypeDef TxHeader;
-FDCAN_RxHeaderTypeDef RxHeader;
-uint8_t CAN_TxBuffer[64];
-uint8_t CAN_RxBuffer[64];
-uint8_t readCount = 0;
-
-// communication stuff - TPL
-volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data
+// communication BCC - TPL
+volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data => Replace with struct holding CAN RxBuffer
 volatile uint8_t TPL_RxBufferLevel = 0; // Number of bytes to be read
 volatile uint8_t TPL_RxBufferBottom = 0; // Index of oldest data
 volatile uint8_t TPL_RxBufferTop = 0; // Index of newest data
 
-// Theoretical stuff
+// communication - FDCAN
+extern FDCAN_HandleTypeDef hfdcan1;
+FDCAN_TxHeaderTypeDef TxHeader;
+FDCAN_RxHeaderTypeDef RxHeader;
+
+volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
+volatile uint8_t CAN_RxBufferLevel = 0; // Number of bytes to be read
+volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data
+volatile uint8_t cAN_RxBufferTop = 0; // Index of newest data
+
+// extern FDCAN_HandleTypeDef hfdcan2; ==> separate this
+// FDCAN_TxHeaderTypeDef TxHeader_Data;
+// FDCAN_RxHeaderTypeDef RxHeader_Data;
+
+// extern FDCAN_HandleTypeDef hfdcan3; ==> separate this
+// FDCAN_TxHeaderTypeDef TxHeader_Charger;
+// FDCAN_RxHeaderTypeDef RxHeader_Charger;
+
+// SHARED BUFFER
+uint8_t CAN_TxData[64];
+uint8_t CAN_RxData[64];
+uint8_t readCount = 0;
+
+// stateful things
 State state;
+extern void debug();
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -190,28 +213,11 @@ int setup(){
       }
   }
   print_lpuart("successful BCC_CB_Enable...\n");
+  state = STANDBY;
   
-  // print_lpuart("reading device measurements...\n");
-  if((bcc_error = read_device_measurements(&battery, true, true)) != BCC_STATUS_SUCCESS){
-      state = SHITDOWN;
-      print_lpuart("failed read_device_measurements...\n");
-      return -1;
-  }
-  BCC_MCU_WaitUs(500);
-  print_lpuart("\n");
-  if((bcc_faults = check_volt(&battery)) != BCC_STATUS_SUCCESS){ 
-      state = SHITDOWN;
-      print_lpuart("failed check_volt: ");
-      print_bcc_status(bcc_faults);
-      return -1;
-  }
-  
-  if((bcc_faults = check_temp(&battery)) != BCC_STATUS_SUCCESS){
-      state = SHITDOWN;
-      // print_lpuart("failed check_temp: ");
-      // print_bcc_fault(bcc_faults);
-      return -1;
-  }
+  // setup acu
+  acu_init(&acu);
+  acu.bty = &battery;
 
   return 0;
 }
@@ -268,23 +274,19 @@ int main(void)
     Error_Handler();
   }
 
+  // Activate interrupting capabilities
+  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
   LL_mDelay(1000);
 
   if(setup() != 0) state = SHITDOWN;
-  state = STANDBY;
-  
-  // setup acu
-  acu_init(&acu);
-  acu.bty = &battery;
+
+
 
   // default: cell balancing is off
-  if((bcc_error = config_cell_balancing(&battery, 0, 0, true, 0)) != BCC_STATUS_SUCCESS){
-    print_lpuart("error configuring cell balancing b4 loop: ");
-    print_bcc_status(bcc_error); 
-    state = SHITDOWN;
-  }
+  reset_discharge(&battery);
 
   // Configure TxHeader
   TxHeader.IdType = FDCAN_STANDARD_ID;
@@ -305,6 +307,15 @@ int main(void)
   RxHeader.RxTimestamp = 0;/* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
 
   cur_ref = 0; // ACU_ADC.readVoltageTot(ADC_MUX_HV_CURRENT,256);
+
+  if(!state_system_check(true, true)){
+    state = SHITDOWN;
+     print_lpuart("System check failed, shutting down\n");
+  }
+  else{
+    state = STANDBY;
+    print_lpuart("System check passed, entering standby\n");
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -315,33 +326,9 @@ int main(void)
     else if(acu.ts_active && state > STANDBY) state = SHITDOWN;
     
     acu.ts_voltage = adc_data[0];
-    acu.volt_12v = adc_data[1];
-    acu.volt_sdc = adc_data[2];
+    acu.glv_voltage = adc_data[1];
+    acu.sdc_voltage = adc_data[2];
 
-    // system checks & cooked counter
-    battery_check(&battery, false);
-
-    // send ACU ping
-    can_send(&acu, ACU_Ping_Debug);
-
-    // poll for can messages
-    if(readCount >= MAX_READ_COUNT){
-      readCount = 0;
-      if(can_polling(&acu)){
-        print_lpuart("received a message!\n");
-        can_read(&acu, RxHeader.Identifier); // parse the data
-      }
-      else{
-        print_lpuart("not received a message yet!\n");
-      }
-    }
-    else{}
-    
-
-    // dispatch neccessary info via can
-    // can_dump(&acu);
-
-    readCount++;
     BCC_MCU_WaitMs(500);
     print_lpuart("State: ");
     switch(state){
@@ -368,6 +355,18 @@ int main(void)
       default:
         break;
     }
+
+    // system checks & cooked counter
+    battery_check(&battery, false);
+
+    // send ACU ping
+    can_send(&acu, ACU_Ping_Debug);
+
+    // poll for can messages
+    can_read_all(&acu);
+    can_dump(&acu);
+    
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -526,6 +525,27 @@ void print_bcc_status(bcc_status_t bccStatus){
       break;
   }
 }
+
+// void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs) {
+//   FDCAN_RxHeaderTypeDef RxHeader;
+//   uint8_t RxData[8]; // Assuming a maximum data length of 8 bytes
+
+//   if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != RESET) {
+//     /* Retrieve Rx messages from RX FIFO0 */
+//     if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK) {
+//       Error_Handler(); // Handle error if message retrieval fails
+//     } else {
+//       // Process the received message
+//       // ...
+//       // Example: Check identifier and data length
+//       if (RxHeader.Identifier == 0x123 && RxHeader.DataLength == 4) {
+//         // Process the data in RxData
+//         // ...
+//       }
+//     }
+//   }
+// }
+
 /* USER CODE END 4 */
 
 /**

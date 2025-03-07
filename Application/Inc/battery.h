@@ -104,8 +104,7 @@ bcc_status_t check_fuse(Battery *bty);
 void battery_check(Battery *bty, bool full_check);
 bool check_faults(Battery *bty);
 void clear_faults(bcc_drv_config_t * drvConfig);
-bool do_cell_balancing(Battery * bty, bool all);
-void update_cell_voltages(Battery * bty);
+bool do_cell_balancing(Battery * bty);
 
 // print individuals
 void print_volt(const float * voltages, const uint8_t cid, uint8_t index);

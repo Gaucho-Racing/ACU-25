@@ -45,6 +45,27 @@
 #define ACU_ERR_UV_SDC      0b0000001000000000 // warning
 #define ACU_PRECHARGE       0b0000000100000000
 #define ACU_CLEAR_WARN      0b0000111000000000
+#define ACU_CLEAR_ERRR      0b1111000100000000
+
+// charger error masks
+#define CHARGER_HW_FAIL     0b10000
+#define CHARGER_OV_TEMP     0b01000
+#define CHARGER_IN_VOLT     0b00100
+#define CHARGER_CONNECT     0b00010
+#define CHARGER_COOMMMM     0b00001
+
+// IMD error masks
+#define IMD_ERROR_ACTIVE    0b10000000000
+#define HV_POS_CONN_FAIL    0b01000000000
+#define HV_NEG_CONN_FAIL    0b00100000000
+#define EARTH_CONNN_FAIL    0b00010000000
+#define ISO_ALARM_ERRROR    0b00001000000
+#define ISO_WARN_ERRRROR    0b00000100000
+#define ISO_OUTDATED_ERR    0b00000010000
+#define UN_BALANCE_ALARM    0b00000001000
+#define UNDERVOLTG_ALARM    0b00000000100
+#define UNSAFE_TOO_START    0b00000000010
+#define EARTH_LIFT_OPENN    0b00000000001
 
 // error margins
 #define ERRMG_GLV_SDC 4
@@ -56,17 +77,22 @@
 
 // ADC Warning Thresholds
 #define UNDER_VOLTAGE_20V 15
-#define UNDER_VOLTAGE_12V 10
+#define UNDER_VOLTAGE_GLV 10
 #define UNDER_VOLTAGE_SDCV 9
 
-// ADC1283 connections
-#define ADC_MUX_HV_VOLT 6
-#define ADC_MUX_HV_CURRENT 0
-#define ADC_MUX_DCDC_CURRENT 5
+// adc_data muxes
+#define ADC_MUX_TS_VOLT     0
+#define ADC_MUX_GLV_VOLT    1
+#define ADC_MUX_SDN_VOLT    2
 
 #define PRECHARGE_THRESHOLD 0.96 // fraction of total cell voltage
+#define SAFE_V_TO_TURN_OFF 60
 
 #define ACU_DEBUG 0
+
+#define CAN_PRIM (uint8_t)0
+#define CAN_DATA (uint8_t)1
+#define CAN_CHARGE (uint8_t)2
 
 // Send
 // CAN1

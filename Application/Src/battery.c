@@ -86,7 +86,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
         BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true); // pause b4 read
 
-        if(true){
+        if(read_volt){
 
             // CELL VOLTAGES
             BCC_Meas_StartAndWait(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_AVG_1);
@@ -130,7 +130,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
         }
 
         // CELL TEMPS
-        if(true){
+        if(read_temp){
             bzero(temp_measures, sizeof(temp_measures));
             error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, temp_measures);
             bty->icTemp[i] = temp_measures[i] * 0.1f;
@@ -177,31 +177,8 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
     return BCC_STATUS_SUCCESS;
 }
 
-void update_cell_voltages(Battery * bty){
-    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
-        BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true); // pause b4 read
-
-        if(true){
-            uint32_t measurements[NUM_CELL_IC];
-            BCC_Meas_StartAndWait(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_AVG_1);
-            bcc_status_t err = BCC_Meas_GetCellVoltages(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
-            if(err != BCC_STATUS_SUCCESS) {
-                bcc_cooked_count++;
-                if(bcc_cooked_count == 0){
-                    print_lpuart("\nerror in update_cell_voltages: ");
-                    print_bcc_status(err);
-                    return;
-                }
-            }
-            for (uint8_t j = 0; j < NUM_CELL_IC; j++){
-                bty->cell_volt[(i*NUM_CELL_IC)+j] = (measurements[j] * 1e-6f);
-            }
-        }
-    }
-}
-
 // assumes we read device measurements already
-bool do_cell_balancing(Battery * bty, bool all){
+bool do_cell_balancing(Battery * bty){
 
     float threshold = (bty->min_cell_volt + bty->max_cell_volt)/2;
     bcc_status_t err = BCC_STATUS_SUCCESS;
@@ -265,14 +242,12 @@ bcc_status_t check_temp(Battery *bty){
         for(uint8_t j = 0; j < (NUM_CELL_IC); i++){
             if(bty->cell_temp[i*NUM_CELL_IC + j] > CELL_MAX_TEMP){
                 bty->faults = BCC_FS_AN_OT_UT;
-                // print_lpuart("overtemp: ");
-                // print_bcc_fault(BCC_FS_AN_OT_UT);
+                print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
             }
             if(bty->cell_temp[i*NUM_CELL_IC + j] < CELL_MIN_TEMP){
                 bty->faults = BCC_FS_AN_OT_UT;
-                // print_lpuart("undertemp: ");
-                // print_bcc_fault(BCC_FS_AN_OT_UT);
+                print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
             }
         }

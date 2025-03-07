@@ -5,9 +5,9 @@ extern void print_can_msg(uint8_t *arr);
 
 extern FDCAN_TxHeaderTypeDef TxHeader;
 extern FDCAN_RxHeaderTypeDef RxHeader;
-extern uint8_t CAN_TxBuffer[64];
-extern uint8_t CAN_RxBuffer[64];
-
+extern uint8_t CAN_TxData[64];
+extern uint8_t CAN_RxData[64];
+extern uint8_t readCount;
 extern uint16_t adc_data[3];
 
 void acu_init(ACU * acu){
@@ -101,16 +101,16 @@ void acu_check(ACU * acu, uint8_t state, bool startup){
     if(acu->ts_voltage < UNDER_VOLTAGE_20V){
         acu->acu_err_warns |= ACU_ERR_UV_20_V;
     }
-    if(acu->volt_12v < UNDER_VOLTAGE_12V){
+    if(acu->glv_voltage < UNDER_VOLTAGE_GLV){
         acu->acu_err_warns |= ACU_ERR_UV_12_V;
     }
-    if(acu->volt_sdc < UNDER_VOLTAGE_SDCV){
+    if(acu->sdc_voltage < UNDER_VOLTAGE_SDCV){
         acu->acu_err_warns |= ACU_ERR_UV_SDC;
     }
 }
-bool can_polling(ACU * acu){
+bool can_polling(){
     if (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO1) > 0) {
-        if (HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CAN_RxBuffer) == HAL_OK) {
+        if (HAL_FDCAN_GetRxMessage(&hfdcan1, FDCAN_RX_FIFO0, &RxHeader, CAN_RxData) == HAL_OK) {
             print_lpuart("Received data from FD_CAN!");
             return true;
         }
@@ -119,7 +119,15 @@ bool can_polling(ACU * acu){
 }
 
 void can_read_all(ACU* acu){
-
+    readCount = 0;
+    while(can_polling() && readCount >= MAX_READ_COUNT){
+        readCount = 0;
+        if(can_polling()){
+            print_lpuart("received a message!\n");
+            can_read(acu, RxHeader.Identifier); // parse the data
+            readCount++;
+        }
+    }
 }
 
 void can_read(ACU * acu, uint32_t id){
@@ -128,21 +136,21 @@ void can_read(ACU * acu, uint32_t id){
         case Charger_Data_ACU:
             acu->lastChrgRecieveTime = HAL_GetTick();
             values = 0.0;
-            values += CAN_RxBuffer[0] << 8;
-            values += CAN_RxBuffer[1];
+            values += CAN_RxData[0] << 8;
+            values += CAN_RxData[1];
             acu->chgr->charger_output_voltage = values;
 
-            values += CAN_RxBuffer[2] << 8;
-            values += CAN_RxBuffer[3];
+            values += CAN_RxData[2] << 8;
+            values += CAN_RxData[3];
             acu->chgr->charger_output_current = values;
-            acu->chgr->chgr_status = CAN_RxBuffer[4];
+            acu->chgr->chgr_status = CAN_RxData[4];
             break;  
         case Debug_2_ACU:
-            print_lpuart(CAN_RxBuffer); // 'read' Debug Message
+            print_lpuart(CAN_RxData); // 'read' Debug Message
             can_send(acu, ACU_Debug_2);
             break;  
         case Debug_FD_ACU:
-            print_lpuart(CAN_RxBuffer); // 'read' Debug Message
+            print_lpuart(CAN_RxData); // 'read' Debug Message
             can_send(acu, ACU_Debug_FD);
             break;  
         case Ping_ACU:
@@ -150,24 +158,24 @@ void can_read(ACU * acu, uint32_t id){
             break;  
         case Precharge_ACU:
             print_lpuart("Setting ts_active\n");
-            acu->ts_active = CAN_RxBuffer[0] & 1;
+            acu->ts_active = CAN_RxData[0] & 1;
             break;  
         case Config_Charge_ACU:
             values = 0.0;
-            values += CAN_RxBuffer[0] << 8;
-            values += CAN_RxBuffer[1];
+            values += CAN_RxData[0] << 8;
+            values += CAN_RxData[1];
             acu->target_voltage = values;
-            values = CAN_RxBuffer[2] << 8;
-            values += CAN_RxBuffer[3];
+            values = CAN_RxData[2] << 8;
+            values += CAN_RxData[3];
             acu->target_current = values;
             break;  
         case Config_Operational_ACU:
             values = 0.0;
-            values += CAN_RxBuffer[0] << 8;
-            values += CAN_RxBuffer[1];
+            values += CAN_RxData[0] << 8;
+            values += CAN_RxData[1];
             acu->target_min_cell_volt = (float)values;
-            values = CAN_RxBuffer[2] << 8;
-            values += CAN_RxBuffer[3];
+            values = CAN_RxData[2] << 8;
+            values += CAN_RxData[3];
             acu->target_max_cell_temp = (float)values;
             break;  
         case ECU_Status_1:
@@ -179,54 +187,67 @@ void can_read(ACU * acu, uint32_t id){
         case ECU_Ping: // 4 bytes, reveal Timesetamp in millis()
             break;
         case EM_Measurements_ACU: // i think
-            acu->em->em_current = (float)((unsigned long)(CAN_RxBuffer[3]<<24)|(unsigned long)(CAN_RxBuffer[2])<<16|CAN_RxBuffer[1]<<8|CAN_RxBuffer[0]);
-            acu->em->em_voltage = (float)((unsigned long)(CAN_RxBuffer[7]<<24)|(unsigned long)(CAN_RxBuffer[6])<<16|CAN_RxBuffer[5]<<8|CAN_RxBuffer[4]);
+            acu->em->em_current = (float)((unsigned long)(CAN_RxData[3]<<24)|(unsigned long)(CAN_RxData[2])<<16|CAN_RxData[1]<<8|CAN_RxData[0]);
+            acu->em->em_voltage = (float)((unsigned long)(CAN_RxData[7]<<24)|(unsigned long)(CAN_RxData[6])<<16|CAN_RxData[5]<<8|CAN_RxData[4]);
             break;  
         case EM_Data_1_ACU:
-            // do nothing?
+            // "Team Signal 1: Fuck if I know"
+            // "Team Signal 2: Fuck if I know"
             break;  
         case EM_Data_2_ACU:
-            // do nothing?
+            // "Team Signal 3: Fuck if I know"
+            // "Team Signal 4: Fuck if I know"
             break;  
         case EM_Status_ACU:
-            // do nothing?
+            acu->em->status = CAN_RxData[0];
+            memcpy(&(acu->em->energy), (CAN_RxData+1), sizeof(float));
             break;  
         case EM_Temperature_ACU:
-            // do nothing?
+            uint8_t mux_signal = CAN_RxData[0] & 0b11;
+            acu->em->min_temp = (uint8_t)(CAN_RxData[1]);
+            acu->em->max_temp = (uint8_t)(CAN_RxData[2]);
+
+            acu->em->num_sensors = (uint8_t)((CAN_RxData[0] & 0b001111)<<2);
+            acu->em->temps[mux_signal*5] = (uint8_t)(CAN_RxData[3]);
+            acu->em->temps[mux_signal*5+1] = (uint8_t)(CAN_RxData[4]);
+            acu->em->temps[mux_signal*5+2] = (uint8_t)(CAN_RxData[5]);
+            acu->em->temps[mux_signal*5+3] = (uint8_t)(CAN_RxData[6]);
+            acu->em->temps[mux_signal*5+4] = (uint8_t)(CAN_RxData[7]);
+
             break;  
         case IMD_Response_ACU:
-            acu->imd->id = CAN_RxBuffer[0];
+            acu->imd->id = CAN_RxData[0];
             break;  
         case IMD_Isolation_ACU: 
-            acu->imd->r_iso_negative = (uint16_t)(CAN_RxBuffer[0] << 8);
-            acu->imd->r_iso_negative |= (uint16_t)(CAN_RxBuffer[1]);
-            acu->imd->r_iso_positive = (uint16_t)(CAN_RxBuffer[2] << 8);
-            acu->imd->r_iso_positive |= (uint16_t)(CAN_RxBuffer[3]);
-            acu->imd->r_iso_original = (uint16_t)(CAN_RxBuffer[4] << 8);
-            acu->imd->r_iso_original |= (uint16_t)(CAN_RxBuffer[5]);
-            acu->imd->iso_meas_count = CAN_RxBuffer[6];
-            acu->imd->isolation_quality = CAN_RxBuffer[7];
+            acu->imd->r_iso_negative = (uint16_t)(CAN_RxData[0] << 8);
+            acu->imd->r_iso_negative |= (uint16_t)(CAN_RxData[1]);
+            acu->imd->r_iso_positive = (uint16_t)(CAN_RxData[2] << 8);
+            acu->imd->r_iso_positive |= (uint16_t)(CAN_RxData[3]);
+            acu->imd->r_iso_original = (uint16_t)(CAN_RxData[4] << 8);
+            acu->imd->r_iso_original |= (uint16_t)(CAN_RxData[5]);
+            acu->imd->iso_meas_count = CAN_RxData[6];
+            acu->imd->isolation_quality = CAN_RxData[7];
             break;  
         case IMD_Voltage_ACU:
-            acu->imd->hv_system_voltage = (((uint16_t)(CAN_RxBuffer[1]) << 8) + CAN_RxBuffer[0] - 32128) * 0.05;
+            acu->imd->hv_system_voltage = (((uint16_t)(CAN_RxData[1]) << 8) + CAN_RxData[0] - 32128) * 0.05;
             break;  
         case IMD_IT_System_ACU: 
             break;
         case IMD_Request_ACU:
-            acu->imd->id = CAN_RxBuffer[0];
+            acu->imd->id = CAN_RxData[0];
             break;  
         case IMD_General_ACU:
-            acu->imd->r_iso_corrected = (uint16_t)(CAN_RxBuffer[0] << 8);
-            acu->imd->r_iso_corrected |= (uint16_t)CAN_RxBuffer[1];
-            acu->imd->r_iso_status = CAN_RxBuffer[2];
-            acu->imd->r_iso_meas_count = CAN_RxBuffer[3];
-            acu->imd->status_warnings_alarms = (uint16_t)(CAN_RxBuffer[4] << 8);
-            acu->imd->status_warnings_alarms |= (uint16_t)(CAN_RxBuffer[5]);
-            acu->imd->status_device_activity = CAN_RxBuffer[6];
+            acu->imd->r_iso_corrected = (uint16_t)(CAN_RxData[0] << 8);
+            acu->imd->r_iso_corrected |= (uint16_t)CAN_RxData[1];
+            acu->imd->r_iso_status = CAN_RxData[2];
+            acu->imd->r_iso_meas_count = CAN_RxData[3];
+            acu->imd->status_warnings_alarms = (uint16_t)(CAN_RxData[5] << 8);
+            acu->imd->status_warnings_alarms |= (uint16_t)(CAN_RxData[4]);
+            acu->imd->status_device_activity = CAN_RxData[6];
             break;
         default:
             break;
-        bzero(CAN_RxBuffer, sizeof(CAN_RxBuffer));
+        bzero(CAN_RxData, sizeof(CAN_RxData));
     }
 }
 
@@ -234,46 +255,48 @@ void can_send(ACU * acu, uint32_t id){
 
     TxHeader.Identifier = id;
     uint32_t millis = HAL_GetTick();
-    bzero(CAN_TxBuffer, sizeof(CAN_TxBuffer));
+    bzero(CAN_TxData, sizeof(CAN_TxData));
 
     switch (id){
         case ACU_Debug_2: // 0x000
             print_lpuart("send ACU_Debug_2...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
-            if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK){
+            CAN_TxData[0] = HAL_GetTick();
+            if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
                 print_lpuart("ACU_Debug_2 failed...\n");
             }
             break;       
         case ACU_Debug_FD: // 0x001
             print_lpuart("send ACU_Debug_FD...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_64;
-            if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK){
+            CAN_TxData[0] = HAL_GetTick();
+            if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
                 print_lpuart("ACU_Debug_FD failed...\n");
             }
             break;     
         case ACU_Ping_Debug: // 0x002
 
-            CAN_TxBuffer[0] = millis & 0x0001;
-            CAN_TxBuffer[1] = (millis & 0x0010) >> 1;
-            CAN_TxBuffer[2] = (millis & 0x0100) >> 2;
-            CAN_TxBuffer[3] = (millis & 0x1000) >> 3;
+            CAN_TxData[0] = millis & 0x0001;
+            CAN_TxData[1] = (millis & 0x0010) >> 1;
+            CAN_TxData[2] = (millis & 0x0100) >> 2;
+            CAN_TxData[3] = (millis & 0x1000) >> 3;
 
             print_lpuart("send ACU_Ping_Debug...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_4;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Ping_Debug failed...\n");
             }
             break;    
         case ACU_Ping_ECU: // 0x002
 
-            CAN_TxBuffer[0] = millis & 0x0001;
-            CAN_TxBuffer[1] = (millis & 0x0010) >> 1;
-            CAN_TxBuffer[2] = (millis & 0x0100) >> 2;
-            CAN_TxBuffer[3] = (millis & 0x1000) >> 3;
+            CAN_TxData[0] = millis & 0x0001;
+            CAN_TxData[1] = (millis & 0x0010) >> 1;
+            CAN_TxData[2] = (millis & 0x0100) >> 2;
+            CAN_TxData[3] = (millis & 0x1000) >> 3;
 
             print_lpuart("send ACU_Ping_ECU...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_4;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_PingACU_Ping_ECU_Debug failed...\n");
             }
             break;       
@@ -282,19 +305,19 @@ void can_send(ACU * acu, uint32_t id){
 
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
             float total_volt = get_total_voltage(acu);
-            CAN_TxBuffer[0] = ((uint16_t)total_volt) >> 8;
-            CAN_TxBuffer[1] = (uint16_t)total_volt;
+            CAN_TxData[0] = ((uint16_t)total_volt) >> 8;
+            CAN_TxData[1] = (uint16_t)total_volt;
 
-            CAN_TxBuffer[2] = ((uint16_t)acu->ts_voltage) >> 8;
-            CAN_TxBuffer[3] = (uint16_t)acu->ts_voltage;
+            CAN_TxData[2] = ((uint16_t)acu->ts_voltage) >> 8;
+            CAN_TxData[3] = (uint16_t)acu->ts_voltage;
 
-            CAN_TxBuffer[4] = ((uint16_t)acu->ts_current) >> 8;
-            CAN_TxBuffer[5] = (uint16_t)acu->ts_current;
+            CAN_TxData[4] = ((uint16_t)acu->ts_current) >> 8;
+            CAN_TxData[5] = (uint16_t)acu->ts_current;
 
-            CAN_TxBuffer[6] = acu->acu_SOC;
-            CAN_TxBuffer[7] = acu->glv_SOC;
+            CAN_TxData[6] = acu->acu_SOC;
+            CAN_TxData[7] = acu->glv_SOC;
 
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Status_1 failed...\n");
             }
 
@@ -302,36 +325,36 @@ void can_send(ACU * acu, uint32_t id){
         case ACU_Status_2:
             print_lpuart("send ACU_Status_2...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_7;
-            CAN_TxBuffer[0] = 0; // 20v Voltage
-            CAN_TxBuffer[1] = (uint8_t)acu->volt_12v;
-            CAN_TxBuffer[2] = (uint8_t)acu->volt_sdc;
-            CAN_TxBuffer[3] = (uint8_t)acu->bty->min_cell_volt;
-            CAN_TxBuffer[4] = (uint8_t)acu->bty->max_cell_temp;
-            CAN_TxBuffer[5] = (uint8_t)(acu->acu_err_warns & 0xFF);
+            CAN_TxData[0] = 0; // 20v Voltage
+            CAN_TxData[1] = (uint8_t)acu->glv_voltage;
+            CAN_TxData[2] = (uint8_t)acu->sdc_voltage;
+            CAN_TxData[3] = (uint8_t)acu->bty->min_cell_volt;
+            CAN_TxData[4] = (uint8_t)acu->bty->max_cell_temp;
+            CAN_TxData[5] = (uint8_t)(acu->acu_err_warns & 0xFF);
 
-            CAN_TxBuffer[6] = ((uint8_t)(acu->acu_err_warns >> 8)) & 0x01;
-            CAN_TxBuffer[6] += (acu->ir_precharge_state << 1);
-            CAN_TxBuffer[6] += (acu->ir_state << 2);
-            CAN_TxBuffer[6] += (acu->software_latch << 3);
+            CAN_TxData[6] = ((uint8_t)(acu->acu_err_warns >> 8)) & 0x01;
+            CAN_TxData[6] += (acu->ir_precharge_state << 1);
+            CAN_TxData[6] += (acu->ir_state << 2);
+            CAN_TxData[6] += (acu->software_latch << 3);
             
-            CAN_TxBuffer[7] = 0;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            CAN_TxData[7] = 0;
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Status_2 failed...\n");
             }
             break;       
         case ACU_Status_3:
             print_lpuart("send ACU_Status_3...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_12;
-            CAN_TxBuffer[0] = (uint16_t)acu->hv_input_voltage >> 8;
-            CAN_TxBuffer[1] = (uint16_t)acu->hv_input_voltage;
-            CAN_TxBuffer[2] = (uint16_t)acu->hv_output_voltage >> 8;
-            CAN_TxBuffer[3] = (uint16_t)acu->hv_output_voltage;
-            CAN_TxBuffer[4] = (uint16_t)acu->hv_input_current >> 8;
-            CAN_TxBuffer[5] = (uint16_t)acu->hv_input_current;
-            CAN_TxBuffer[6] = (uint16_t)acu->hv_output_current >> 8;
-            CAN_TxBuffer[7] = (uint16_t)acu->hv_output_current;
-            CAN_TxBuffer[8] = CAN_TxBuffer[9] = CAN_TxBuffer[10] = CAN_TxBuffer[11] = 0;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            CAN_TxData[0] = (uint16_t)acu->hv_input_voltage >> 8;
+            CAN_TxData[1] = (uint16_t)acu->hv_input_voltage;
+            CAN_TxData[2] = (uint16_t)acu->hv_output_voltage >> 8;
+            CAN_TxData[3] = (uint16_t)acu->hv_output_voltage;
+            CAN_TxData[4] = (uint16_t)acu->hv_input_current >> 8;
+            CAN_TxData[5] = (uint16_t)acu->hv_input_current;
+            CAN_TxData[6] = (uint16_t)acu->hv_output_current >> 8;
+            CAN_TxData[7] = (uint16_t)acu->hv_output_current;
+            CAN_TxData[8] = CAN_TxData[9] = CAN_TxData[10] = CAN_TxData[11] = 0;
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Status_3 failed...\n");
             }
             break;       
@@ -339,10 +362,10 @@ void can_send(ACU * acu, uint32_t id){
             print_lpuart("send ACU_Cell_Data_1...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_64;
             for(uint8_t cell = 0; cell < 32; cell+=2){
-                CAN_TxBuffer[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
-                CAN_TxBuffer[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
+                CAN_TxData[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
+                CAN_TxData[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
             }
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_1 failed...\n");
             }
             break;    
@@ -350,69 +373,69 @@ void can_send(ACU * acu, uint32_t id){
             print_lpuart("send ACU_Cell_Data_2...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_64;
             for(uint8_t cell = 32; cell < 64; cell+=2){
-                CAN_TxBuffer[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
-                CAN_TxBuffer[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
+                CAN_TxData[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
+                CAN_TxData[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
             }
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_2 failed...\n");
             }
             break;    
         case ACU_Cell_Data_3:
-            print_lpuart("ACU_Cell_Data_3... how did u get here?\n");
+            print_lpuart("ACU_Cell_Data_3...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_64;
             for(uint8_t cell = 64; cell < 96; cell+=2){
-                CAN_TxBuffer[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
-                CAN_TxBuffer[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
+                CAN_TxData[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
+                CAN_TxData[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
             }
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_2 failed...\n");
             }
             break;    
         case ACU_Cell_Data_4:
-            print_lpuart("ACU_Cell_Data_4... how did u get here?\n");
+            print_lpuart("ACU_Cell_Data_4...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_64;
             for(uint8_t cell = 96; cell < 128; cell+=2){
-                CAN_TxBuffer[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
-                CAN_TxBuffer[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
+                CAN_TxData[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
+                CAN_TxData[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
             }
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_2 failed...\n");
             }
             break;    
         case ACU_Cell_Data_5:
-            print_lpuart("ACU_Cell_Data_5... how did u get here?\n");
+            print_lpuart("ACU_Cell_Data_5...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_64;
             for(uint8_t cell = 128; cell < 160; cell+=2){
-                CAN_TxBuffer[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
-                CAN_TxBuffer[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
+                CAN_TxData[cell] = (uint8_t)(acu->bty->cell_volt[cell]);
+                CAN_TxData[cell+1] = (uint8_t)(acu->bty->cell_temp[cell]);
             }
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_2 failed...\n");
             }
             break;    
         case ACU_DC_DC_Status: // 0x012
             print_lpuart("send ACU_DC_DC_Status...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
-            CAN_TxBuffer[0] = (uint16_t)acu->input_voltage >> 8;
-            CAN_TxBuffer[1] = (uint16_t)acu->input_voltage;
-            CAN_TxBuffer[2] = (uint16_t)acu->ouput_voltage >> 8;
-            CAN_TxBuffer[3] = (uint16_t)acu->ouput_voltage;
-            CAN_TxBuffer[4] = acu->input_current;
-            CAN_TxBuffer[5] = acu->ouput_current;
-            CAN_TxBuffer[6] = acu->dc_dc_temp;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            CAN_TxData[0] = (uint16_t)acu->input_voltage >> 8;
+            CAN_TxData[1] = (uint16_t)acu->input_voltage;
+            CAN_TxData[2] = (uint16_t)acu->ouput_voltage >> 8;
+            CAN_TxData[3] = (uint16_t)acu->ouput_voltage;
+            CAN_TxData[4] = acu->input_current;
+            CAN_TxData[5] = acu->ouput_current;
+            CAN_TxData[6] = acu->dc_dc_temp;
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_DC_DC_Status failed...\n");
             }
             break;   
         case ACU_Charger_Control:
             print_lpuart("send ACU_Charger_Control...\n");
             TxHeader.DataLength = FDCAN_DLC_BYTES_5;
-            CAN_TxBuffer[0] = (uint16_t)acu->target_voltage >> 8;
-            CAN_TxBuffer[1] = (uint16_t)acu->target_voltage;
-            CAN_TxBuffer[2] = (uint16_t)acu->target_temp >> 8;
-            CAN_TxBuffer[3] = (uint16_t)acu->target_temp;
-            CAN_TxBuffer[4] = acu->chg_ctrl & 1;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxBuffer) != HAL_OK) {
+            CAN_TxData[0] = (uint16_t)acu->target_voltage >> 8;
+            CAN_TxData[1] = (uint16_t)acu->target_voltage;
+            CAN_TxData[2] = (uint16_t)acu->target_current >> 8;
+            CAN_TxData[3] = (uint16_t)acu->target_current;
+            CAN_TxData[4] = acu->chg_ctrl & 1;
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Charger_Control failed...\n");
             }
             break;
@@ -421,17 +444,21 @@ void can_send(ACU * acu, uint32_t id){
     }
 }
 void can_dump(ACU *acu){
+    print_lpuart("DUMPING ACU DATA...\n");
     can_send(acu, ACU_Cell_Data_1);
     can_send(acu, ACU_Cell_Data_2);
+    can_send(acu, ACU_Cell_Data_3);
+    can_send(acu, ACU_Cell_Data_4);
+    can_send(acu, ACU_Cell_Data_5);
     can_send(acu, ACU_Status_1);
     can_send(acu, ACU_Status_2);
     can_send(acu, ACU_Status_3);
-    // can_send(acu, Powertrain_Cooling);
-    // can_send(acu, Charging_Cart_Config);
-    // can_send(acu, IMD_Request);
-    // sendCANData(IMD_Isolation_Detail);
-    // sendCANData(IMD_Voltage);
-    // sendCANData(IMD_IT_System);
+    can_send(acu, ACU_DC_DC_Status);
+    can_send(acu, ACU_Charger_Control);
+    can_send(acu, IMD_General_ACU);
+    // acu_send(acu, IMD_Voltage_ACU);
+    // acu_send(acu, IMD_IT_System_ACU);
+    print_lpuart("DONE DUMPING ACU DATA...\n");
 }
 
 // modifiers
@@ -468,17 +495,12 @@ float get_total_voltage(ACU* acu){
 
 void update_adc_array_data(ACU* acu){
     acu->ts_voltage = adc_data[0];
-    acu->volt_12v = adc_data[1];
-    acu->volt_sdc = adc_data[2];
-}
-
-float update_and_get_ts_voltage(ACU* acu){
-    acu->ts_voltage = adc_data[0];
-    return acu->ts_voltage;
+    acu->glv_voltage = adc_data[1];
+    acu->sdc_voltage = adc_data[2];
 }
 
 void update_all(ACU * acu){
-    update_adc_array_data(acu); // updates: ts_voltage, some other voltage, sdc_voltage
+    update_adc_array_data(acu); // updates: ts_voltage, glv voltage, sdc_voltage
     // updateRelayState();
 }
 

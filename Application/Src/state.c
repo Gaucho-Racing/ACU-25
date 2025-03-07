@@ -16,7 +16,30 @@ float constrain(float value, float lowerBound, float upperBound) {
 }
 
 void shitdown(){
+    
+    // Open AIRS and Precharge if already not open, close Discharge
+    acu.relay_state = 0;
 
+    //indicates to battery to stop charging, should fall on deaf ears if not charging
+    can_send(&acu, ACU_Charger_Control);
+    reset_discharge(&battery);
+    
+    acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
+
+    //errors can only be reset when shutdown
+    uint16_t precharge_error = acu.acu_err_warns & ACU_PRECHARGE;
+    acu.acu_err_warns &= ~(ACU_CLEAR_ERRR);
+    if (precharge_error) acu.acu_err_warns |= ACU_PRECHARGE;
+
+    // acu.cur_ref += (acu.ACU_ADC.readVoltage(ADC_MUX_HV_CURRENT) - acu.cur_ref) * 0.02;
+    // acu.dcdc_ref += (acu.ACU_ADC.readVoltage(ADC_MUX_DCDC_CURRENT) - acu.dcdc_ref) * 0.02;
+
+    uint8_t checkPass = state_system_check(true, false);
+    update_adc_array_data(&acu);
+    if (acu.ts_voltage < SAFE_V_TO_TURN_OFF && checkPass) { // safe to turn off if TS voltage < 60V
+        print_lpuart("Shutdown (Safe) => Standby");
+        state = STANDBY;
+    }
 }
 /// @brief do nothing, in initial state wait for VDM to send start command, maybe poll CAN
 void standby(){
@@ -97,7 +120,7 @@ void precharge(){
     uint8_t goToCharge = false; // change this to false on final build
     while (HAL_GetTick() - startTime < 3000) {
         acu_check(&acu, (uint8_t)state, false);
-        if(can_polling(&acu)){
+        if(can_polling()){
             if(RxHeader.Identifier == Charger_Data_ACU){
                 print_lpuart("Charger_Data_ACU ping received!\n");
                 goToCharge = 1;
@@ -148,7 +171,7 @@ void charge(){
             return;
         }
         //voltage checks done in system check, kick off cell balancing
-        do_cell_balancing(&battery, true); 
+        do_cell_balancing(&battery); 
     }
     if(HAL_GetTick() - last_send_time > 990){
         last_send_time = HAL_GetTick();
@@ -185,8 +208,44 @@ void charge(){
     }
     
 }
-void normal(){
 
+uint8_t tsVoltErrCount = 0;
+void normal(){
+    if(state_system_check(false, false)){
+        print_lpuart("SystemCheck failed in NORMAL state\n");
+        state = SHITDOWN;
+        return;
+    }
+
+    float totalV = get_total_voltage(&acu);
+    if (fabs(acu.ts_voltage - totalV) > 80) {
+        print_lpuart("TS voltage mismatch");
+        tsVoltErrCount++;
+        if (tsVoltErrCount >= ERRMG_ACU_ERR) {
+            tsVoltErrCount = ERRMG_ACU_ERR;
+            state = SHITDOWN;
+            if (acu.ts_voltage < totalV) {
+                acu.acu_err_warns |= ACU_ERR_UNDER_VOLT;
+            }
+            else {
+                acu.acu_err_warns |= ACU_ERR_OVER_VOLT;
+            }
+        }
+    }
+    else {
+        tsVoltErrCount = 0;
+    }
+
+    //cycle maxes out at 8
+    cycle++;
+    cycle = cycle % 8;
+
+    if (acu.ts_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
+    if (HAL_GetTick() - acu.cur_LastHighTime > 10000) {
+        update_adc_array_data(&acu);
+        // acu.cur_ref += acu.getTsCurrent() * 0.01;
+    }
+    // if (!digitalRead(PIN_DCDC_EN)) acu.dcdc_ref += (acu.ACU_ADC.readVoltage(ADC_MUX_DCDC_CURRENT) - acu.dcdc_ref) * 0.01;
 }
 
 // returns false if failed, else return true
