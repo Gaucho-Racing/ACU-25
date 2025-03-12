@@ -10,6 +10,19 @@
 #include "stm32g4xx_hal_fdcan.h"
 
 typedef struct {
+    uint8_t data[64];
+    FDCAN_RxHeaderTypeDef* RxHeader;
+    FDCAN_HandleTypeDef* hfdcan;
+} CAN_RX_message;
+
+typedef struct {
+    uint8_t data[64];
+    uint32_t identifier;
+    uint32_t data_length;
+    FDCAN_HandleTypeDef* hfdcan;
+} CAN_TX_message;
+
+typedef struct {
     float em_current;
     float em_voltage;
     float energy;
@@ -70,13 +83,6 @@ typedef struct {
 
     uint8_t chg_ctrl; // 1 : Start Charging, 0: Stop Charging
 
-    // DC-DC Related Information
-    float input_voltage; // ~20v for LV (LV only. Send 0 for HV)
-    float ouput_voltage; // ~12v for LV and ~20v for HV
-    uint8_t input_current; // Input current (LV only. Send 0 for HV)
-    uint8_t ouput_current; // Output current
-    uint8_t dc_dc_temp; // Temp of DC-DC converter => should be converted to u8 during can_send()
-
     // ACU_Status_1
     uint8_t acu_SOC; // % charged of the Accumulator (Based on lowest cell)
     uint8_t glv_SOC; // % charged of the Low Voltage Bat
@@ -86,8 +92,7 @@ typedef struct {
 
     // not used for CAN
     float shutdown_volt; // preset voltage threshold
-    float dcdc_current; 
-
+    
     // ACU-Status 3
     float hv_input_voltage;  // 600v input voltage
     float hv_output_voltage; // 20v output voltage
@@ -99,8 +104,8 @@ typedef struct {
     float glv_voltage;  // from adc_data
 
     // Config_Operational_ACU
-    float target_min_cell_volt;
-    float target_max_cell_temp;
+    float config_min_cell_volt;
+    float config_max_cell_temp;
 
     // from GR24 => not sure if we still need to use
     uint32_t cur_LastHighTime;
@@ -132,9 +137,8 @@ typedef struct {
 
 void acu_init(ACU * acu);
 void acu_check(ACU * acu, uint8_t state, bool startup);
-bool can_polling();
 void can_read_all(ACU* acu);
-void can_read(ACU * acu, uint32_t id);
+void can_read(ACU * acu, uint32_t id, uint8_t * data);
 void can_send(ACU * acu, uint32_t id);
 void can_dump(ACU *acu);
 void reset_latch(ACU *acu);

@@ -35,19 +35,6 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef struct 
-{
-  uint16_t can_id;
-  uint16_t gr_id;
-  uint16_t msg_id;
-  uint16_t target_id;
-  
-  uint8_t data[64];
-  FDCAN_RxHeaderTypeDef* RxHeader;
-  FDCAN_HandleTypeDef* hfdcan;
-
-} CAN_RX_message;
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -94,26 +81,41 @@ extern FDCAN_HandleTypeDef hfdcan3;
 
 FDCAN_TxHeaderTypeDef TxHeader_Data;
 FDCAN_RxHeaderTypeDef RxHeader_Data;
+
 FDCAN_TxHeaderTypeDef TxHeader_Charger;
 FDCAN_RxHeaderTypeDef RxHeader_Charger;
 
 // communication - FDCAN PRIMARY
 FDCAN_TxHeaderTypeDef TxHeader; // PRIMARY
 FDCAN_RxHeaderTypeDef RxHeader; // PRIMARY
-// SHARED BUFFER => ONLY ACCESSIBLE BY INTERRUPT HANDLER
+
+
+// SHARED BUFFER => Each data will enter in through this buffer, but bc there are soo many gosh dang pieces of data being
+// sent over can, the rate at which data comes in will surpass the rate at which we process these data
 uint8_t CAN_TxData[64];
 uint8_t CAN_RxData[64];
-uint8_t readCount = 0;
 
 // SHARED BUFFER => ACCESSIBLE BY INTERRUPT HANDLER AND DEV (ME!)
-volatile uint8_t can_index = 0;
 volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
+
 volatile uint8_t CAN_RxBufferLevel = 0; // Number of bytes to be read
-volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data
-volatile uint8_t cAN_RxBufferTop = 0; // Index of newest data
+volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data ==> increment this whenever the data is processed
+volatile uint8_t cAN_RxBufferTop = 0; // Index of newest data ==> decrement this whenever new data is met in the interrupt handler
+
+volatile uint64_t queue[64], prim_q[64], data_q[64], charger_q[64]; 
+volatile uint8_t p_top = 0, p_bottom = 0;
+volatile uint8_t d_top = 0, d_bottom = 0;
+volatile uint8_t c_top = 0, c_bottom = 0;
+volatile uint8_t top = 0, bottom = 0;
+
+volatile uint8_t CAN_Ping_flag = 0;
+volatile uint8_t CAN_1_flag = 0;
+volatile uint8_t CAN_2_flag = 0;
+volatile uint8_t CAN_3_flag = 0;
 
 // stateful things
 State state;
+extern void dequeue(ACU* acu);
 extern void debug();
 
 /* USER CODE END PV */
@@ -129,6 +131,7 @@ void print_bcc_fault(bcc_fault_status_t fault);
 int16_t Read_ADC1_Channel(uint32_t channel);
 
 // interrupt stuff
+void gr_copy(uint8_t *dest, uint8_t *src, size_t n);
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs);
 
 // to delete functions
@@ -155,8 +158,6 @@ void print_can_msg(uint8_t * arr){
     idx++;
   }
 }
-
-
 
 // setup for bcc
 int setup(){
@@ -203,6 +204,9 @@ int setup(){
     LL_mDelay(1000);
     bcc_error = init_registers(&battery);
   }
+  battery.min_cell_temp = CELL_MIN_TEMP;
+  battery.max_cell_temp = CELL_MAX_TEMP;
+  
   clear_faults(&(battery.drvConfig));
   print_lpuart("successful BCC_Init...\n");
 
@@ -215,7 +219,6 @@ int setup(){
           for(uint8_t j = 0; j < NUM_CELL_IC; j++){
             battery.cell_balancing[i*NUM_CELL_IC+j] = 100;
           }
-          print_lpuart("you goon...\n");
           return -1;
       }
       for(uint8_t j = 0; j < NUM_CELL_IC; j++){
@@ -296,6 +299,7 @@ int main(void)
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
   LL_mDelay(1000);
+  // DMA1_Channel1_IRQn enabled
 
   if(setup() != 0) state = SHITDOWN;
 
@@ -322,8 +326,6 @@ int main(void)
   RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   RxHeader.RxTimestamp = 0;/* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
 
-  cur_ref = 0; // ACU_ADC.readVoltageTot(ADC_MUX_HV_CURRENT,256);
-
   if(!state_system_check(true, true)){
     state = SHITDOWN;
      print_lpuart("System check failed, shutting down\n");
@@ -340,7 +342,9 @@ int main(void)
   {
     if(acu.ts_active && state == STANDBY) state = PRECHARGE;
     else if(acu.ts_active && state > STANDBY) state = SHITDOWN;
-    
+
+    dequeue(&acu);
+
     acu.ts_voltage = adc_data[0];
     acu.glv_voltage = adc_data[1];
     acu.sdc_voltage = adc_data[2];
@@ -349,23 +353,18 @@ int main(void)
     print_lpuart("State: ");
     switch(state){
       case (STANDBY):
-        print_lpuart("STANDBY...\n");
         standby();
         break;
       case (PRECHARGE):
-        print_lpuart("PRECHARGE...\n");
         precharge();
         break;
       case (CHARGE):
-        print_lpuart("CHARGE...\n");
         charge();
         break;
       case (NORMAL):
-        print_lpuart("NORMAL...\n");
         normal();
         break;
       case (SHITDOWN):
-        print_lpuart("SHITDOWN...\n");
         shitdown();
         break;
       default:
@@ -379,7 +378,9 @@ int main(void)
     can_send(&acu, ACU_Ping_Debug);
 
     // poll for can messages
-    can_read_all(&acu);
+    if(CAN_RxBufferLevel > 0){
+      can_read_all(&acu);
+    }
     can_dump(&acu);
     
 
@@ -544,6 +545,12 @@ void print_bcc_status(bcc_status_t bccStatus){
   }
 }
 
+void gr_copy(uint8_t *dest, uint8_t *src, size_t n) {
+  for (uint8_t i = 0; i < n; i++) {
+    dest[i] = src[i];
+  }
+}
+
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
     // Check if a new message is received in FIFO 0
@@ -554,34 +561,33 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
         {
             // Process received data
             print_lpuart("Recieved CAN message!\n");
-            CAN_RxBuffer[can_index].RxHeader = &RxHeader;
-            CAN_RxBuffer[can_index].hfdcan = hfdcan;
+            CAN_RxBuffer[cAN_RxBufferTop].RxHeader = &RxHeader;
+            CAN_RxBuffer[cAN_RxBufferTop].hfdcan = hfdcan;
 
-            CAN_RxBuffer[can_index].can_id = RxHeader.Identifier & 0b110000000;
-            CAN_RxBuffer[can_index].gr_id = RxHeader.Identifier & 0b001100000 >> 2;
-            CAN_RxBuffer[can_index].msg_id = RxHeader.Identifier & 0b000011100 >> 4;
-            CAN_RxBuffer[can_index].target_id = RxHeader.Identifier & 0b000000011 >> 7;
-
-            // do the printing
-            uint8_t headerBuff[64], dataBuff[64];
-            sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
-            print_lpuart(headerBuff);
-            for (uint32_t i = 0; i < RxHeader.DataLength; i++)
-            {
-                sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
-                print_lpuart(dataBuff);
-                bzero(dataBuff, 64);
-            }
-            sprintf(dataBuff, "\n");
-            print_lpuart(dataBuff);
+            #ifdef DEBUGG
+              // do the printing
+              uint8_t headerBuff[64], dataBuff[8];
+              sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
+              print_lpuart(headerBuff);
+              for (uint32_t i = 0; i < RxHeader.DataLength; i++)
+              {
+                  sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
+                  print_lpuart(dataBuff);
+                  bzero((void *)dataBuff, 8);
+              }
+              sprintf(dataBuff, "\n");
+              print_lpuart(dataBuff);
+            #endif
 
             // copy the data
-            memcpy((void * restrict)CAN_RxBuffer[can_index].data, CAN_RxData, RxHeader.DataLength);
-            can_index = ((can_index+1) % 256);
+            bzero((void *)CAN_RxBuffer[cAN_RxBufferTop].data, 64);
+            memcpy((void * restrict)CAN_RxBuffer[cAN_RxBufferTop].data, CAN_RxData, RxHeader.DataLength);
+            CAN_RxBufferLevel += 1; // increment te bytes to read
+            cAN_RxBufferTop = ((cAN_RxBufferTop+1) % 256); // increment and mod the pointers in the buffer
+            
         }
     }
 }
-
 
 /* USER CODE END 4 */
 

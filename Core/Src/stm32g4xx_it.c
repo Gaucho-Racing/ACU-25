@@ -62,7 +62,12 @@ extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 extern FDCAN_HandleTypeDef hfdcan3;
 /* USER CODE BEGIN EV */
-
+extern volatile uint8_t bottom;
+extern volatile uint64_t queue[64]; 
+extern volatile uint8_t CAN_Ping_flag;
+extern volatile uint8_t CAN_1_flag;
+extern volatile uint8_t CAN_2_flag;
+extern volatile uint8_t CAN_3_flag;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -192,7 +197,14 @@ void SysTick_Handler(void)
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
-
+  static uint32_t tickCount = 0;
+  tickCount++;
+  if (tickCount >= 1000 && CAN_Ping_flag == 0) // every 1 second
+  {
+    tickCount = 0;
+    CAN_Ping_flag = queue[bottom];
+    bottom = (bottom+1)%64;
+  }
   /* USER CODE END SysTick_IRQn 1 */
 }
 

@@ -40,8 +40,8 @@ extern void print_lpuart(char* arr);
 
 #define VOLT_SDC 0
 
-#define TARGET_MIN_CELL_VOLT 0
-#define TARGET_MAX_CELL_TEMP 0
+#define CONFIG_MIN_CELL_VOLT 0
+#define CONFIG_MAX_CELL_TEMP 0
 
 #define PRINT_BATTERY_TEMP 0
 #define PRINT_BATTERY_VOLTS 0

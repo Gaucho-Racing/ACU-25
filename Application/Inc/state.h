@@ -21,7 +21,6 @@ void normal();
 bool state_system_check(bool full_check, bool startup);
 
 // Other Functions
-void check_charge();
 float constrain(float value, float lowerBound, float upperBound);
 
 // Externs

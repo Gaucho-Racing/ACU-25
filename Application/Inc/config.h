@@ -22,13 +22,9 @@
 #define CELL_MIN_TEMP 0.0 // to set later => when printing multiply by 0.1 to get Celcius
 #define CELL_MAX_TEMP 1000.0 // to set later => when printing multiply by 0.1 to get Celcius
 
-#define MIN_BALL_TEMP 0.0 // to set later
-#define MAX_BALL_TEMP 1000.0 // to set later
-
 //acu limits
 #define MAX_HV_CURRENT 135
 #define MAX_DCDC_TEMP 60
-#define MAX_DCDC_CURRENT 10
 #define MIN_GLV_VOLT 10
 #define MAX_GLV_VOLT 14.4
 
@@ -88,33 +84,27 @@
 #define PRECHARGE_THRESHOLD 0.96 // fraction of total cell voltage
 #define SAFE_V_TO_TURN_OFF 60
 
-#define ACU_DEBUG 0
-
-#define CAN_PRIM (uint8_t)0
-#define CAN_DATA (uint8_t)1
-#define CAN_CHARGE (uint8_t)2
-
 // Send
 // CAN1
-#define ACU_Debug_2             0x300001    // 0x000
-// #define ACU_Ping_Debug       0x300201    // 0x002
-#define ACU_Ping_ECU            0x300202    // 0x002
-#define ACU_Status_1            0x300702    // 0x007
-#define ACU_Status_2            0x300802    // 0x008
-#define ACU_Status_3            0x300902    // 0x009
-#define ACU_DC_DC_Status        0x301202    // 0x012
+#define ACU_Debug_2             0x300001    // 0x000 => 1
+#define ACU_Ping_Debug          0x300201    // 0x002 => 2
+#define ACU_Ping_ECU            0x300202    // 0x002 => 3
+
+#define ACU_Status_1            0x300702    // 0x007 => 1
+#define ACU_Status_2            0x300802    // 0x008 => 2
+#define ACU_Status_3            0x300902    // 0x009 => 3
+#define ACU_DC_DC_Status        0x301202 
 
 // CAN2
-#define ACU_Debug_FD            0x300101    // 0x001
-#define ACU_Ping_Debug          0x300201    // 0x002
-#define ACU_Cell_Data_1         0x300DFF    // 0x00D
-#define ACU_Cell_Data_2         0x300EFF    // 0x00E
-#define ACU_Cell_Data_3         0x300FFF    // 0x00F
-#define ACU_Cell_Data_4         0x3010FF    // 0x010
-#define ACU_Cell_Data_5         0x3011FF    // 0x011
+#define ACU_Debug_FD            0x300101    // 0x001 => 4
+#define ACU_Cell_Data_1         0x300DFF    // 1
+#define ACU_Cell_Data_2         0x300EFF    // 2
+#define ACU_Cell_Data_3         0x300FFF    // 3
+#define ACU_Cell_Data_4         0x3010FF    // 4 
+#define ACU_Cell_Data_5         0x3011FF    // 5
 
 // CAN3
-#define ACU_Charger_Control     0x1806E5F4  // N/A
+#define ACU_Charger_Control     0x1806E5F4  // 1
 
 // Receive
 // CAN1

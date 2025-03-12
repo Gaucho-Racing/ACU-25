@@ -1,7 +1,8 @@
 #include "state.h"
 
 extern uint8_t cycle;
-extern FDCAN_RxHeaderTypeDef RxHeader;
+extern FDCAN_RxHeaderTypeDef RxHeader_Charger;
+
 extern void print_lpuart(char* arr);
 extern uint16_t adc_data[3];
 
@@ -31,9 +32,6 @@ void shitdown(){
     acu.acu_err_warns &= ~(ACU_CLEAR_ERRR);
     if (precharge_error) acu.acu_err_warns |= ACU_PRECHARGE;
 
-    // acu.cur_ref += (acu.ACU_ADC.readVoltage(ADC_MUX_HV_CURRENT) - acu.cur_ref) * 0.02;
-    // acu.dcdc_ref += (acu.ACU_ADC.readVoltage(ADC_MUX_DCDC_CURRENT) - acu.dcdc_ref) * 0.02;
-
     uint8_t checkPass = state_system_check(true, false);
     update_adc_array_data(&acu);
     if (acu.ts_voltage < SAFE_V_TO_TURN_OFF && checkPass) { // safe to turn off if TS voltage < 60V
@@ -56,7 +54,6 @@ void precharge(){
     acu.relay_state = 0b000;
     // do error checking here
 
-    print_lpuart("Precharge Start\n");
     reset_latch(&acu); // currently this function does nothing
     LL_mDelay(100);
 
@@ -68,16 +65,15 @@ void precharge(){
         return;
     }
 
-    print_lpuart("systemCheck\n");
     if (!state_system_check(true, false)) {
         state = SHITDOWN;
+        print_lpuart("failed systemCheck\n");
         return;
     }
-    print_lpuart("Close AIR-\n");
+
     acu.relay_state = 0b100; // close AIR-
     can_send(&acu, ACU_Status_2); // I'm totally guessing it's this one LOL
 
-    print_lpuart("Close precharge relay\n");
     acu.relay_state = 0b101; // close precharge relay
     can_send(&acu, ACU_Status_2); // I'm totally guessing it's this one LOL;
 
@@ -120,11 +116,9 @@ void precharge(){
     uint8_t goToCharge = false; // change this to false on final build
     while (HAL_GetTick() - startTime < 3000) {
         acu_check(&acu, (uint8_t)state, false);
-        if(can_polling()){
-            if(RxHeader.Identifier == Charger_Data_ACU){
-                print_lpuart("Charger_Data_ACU ping received!\n");
-                goToCharge = 1;
-            }
+        if(RxHeader_Charger.Identifier == Charger_Data_ACU){
+            print_lpuart("Charger_Data_ACU ping received!\n");
+            goToCharge = 1;
         }
         update_adc_array_data(&acu);
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){
@@ -133,7 +127,6 @@ void precharge(){
             print_lpuart("acu.ts_voltage < THRESHOLD\n");
             return;
         }
-        print_lpuart("waiting...\n");
         can_dump(&acu); // dump everything
         LL_mDelay(50);
     }
@@ -150,7 +143,6 @@ void precharge(){
         state = NORMAL;
         print_lpuart("Precharge Done. Ready to drive. State Normal\n");
     }
-    // acu.cur_ref = acu.ACU_ADC.readVoltageTot(ADC_MUX_HV_CURRENT, 1024);
     return;
 }
 
@@ -175,8 +167,8 @@ void charge(){
     }
     if(HAL_GetTick() - last_send_time > 990){
         last_send_time = HAL_GetTick();
-        if(battery.max_cell_volt > 4.15){
-            battery.max_chg_current = constrain(battery.max_chg_current, 0.0, acu.target_current);
+        if(battery.max_cell_volt > 4.15f){
+            battery.max_chg_current = constrain(battery.max_chg_current, 0.0f, acu.target_current);
         } else {
             battery.max_chg_current = acu.target_current;
         }
@@ -198,9 +190,6 @@ void charge(){
         acu.chg_ctrl = 0;
         can_send(&acu, ACU_Charger_Control);
         LL_mDelay(1000);
-
-        // ??????
-        // acu.cur_ref = acu.ACU_ADC.readVoltageTot(ADC_MUX_HV_CURRENT, 1024);
 
         state = CHARGE; // turn charger back on
         acu.chg_ctrl = 1;
@@ -243,9 +232,7 @@ void normal(){
     if (acu.ts_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
     if (HAL_GetTick() - acu.cur_LastHighTime > 10000) {
         update_adc_array_data(&acu);
-        // acu.cur_ref += acu.getTsCurrent() * 0.01;
     }
-    // if (!digitalRead(PIN_DCDC_EN)) acu.dcdc_ref += (acu.ACU_ADC.readVoltage(ADC_MUX_DCDC_CURRENT) - acu.dcdc_ref) * 0.01;
 }
 
 // returns false if failed, else return true
@@ -253,8 +240,4 @@ bool state_system_check(bool full_check, bool startup){
     acu_check(&acu, (uint8_t)state,startup);
     battery_check(&battery, full_check);
     return (acu.acu_err_warns & ACU_ERR_OVER_TEMP) == 0;
-}
-
-void check_charge(){
-    
 }

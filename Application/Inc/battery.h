@@ -111,7 +111,6 @@ void print_volt(const float * voltages, const uint8_t cid, uint8_t index);
 void print_temp(const float * temperatures, const uint8_t cid, uint8_t index);
 
 // print group
-void print_cell_balancing(Battery *bty);
 void print_temperature(Battery * bty);
 void reset_discharge(Battery * bty);
 void print_voltage(Battery *bty);
