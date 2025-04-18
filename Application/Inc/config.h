@@ -86,25 +86,25 @@
 
 // Send
 // CAN1
-#define ACU_Debug_2             0x300001    // 0x000 => 1
-#define ACU_Ping_Debug          0x300201    // 0x002 => 2
-#define ACU_Ping_ECU            0x300202    // 0x002 => 3
+#define ACU_Debug_2             0x300001    // FLAG = 1
+#define ACU_Ping_Debug          0x300201    // FLAG = 2
+#define ACU_Ping_ECU            0x300202    // FLAG = 3
+#define ACU_Debug_FD            0x300101    // FLAG = 4
 
-#define ACU_Status_1            0x300702    // 0x007 => 1
-#define ACU_Status_2            0x300802    // 0x008 => 2
-#define ACU_Status_3            0x300902    // 0x009 => 3
+#define ACU_Status_1            0x300702    // FLAG = 5
+#define ACU_Status_2            0x300802    // FLAG = 6
+#define ACU_Status_3            0x300902    // FLAG = 7
 #define ACU_DC_DC_Status        0x301202 
 
 // CAN2
-#define ACU_Debug_FD            0x300101    // 0x001 => 4
-#define ACU_Cell_Data_1         0x300DFF    // 1
-#define ACU_Cell_Data_2         0x300EFF    // 2
-#define ACU_Cell_Data_3         0x300FFF    // 3
-#define ACU_Cell_Data_4         0x3010FF    // 4 
-#define ACU_Cell_Data_5         0x3011FF    // 5
+#define ACU_Cell_Data_1         0x300DFF    // FLAG = 1
+#define ACU_Cell_Data_2         0x300EFF    // FLAG = 2
+#define ACU_Cell_Data_3         0x300FFF    // FLAG = 3
+#define ACU_Cell_Data_4         0x3010FF    // FLAG = 4 
+#define ACU_Cell_Data_5         0x3011FF    // FLAG = 5
 
 // CAN3
-#define ACU_Charger_Control     0x1806E5F4  // 1
+#define ACU_Charger_Control     0x1806E5F4  // FLAG = 1
 
 // Receive
 // CAN1

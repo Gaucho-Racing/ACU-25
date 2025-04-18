@@ -22,7 +22,7 @@ void shitdown(){
     acu.relay_state = 0;
 
     //indicates to battery to stop charging, should fall on deaf ears if not charging
-    can_send(&acu, ACU_Charger_Control);
+    enqueue(ACU_Charger_Control);
     reset_discharge(&battery);
     
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
@@ -72,10 +72,10 @@ void precharge(){
     }
 
     acu.relay_state = 0b100; // close AIR-
-    can_send(&acu, ACU_Status_2); // I'm totally guessing it's this one LOL
+    enqueue(ACU_Status_2); // I'm totally guessing it's this one LOL
 
     acu.relay_state = 0b101; // close precharge relay
-    can_send(&acu, ACU_Status_2); // I'm totally guessing it's this one LOL;
+    enqueue(ACU_Status_2); // I'm totally guessing it's this one LOL;
 
     // check voltage, if difference > threshold after 2 seconds throw error
     uint32_t startTime = HAL_GetTick();
@@ -92,14 +92,14 @@ void precharge(){
         if(fabs(acu.glv_voltage - acu.shutdown_volt) > ERRMG_GLV_SDC){
             print_lpuart("SDC voltage dropped while precharging!! Check connections\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
-            can_send(&acu, ACU_Status_2);
+            enqueue(ACU_Status_2);
             state = SHITDOWN;
             return;
         }
         if (HAL_GetTick() - startTime > 5000) { // timeout, throw error
             print_lpuart("Precharge timeout, error\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
-            can_send(&acu, ACU_Status_2);
+            enqueue(ACU_Status_2);
             state = SHITDOWN;
             return;
         }
@@ -132,7 +132,7 @@ void precharge(){
     }
 
     acu.relay_state = 0b111; // close all relays
-    can_send(&acu, ACU_Status_3); // IDK JUST SENDING RELAY STATUS
+    enqueue(ACU_Status_3); // IDK JUST SENDING RELAY STATUS
 
     if(goToCharge){
         acu.chg_ctrl = 1;
@@ -173,7 +173,7 @@ void charge(){
             battery.max_chg_current = acu.target_current;
         }
         battery.max_chg_current = acu.target_current; // this part doens't really make sense bc we aren't really sending the val we just updated
-        can_send(&acu, ACU_Charger_Control);
+        enqueue(ACU_Charger_Control);
     }
 
     //if no CAN data for 5 seconds, shut down
@@ -188,12 +188,12 @@ void charge(){
         last_call_time = HAL_GetTick();
         state = NORMAL; // turn off charger
         acu.chg_ctrl = 0;
-        can_send(&acu, ACU_Charger_Control);
+        enqueue(ACU_Charger_Control);
         LL_mDelay(1000);
 
         state = CHARGE; // turn charger back on
         acu.chg_ctrl = 1;
-        can_send(&acu, ACU_Charger_Control);
+        enqueue(ACU_Charger_Control);
     }
     
 }

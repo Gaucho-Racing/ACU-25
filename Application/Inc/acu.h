@@ -137,13 +137,20 @@ typedef struct {
 
 void acu_init(ACU * acu);
 void acu_check(ACU * acu, uint8_t state, bool startup);
+
+// Send CAN Messages
+void dequeue(ACU* acu);
+void enqueue(uint32_t id);
+
+// Receive CAN Messages
 void can_read_all(ACU* acu);
 void can_read(ACU * acu, uint32_t id, uint8_t * data);
-void can_send(ACU * acu, uint32_t id);
+
+// Other Messages
 void can_dump(ACU *acu);
-void reset_latch(ACU *acu);
 
 // modifiers
+void reset_latch(ACU *acu);
 void update_adc_array_data(ACU* acu);
 void update_all(ACU * acu);
 

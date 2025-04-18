@@ -27,7 +27,6 @@ void clear_faults(bcc_drv_config_t * drvConfig)
         if(status != BCC_STATUS_SUCCESS) return;
     }
 }
-
 bcc_status_t init_registers(Battery * bty)
 {
     uint8_t cid, i;

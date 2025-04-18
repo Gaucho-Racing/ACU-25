@@ -62,9 +62,8 @@ extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 extern FDCAN_HandleTypeDef hfdcan3;
 /* USER CODE BEGIN EV */
-extern volatile uint8_t bottom;
-extern volatile uint64_t queue[64]; 
-extern volatile uint8_t CAN_Ping_flag;
+extern volatile uint8_t p_bottom, d_bottom, c_bottom;
+extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 extern volatile uint8_t CAN_1_flag;
 extern volatile uint8_t CAN_2_flag;
 extern volatile uint8_t CAN_3_flag;
@@ -193,17 +192,30 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
-
+  static uint32_t tickCount = 0;
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
-  static uint32_t tickCount = 0;
+
+  // NOTE: we can tweak when we should be checking for these later
   tickCount++;
-  if (tickCount >= 1000 && CAN_Ping_flag == 0) // every 1 second
+  if (tickCount >= 100 && CAN_1_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) != 0) 
   {
     tickCount = 0;
-    CAN_Ping_flag = queue[bottom];
-    bottom = (bottom+1)%64;
+    CAN_1_flag = prim_q[p_bottom];
+    p_bottom++;
+  }
+  if (tickCount >= 100 && CAN_2_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan2) != 0) 
+  {
+    tickCount = 0;
+    CAN_2_flag = data_q[d_bottom];
+    d_bottom++;
+  }
+  if (tickCount >= 100 && CAN_3_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan3) != 0) 
+  {
+    tickCount = 0;
+    CAN_3_flag = charger_q[c_bottom];
+    c_bottom++;
   }
   /* USER CODE END SysTick_IRQn 1 */
 }

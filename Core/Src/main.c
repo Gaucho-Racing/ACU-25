@@ -58,7 +58,6 @@ ACU acu;
 Battery battery;
 
 // ADC Data
-float cur_ref = 0;
 uint16_t adc_data[3]; // 0: ts_voltage, 1: glv voltage, 2: sdc_voltage
 
 // BCC
@@ -102,13 +101,11 @@ volatile uint8_t CAN_RxBufferLevel = 0; // Number of bytes to be read
 volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data ==> increment this whenever the data is processed
 volatile uint8_t cAN_RxBufferTop = 0; // Index of newest data ==> decrement this whenever new data is met in the interrupt handler
 
-volatile uint64_t queue[64], prim_q[64], data_q[64], charger_q[64]; 
+volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 volatile uint8_t p_top = 0, p_bottom = 0;
 volatile uint8_t d_top = 0, d_bottom = 0;
 volatile uint8_t c_top = 0, c_bottom = 0;
-volatile uint8_t top = 0, bottom = 0;
 
-volatile uint8_t CAN_Ping_flag = 0;
 volatile uint8_t CAN_1_flag = 0;
 volatile uint8_t CAN_2_flag = 0;
 volatile uint8_t CAN_3_flag = 0;
@@ -131,7 +128,6 @@ void print_bcc_fault(bcc_fault_status_t fault);
 int16_t Read_ADC1_Channel(uint32_t channel);
 
 // interrupt stuff
-void gr_copy(uint8_t *dest, uint8_t *src, size_t n);
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs);
 
 // to delete functions
@@ -225,7 +221,6 @@ int setup(){
         battery.cell_balancing[i*NUM_CELL_IC+j] = 0;
       }
   }
-  print_lpuart("successful BCC_CB_Enable...\n");
   state = STANDBY;
   
   // setup acu
@@ -309,14 +304,28 @@ int main(void)
   reset_discharge(&battery);
 
   // Configure TxHeader
-  TxHeader.IdType = FDCAN_STANDARD_ID;
+  TxHeader.IdType = FDCAN_EXTENDED_ID;
   TxHeader.TxFrameType = FDCAN_DATA_FRAME;
   TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
   TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS; 
 
-  // COnfigure RxHeader
+  TxHeader_Data.IdType = FDCAN_EXTENDED_ID;
+  TxHeader_Data.TxFrameType = FDCAN_DATA_FRAME;
+  TxHeader_Data.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TxHeader_Data.BitRateSwitch = FDCAN_BRS_OFF;
+  TxHeader_Data.FDFormat = FDCAN_CLASSIC_CAN;
+  TxHeader_Data.TxEventFifoControl = FDCAN_NO_TX_EVENTS; 
+
+  TxHeader_Charger.IdType = FDCAN_EXTENDED_ID;
+  TxHeader_Charger.TxFrameType = FDCAN_DATA_FRAME;
+  TxHeader_Charger.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TxHeader_Charger.BitRateSwitch = FDCAN_BRS_OFF;
+  TxHeader_Charger.FDFormat = FDCAN_CLASSIC_CAN;
+  TxHeader_Charger.TxEventFifoControl = FDCAN_NO_TX_EVENTS; 
+  
+  // Configure RxHeader
   RxHeader.Identifier = 0;
   RxHeader.IdType = FDCAN_EXTENDED_ID;
   RxHeader.RxFrameType = FDCAN_DATA_FRAME;
@@ -328,12 +337,9 @@ int main(void)
 
   if(!state_system_check(true, true)){
     state = SHITDOWN;
-     print_lpuart("System check failed, shutting down\n");
+    print_lpuart("System check failed, shutting down\n");
   }
-  else{
-    state = STANDBY;
-    print_lpuart("System check passed, entering standby\n");
-  }
+  else state = STANDBY;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -341,16 +347,25 @@ int main(void)
   while (1)
   {
     if(acu.ts_active && state == STANDBY) state = PRECHARGE;
-    else if(acu.ts_active && state > STANDBY) state = SHITDOWN;
+    // else if(acu.ts_active && state > STANDBY) state = SHITDOWN;
 
-    dequeue(&acu);
+    // CAN READ MESSAGES
+    if(CAN_RxBufferLevel > 0) can_read_all(&acu);
+    
+    // CAN TRANSFER MESSAGES
+    if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue(&acu);
 
-    acu.ts_voltage = adc_data[0];
-    acu.glv_voltage = adc_data[1];
-    acu.sdc_voltage = adc_data[2];
+    // SYSTEM CHECK AFTER DATA FETCH
+    battery_check(&battery, false);
+    
+    // deprecated
+    // acu.ts_voltage = adc_data[0];
+    // acu.glv_voltage = adc_data[1];
+    // acu.sdc_voltage = adc_data[2];
 
     BCC_MCU_WaitMs(500);
-    print_lpuart("State: ");
+
+    // STATE TRANSITIONS
     switch(state){
       case (STANDBY):
         standby();
@@ -371,19 +386,10 @@ int main(void)
         break;
     }
 
-    // system checks & cooked counter
-    battery_check(&battery, false);
-
-    // send ACU ping
-    can_send(&acu, ACU_Ping_Debug);
-
-    // poll for can messages
-    if(CAN_RxBufferLevel > 0){
-      can_read_all(&acu);
+    if(acu.ts_active && state == STANDBY) state = PRECHARGE;
+    else if(acu.ts_active && state > STANDBY) {
+      state = SHITDOWN; shitdown();
     }
-    can_dump(&acu);
-    
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -446,7 +452,8 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-// Enable DWT_Delay
+/// @brief Enable DWT_Delay
+/// @param void
 void DWT_Delay_Init(void){
   // do we need to check (!CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk)?
   // don't know but it works so I'm not touching this
@@ -455,6 +462,8 @@ void DWT_Delay_Init(void){
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; // Enable counter
 }
 
+/// @brief Print BCC_FAULT_STATUS faults
+/// @param fault 
 void print_bcc_fault(bcc_fault_status_t fault){
   switch (fault)
   {
@@ -497,6 +506,8 @@ void print_bcc_fault(bcc_fault_status_t fault){
   }
 }
 
+/// @brief Print BCC Status messages
+/// @param bccStatus (bcc_status_t)
 void print_bcc_status(bcc_status_t bccStatus){
   switch (bccStatus)
   {
@@ -545,12 +556,9 @@ void print_bcc_status(bcc_status_t bccStatus){
   }
 }
 
-void gr_copy(uint8_t *dest, uint8_t *src, size_t n) {
-  for (uint8_t i = 0; i < n; i++) {
-    dest[i] = src[i];
-  }
-}
-
+/// @brief Interrupt for receiving CAN messages
+/// @param hfdcan 
+/// @param RxFifo0ITs 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
     // Check if a new message is received in FIFO 0
@@ -583,7 +591,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
             bzero((void *)CAN_RxBuffer[cAN_RxBufferTop].data, 64);
             memcpy((void * restrict)CAN_RxBuffer[cAN_RxBufferTop].data, CAN_RxData, RxHeader.DataLength);
             CAN_RxBufferLevel += 1; // increment te bytes to read
-            cAN_RxBufferTop = ((cAN_RxBufferTop+1) % 256); // increment and mod the pointers in the buffer
+            cAN_RxBufferTop = cAN_RxBufferTop + 1; // increment and mod the pointers in the buffer
             
         }
     }
