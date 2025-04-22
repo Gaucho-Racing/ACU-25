@@ -5,6 +5,8 @@ extern uint32_t BCC_MCU_Timeout_Start;
 extern uint32_t BCC_MCU_Timeout_length;
 extern uint32_t spiRx[10];
 extern void print_lpuart(char* arr);
+extern uint8_t spi_send_string(const uint8_t *data, uint16_t length);
+extern uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
 
 #define SYSTICK_LOAD (SystemCoreClock/1000000U)
 #define SYSTICK_DELAY_CALIB (SYSTICK_LOAD >> 1)

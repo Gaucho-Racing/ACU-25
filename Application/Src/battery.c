@@ -237,12 +237,12 @@ bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellInd
 bcc_status_t check_temp(Battery *bty){
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
         for(uint8_t j = 0; j < (NUM_CELL_IC); i++){
-            if(bty->cell_temp[i*NUM_CELL_IC + j] > bty->max_cell_temp){
+            if(bty->cell_temp[i*NUM_CELL_IC + j] > bty->max_temp_thresh){
                 bty->faults = BCC_FS_AN_OT_UT;
                 print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
             }
-            if(bty->cell_temp[i*NUM_CELL_IC + j] < bty->min_cell_temp){
+            if(bty->cell_temp[i*NUM_CELL_IC + j] < bty->max_temp_thresh){
                 bty->faults = BCC_FS_AN_OT_UT;
                 print_bcc_fault(BCC_FS_AN_OT_UT);
                 return BCC_STATUS_DIAG_FAIL;
@@ -255,13 +255,13 @@ bcc_status_t check_temp(Battery *bty){
 bcc_status_t check_volt(Battery *bty) {
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-            if(bty->cell_volt[i*NUM_CELL_IC + j] > CELL_MAX_VOLT){
+            if(bty->cell_volt[i*NUM_CELL_IC + j] > bty->max_volt_thresh){
                 bty->faults = BCC_FS_CELL_OV;
                 print_lpuart("over volt: ");
                 print_bcc_fault(BCC_FS_CELL_OV);
                 return BCC_STATUS_DIAG_FAIL;
             }
-            else if(bty->cell_volt[i*NUM_CELL_IC + j] < CELL_MIN_VOLT){
+            else if(bty->cell_volt[i*NUM_CELL_IC + j] < bty->min_volt_thresh){
                 bty->faults = BCC_FS_CELL_UV;
                 print_lpuart("under volt: ");
                 print_bcc_fault(BCC_FS_CELL_UV);
@@ -283,20 +283,15 @@ bcc_status_t check_fuse(Battery *bty){
     return BCC_STATUS_SUCCESS;
 }
 
-void battery_check(Battery *bty, bool fullcheck){
+bool battery_check(Battery *bty, bool fullcheck){
     bcc_status_t errors = BCC_STATUS_SUCCESS;
+    
     if(fullcheck){
         // read temps
         errors = read_device_measurements(bty, false, true);
         if(errors != BCC_STATUS_SUCCESS) print_bcc_status(errors);
     }
-    else {
-        // read temps
-        // updateTemp();
 
-        // read and check fuse
-        // checkFuse();
-    }
     errors = check_temp(bty);
     if(errors != BCC_STATUS_SUCCESS) print_bcc_status(errors);
 
@@ -306,6 +301,7 @@ void battery_check(Battery *bty, bool fullcheck){
 
     errors = check_volt(bty);
     if(errors != BCC_STATUS_SUCCESS) print_bcc_status(errors);
+    return errors != BCC_STATUS_SUCCESS;
 }
 
 bool check_faults(Battery *bty) {

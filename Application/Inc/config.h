@@ -24,7 +24,6 @@
 
 //acu limits
 #define MAX_HV_CURRENT 135
-#define MAX_DCDC_TEMP 60
 #define MIN_GLV_VOLT 10
 #define MAX_GLV_VOLT 14.4
 
@@ -50,6 +49,10 @@
 #define CHARGER_CONNECT     0b00010
 #define CHARGER_COOMMMM     0b00001
 
+// precharge cmd
+#define PLS_CHARGE 0b01000000
+#define NO_CHARGE  0b10000000
+
 // IMD error masks
 #define IMD_ERROR_ACTIVE    0b10000000000
 #define HV_POS_CONN_FAIL    0b01000000000
@@ -65,10 +68,9 @@
 
 // error margins
 #define ERRMG_GLV_SDC 4
-#define ERRMG_ISNS_VREF 0.2
-#define ERRMG_5V 0.2
-#define ERRMG_CELL_VOLT_ERR 20
-#define ERRMG_CELL_TEMP_ERR 50
+// #define ERRMG_5V 0.2
+// #define ERRMG_CELL_VOLT_ERR 20
+// #define ERRMG_CELL_TEMP_ERR 50
 #define ERRMG_ACU_ERR 50
 
 // ADC Warning Thresholds
@@ -76,65 +78,59 @@
 #define UNDER_VOLTAGE_GLV 10
 #define UNDER_VOLTAGE_SDCV 9
 
-// adc_data muxes
-#define ADC_MUX_TS_VOLT     0
-#define ADC_MUX_GLV_VOLT    1
-#define ADC_MUX_SDN_VOLT    2
-
 #define PRECHARGE_THRESHOLD 0.96 // fraction of total cell voltage
 #define SAFE_V_TO_TURN_OFF 60
 
-// Send
+/* Send ***********************************************************/
 // CAN1
-#define ACU_Debug_2             0x300001    // FLAG = 1
-#define ACU_Ping_Debug          0x300201    // FLAG = 2
-#define ACU_Ping_ECU            0x300202    // FLAG = 3
-#define ACU_Debug_FD            0x300101    // FLAG = 4
+#define ACU_Debug_2_Debug       0x300001    // FLAG = 1 (CAN1)
+#define ACU_Ping_Debug          0x300201    // FLAG = 2 (CAN1/CAN2)
+#define ACU_Ping_ECU            0x300202    // FLAG = 3 (CAN1/CAN2)
 
 #define ACU_Status_1            0x300702    // FLAG = 5
 #define ACU_Status_2            0x300802    // FLAG = 6
 #define ACU_Status_3            0x300902    // FLAG = 7
-#define ACU_DC_DC_Status        0x301202 
+#define ACU_DC_DC_Status        0x301202    // DEPRECATED
 
 // CAN2
-#define ACU_Cell_Data_1         0x300DFF    // FLAG = 1
-#define ACU_Cell_Data_2         0x300EFF    // FLAG = 2
-#define ACU_Cell_Data_3         0x300FFF    // FLAG = 3
-#define ACU_Cell_Data_4         0x3010FF    // FLAG = 4 
-#define ACU_Cell_Data_5         0x3011FF    // FLAG = 5
+// ACU_Ping_Debug               0x300201    // FLAG = 1 (CAN1/CAN2)
+// ACU_Ping_ECU                 0x300202    // FLAG = 2 (CAN1/CAN2)
+#define ACU_Debug_FD            0x300101    // FLAG = 3 (CAN2)
+#define ACU_Cell_Data_1         0x300DFF    // FLAG = 4 (CAN2)
+#define ACU_Cell_Data_2         0x300EFF    // FLAG = 5 (CAN2)
+#define ACU_Cell_Data_3         0x300FFF    // FLAG = 6 (CAN2)
+#define ACU_Cell_Data_4         0x3010FF    // FLAG = 7 (CAN2)
+#define ACU_Cell_Data_5         0x3011FF    // FLAG = 8 (CAN2)
 
 // CAN3
 #define ACU_Charger_Control     0x1806E5F4  // FLAG = 1
 
-// Receive
+/* Receive ********************************************************/
 // CAN1
-#define Debug_2_ACU             0x100003    // Debugger 2.0 sends to ACU on (CAN1)
-#define Precharge_ACU           0x200A03    // ECU => ACU to enter Precharge (CAN1)
-#define Config_Charge_ACU       0x200B03    // ECU Charger Config => ACU (CAN1)
-#define Config_Operational_ACU  0x200C03    // ECU ACU Operation Config => ACU (CAN1)
-#define ECU_Status_1            0x2003FF    // ECU Status_1 (CAN1)
-#define ECU_Status_2            0x2004FF    // ECU Status_1 (CAN1)
-#define ECU_Status_3            0x2005FF    // ECU Status_1 (CAN1)
-
-// CAN1 & CAN2
-#define Debug_FD_ACU            0x100103    // ID to PING to ACU over (CAN1/CAN2)
-#define ECU_Ping                0x2002FF    // ECU's PING => ALL (CAN1/CAN2)
+#define Debug_2_ACU             0x100003    // Debugger sends Debug 2.0 to ACU (CAN1)
+#define Debug_Ping_ACU          0x100203    // Debugger sends PING to ACU (CAN1/CAN2)
+#define Precharge_ACU           0x200A03    // ECU sends PRECHARGE to ACU (CAN1)
+#define Config_Charge_ACU       0x200B03    // ECU sends Charger Config to ACU (CAN1)
+#define Config_Ops_ACU          0x200C03    // ECU sends Operation Config to ACU (CAN1)
 
 // CAN2
-#define Ping_ACU                0x100203    // Debugger sends FD to ACU over (CAN2)
+#define Debug_FD_ACU            0x100103    // Debugger sends Debug FD to ACU (CAN2)
+#define ECU_Ping_ALL            0x2002FF    // ECU sends PING to ALL (CAN1/CAN2)
 
 // CAN3
-#define Charger_Data_ACU        0x18FF50E5  // charger sends data to ACU (CAN3)
-#define EM_Measurements_ACU     0x10D       // EM measurements => ACU (CAN3)
-#define EM_Data_1_ACU           0x30D       // EM Team Data 1 => ACU (CAN3)
-#define EM_Data_2_ACU           0x30E       // EM Team Data 2 => ACU (CAN3)
-#define EM_Status_ACU           0x40D       // EM Status => ACU (CAN3)
-#define EM_Temperature_ACU      0x60D       // EM Temp => ACU (CAN3)
-#define IMD_Response_ACU        0x23        // IMD data => ACU (CAN3)
-#define IMD_Isolation_ACU       0x18FF02F4  // IMD data => ACU (CAN3) (prev 0x18EFF4FE)
-#define IMD_Voltage_ACU         0x18FF03F4  // IMD data => ACU (CAN3) (prev 0x18EFF4FE)
-#define IMD_IT_System_ACU       0x18FF04F4  // IMD data => ACU (CAN3) (prev 0x18EFF4FE)
-#define IMD_Request_ACU         0x18EFF4FE  // IMD data => ACU (CAN3) (Should be 1CEF00F4)
-#define IMD_General_ACU         0x18FF01F4  // IMD data => ACU (CAN3)
+#define Charger_Data_ACU        0x18FF50E5  // Charger sends Charger Data to ACU (CAN3)
+
+#define EM_Measurements_ACU     0x10D       // EM sends EM Measurements to ACU (CAN3)
+#define EM_Data_1_ACU           0x30D       // EM sends EM Team Data 1 to ACU (CAN3)
+#define EM_Data_2_ACU           0x30E       // EM sends EM Team Data 2 to ACU (CAN3)
+#define EM_Status_ACU           0x40D       // EM sends EM Status to ACU (CAN3)
+#define EM_Temperature_ACU      0x60D       // EM sends EM Temperature to ACU (CAN3)
+
+#define IMD_Response_ACU        0x23        // IMD sends IMD response to ACU (CAN3)
+#define IMD_Isolation_ACU       0x18FF02F4  // IMD sends IMD iso info to ACU (CAN3) (prev 0x18EFF4FE)
+#define IMD_Voltage_ACU         0x18FF03F4  // IMD sends IMD voltage to ACU (CAN3) (prev 0x18EFF4FE)
+#define IMD_IT_System_ACU       0x18FF04F4  // IMD sends IMD it-system to ACU (CAN3) (prev 0x18EFF4FE)
+#define IMD_Request_ACU         0x18EFF4FE  // IMD sends IMD request to ACU (CAN3) (Should be 1CEF00F4)
+#define IMD_General_ACU         0x18FF01F4  // IMD sends IMD general to ACU (CAN3)
 
 #endif

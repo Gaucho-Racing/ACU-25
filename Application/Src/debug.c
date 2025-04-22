@@ -31,7 +31,7 @@ extern void print_lpuart(char* arr);
 #define GLV_SOC 0
 #define GLV_VOLTAGE 0
 #define TS_VOLTAGE 0
-#define TS_CURRENT 0
+#define ACU_CURRENT 0
 
 #define HV_INPUT_VOLT 0
 #define HV_INPUT_CURR 0

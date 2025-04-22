@@ -17,32 +17,33 @@ typedef struct
 
 typedef struct
 {
-    float cell_soc[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
-    float bal_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; 
     float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     float cell_volt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; // 0 = off, 255 = on, error = anything else
+
+    // Data we calculated from BCC measurements
+    float min_cell_volt;
+    float max_cell_volt;
+    float min_cell_temp;
+    float max_cell_temp;
     
     // stacks
     float stackVoltage[NUM_TOTAL_IC];
     float icTemp[NUM_TOTAL_IC];
 
-    // CAN data stuff
-    float min_cell_volt;
-    float max_cell_volt;
-    float min_cell_temp;
-    float max_cell_temp;
+    float max_chg_current; // idk what the purpose of this one is, doesn't really get used
 
-    float min_charge_volt;
-    float max_charge_volt;
+    // ACU Config Operational Parameters via Rx
+    uint16_t min_volt_thresh;
+    uint16_t max_temp_thresh;
 
-    float batVoltage, batSOC;
-    float max_chg_current;
+    // Internal Data
+    uint16_t max_volt_thresh;
+    uint16_t min_temp_thresh;
 
     // config
     bcc_drv_config_t drvConfig;
-    bcc_fault_status_t faults;
-    bcc_fault_status_t cid_faults[NUM_TOTAL_IC];
+    bcc_fault_status_t faults; // 11
 
 } Battery;
 
@@ -101,7 +102,7 @@ bcc_status_t check_volt(Battery *bty);
 bcc_status_t check_temp(Battery *bty);
 bcc_status_t check_fuse(Battery *bty);
 
-void battery_check(Battery *bty, bool full_check);
+bool battery_check(Battery *bty, bool full_check);
 bool check_faults(Battery *bty);
 void clear_faults(bcc_drv_config_t * drvConfig);
 bool do_cell_balancing(Battery * bty);

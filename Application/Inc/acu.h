@@ -7,20 +7,15 @@
 #include "battery.h"
 #include "fdcan.h"
 #include "adc.h"
+#include "math.h"
 #include "stm32g4xx_hal_fdcan.h"
 
 typedef struct {
     uint8_t data[64];
-    FDCAN_RxHeaderTypeDef* RxHeader;
-    FDCAN_HandleTypeDef* hfdcan;
+    FDCAN_GlobalTypeDef* instance; // Options: FDCAN1, FDCAN2, FDCAN3
+    uint32_t identifier; // CANID
+    uint32_t length; // Bytes
 } CAN_RX_message;
-
-typedef struct {
-    uint8_t data[64];
-    uint32_t identifier;
-    uint32_t data_length;
-    FDCAN_HandleTypeDef* hfdcan;
-} CAN_TX_message;
 
 typedef struct {
     float em_current;
@@ -44,7 +39,7 @@ typedef struct {
     uint8_t r_iso_status;
     uint8_t r_iso_meas_count; 
     uint8_t isolation_quality;
-    uint8_t status_device_activity; //0 - initialization, 1 - Normal Operation, 2 - Self Test 
+    uint8_t status_device_activity; // 0 - initialization, 1 - Normal Operation, 2 - Self Test 
     uint16_t r_iso_corrected;
     uint16_t status_warnings_alarms; // 11 bits long
 
@@ -56,7 +51,6 @@ typedef struct {
 } IMD;
 
 typedef struct {
-    uint8_t id;
 
     // Charger Data (ACU reads from RX)
     uint8_t chgr_status; /* Map:    Bit 0: Hardware Failure: 0-Normal, 1-Error
@@ -65,8 +59,8 @@ typedef struct {
                                     Bit 3: Starting State: 0-Correct, 1-Wrong polarity or NC
                                     Bit 4: Communication State: 0-Normal, 1-Timeout
                         */
-    uint16_t charger_output_voltage;
-    uint16_t charger_output_current;
+    uint16_t charger_output_voltage; // data from charger (via Rx)
+    uint16_t charger_output_current; // data from charger (via Rx)
 } Charger;
 
 typedef struct {
@@ -77,35 +71,30 @@ typedef struct {
     EM * em;
 
     // Config Charge Parameters (ACU to sends via TX to Charger)
-    float target_voltage;
+    float target_voltage; 
     float target_current;
-    float target_temp;
 
-    uint8_t chg_ctrl; // 1 : Start Charging, 0: Stop Charging
+    uint8_t chg_ctrl; // 0b01 : Start Charging, 0b10: Stop Charging => to be sent from ACU to others via Tx
 
     // ACU_Status_1
-    uint8_t acu_SOC; // % charged of the Accumulator (Based on lowest cell)
-    uint8_t glv_SOC; // % charged of the Low Voltage Bat
+    uint8_t acu_SOC; // Accumulator state of charge (Based on lowest cell)
+    uint8_t glv_SOC; // GLV state of charge
 
     float ts_voltage;  // output terminal voltage of ACU
-    float ts_current; // current output of ACU
+    float acu_current; // current output of ACU
 
-    // not used for CAN
+    // ADC Stuff
     float shutdown_volt; // preset voltage threshold
+    float sdc_voltage;  // voltage b4 ACU latch - node 1
+    float sdc_voltage_2; // node 2
+    float voltage_12v;  // 12V voltage
+    float glv_voltage;  // from adc_data = JUST SET TO 0
     
     // ACU-Status 3
-    float hv_input_voltage;  // 600v input voltage
-    float hv_output_voltage; // 20v output voltage
-    float hv_input_current;  // 600v input current
-    float hv_output_current;  // 20v output current
-
-    // voltages voltages voltages...
-    float sdc_voltage; // voltage b4 ACU latch
-    float glv_voltage;  // from adc_data
-
-    // Config_Operational_ACU
-    float config_min_cell_volt;
-    float config_max_cell_temp;
+    float hv_input_voltage;  // 600v input voltage => Apparantly not needed anymore
+    float hv_output_voltage; // 20v output voltage => Apparantly not needed anymore
+    float hv_input_current;  // 600v input current => Apparantly not needed anymore
+    float hv_output_current;  // 20v output current => Apparantly not needed anymore
 
     // from GR24 => not sure if we still need to use
     uint32_t cur_LastHighTime;
@@ -121,41 +110,43 @@ typedef struct {
 
     // ACU errors/warnings
     uint8_t acuErrCount;
-    uint16_t acu_err_warns; /*[ OT, OV, UV, OC, 
-                                UC, UV_20v, UV_GLV, UV_SDC, 
-                                Precharge, 0, 0, 0, 
-                                0, 0, 0, 0]*/         
+    uint16_t acu_err_warns; // [ 0:OT, OV, UV, OC, UC, UV_20v, UV_GLV, 7:UV_SDC, 8:Precharge, 0, 0, 0, 0, 0, 0, 0]        
 
-    // ACU states
+    // ACU states => THIS IS NOT USED
     uint8_t ir_precharge_state; // 0: open, 1: closed
     uint8_t ir_state;           // 0: open, 1: closed
     uint8_t software_latch;     // 0: open, 1: closed
 
-    // Cmmands send to ACU
+    // ACU Precharge via Tx
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
 } ACU;
 
 void acu_init(ACU * acu);
-void acu_check(ACU * acu, uint8_t state, bool startup);
+bool acu_check(ACU * acu, uint8_t state, bool startup);
 
 // Send CAN Messages
 void dequeue(ACU* acu);
-void enqueue(uint32_t id);
+void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 
 // Receive CAN Messages
-void can_read_all(ACU* acu);
-void can_read(ACU * acu, uint32_t id, uint8_t * data);
+void can_kirby_it(ACU* acu);
+void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint32_t size, uint8_t * data);
 
 // Other Messages
 void can_dump(ACU *acu);
 
 // modifiers
 void reset_latch(ACU *acu);
-void update_adc_array_data(ACU* acu);
+void update_ts_voltage(ACU* acu);
 void update_all(ACU * acu);
 
 float get_total_voltage(ACU* acu);
-float V2T_f(float voltage, float B); // default = 4390
-float V2T_i(int16_t voltage, float B); // default = 4390
-float V2T_complex(float vdd, float voltage, float B, float Rsns, float Rref);
+
+// helpers
+uint8_t fconstrain(float value);
+
+// TO IMPLEMENT
+void charger_check(ACU* acu); // check chgr_status
+uint8_t calculate_acu_soc(ACU* acu); // sets acu_SOC based on lowest cell voltage
+uint8_t calculate_glv_soc(ACU* acu); // sets acu_GLV based on ???
 #endif
