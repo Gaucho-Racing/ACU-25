@@ -53,6 +53,11 @@
 #define PLS_CHARGE 0b01000000
 #define NO_CHARGE  0b10000000
 
+// relay state muxes
+#define AIR_PLUS   0b10000000 // IR- : 0: Open, 1: Closed
+#define AIR_MINUS  0b01000000 // IR+ : 0: Open, 1: Closed
+#define RELAY_PRE  0b00100000 // Precharge 0: Open, 1: Closed
+
 // IMD error masks
 #define IMD_ERROR_ACTIVE    0b10000000000
 #define HV_POS_CONN_FAIL    0b01000000000
@@ -67,7 +72,8 @@
 #define EARTH_LIFT_OPENN    0b00000000001
 
 // error margins
-#define ERRMG_GLV_SDC 4
+#define GLV_SDC_LOW 1.0f
+#define SDC_HIGH 9.0f
 // #define ERRMG_5V 0.2
 // #define ERRMG_CELL_VOLT_ERR 20
 // #define ERRMG_CELL_TEMP_ERR 50

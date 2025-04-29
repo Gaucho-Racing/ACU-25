@@ -16,90 +16,107 @@ float constrain(float value, float lowerBound, float upperBound) {
     }
 }
 
+uint8_t get_state(){
+    return (uint8_t)(state);
+}
+
 void shitdown(){
     
-    // Open AIRS and Precharge if already not open, close Discharge
+    // Open all
     acu.relay_state = 0;
-
-    //indicates to battery to stop charging, should fall on deaf ears if not charging
+    acu.chg_ctrl = NO_CHARGE;
     enqueue(ACU_Charger_Control, FDCAN3);
+
+    //indicates to battery to stop charging
     reset_discharge(&battery);
     
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
-
-    //errors can only be reset when shutdown
     uint16_t precharge_error = acu.acu_err_warns & ACU_PRECHARGE;
+
     acu.acu_err_warns &= ~(ACU_CLEAR_ERRR);
     if (precharge_error) acu.acu_err_warns |= ACU_PRECHARGE;
 
-    uint8_t checkPass = state_system_check(true, false);
-    update_ts_voltage(&acu);
-    if (acu.ts_voltage < SAFE_V_TO_TURN_OFF && checkPass) { // safe to turn off if TS voltage < 60V
+    uint8_t pass = state_system_check(true, false);
+    update_adc_data(&acu);
+    
+    if (acu.ts_voltage < SAFE_V_TO_TURN_OFF && pass) { // safe to turn off if TS voltage < 60V
         print_lpuart("Shutdown (Safe) => Standby");
         state = STANDBY;
     }
 }
 /// @brief do nothing, in initial state wait for VDM to send start command, maybe poll CAN
 void standby(){
-    // get acu_current
-    bool check = state_system_check(false, false);
-    if(!check) {
-        // enqueue
+    // get ts_current
+    update_adc_data(&acu);
+    if(state_system_check(false, false) == false){
+        state = SHITDOWN;
     }
     cycle++;
     cycle = cycle % 8;
 }
+
+/// @brief State: PRECHARGE
 void precharge(){
-    print_lpuart("In Precharge...\n");
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
     acu.acu_err_warns &= ~(ACU_PRECHARGE);
 
-    acu.relay_state = 0b000;
-    // do error checking here
+    // all to zero
+    acu.relay_state = 0;
 
-    reset_latch(&acu); // currently this function does nothing
+    // if (not successful) {
+    //     state = SHUTDOWN;
+    // }
+
+    #if DEBUGG
+        print_lpuart("State: precharge\n");
+    #endif
+
     LL_mDelay(100);
+    update_adc_data(&acu);
 
-    update_ts_voltage(&acu);
-
-    if (fabs(acu.glv_voltage - acu.shutdown_volt) > ERRMG_GLV_SDC) {
+    if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
         print_lpuart("Latch not closed, skill issue\n");
+        acu.acu_latch = 0;
         state = SHITDOWN;
         return;
     }
-
+    else {acu.acu_latch = 1;}
+    
+    // system check
     if (!state_system_check(true, false)) {
+        print_lpuart("failed state_system_check\n");
         state = SHITDOWN;
-        print_lpuart("failed systemCheck\n");
         return;
     }
 
-    acu.relay_state = 0b100; // close AIR-
-    enqueue(ACU_Status_2, FDCAN1); // I'm totally guessing it's this one LOL
+    // close AIR-
+    acu.relay_state |= AIR_MINUS;
+    // hopefully data will send itself
 
-    acu.relay_state = 0b101; // close precharge relay
-    enqueue(ACU_Status_2, FDCAN1); // I'm totally guessing it's this one LOL;
+    // Close precharge relay
+    acu.relay_state |= RELAY_PRE;
+    // hopefully data will send itself
 
-    // check voltage, if difference > threshold after 2 seconds throw error
-    uint32_t startTime = HAL_GetTick();
-    update_ts_voltage(&acu);
+    uint32_t start_time = HAL_GetTick();
+    update_adc_data(&acu);
+
+    // keep looping until ts_voltage reaches 0.95 of total cell voltage
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
-        print_lpuart("Precharging... "); 
-        if (state_system_check(false, false)) {
-            print_lpuart("PreCharge (TsVoltage) => Shutdown\n");
+
+        if (!state_system_check(false, false)) {
+            print_lpuart("PreCharge (ts_voltage) => Shutdown\n");
             state = SHITDOWN;
             return;
         }
 
-        update_ts_voltage(&acu);
-        if(fabs(acu.glv_voltage - acu.shutdown_volt) > ERRMG_GLV_SDC){
+        if(fabsf(acu.glv_voltage - acu.sdc_volt_w) > GLV_SDC_LOW){
             print_lpuart("SDC voltage dropped while precharging!! Check connections\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2, FDCAN1);
             state = SHITDOWN;
             return;
         }
-        if (HAL_GetTick() - startTime > 5000) { // timeout, throw error
+        if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
             print_lpuart("Precharge timeout, error\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2,FDCAN1);
@@ -107,38 +124,41 @@ void precharge(){
             return;
         }
 
-        can_kirby_it(&acu); // do all
-        can_dump(&acu); // dump everything
         if(state != PRECHARGE){
             print_lpuart("NOT IN PRECHARGE??????\n");
         }
+        update_adc_data(&acu);
     }
 
-    // delay 3 seconds, for safety
-    startTime = HAL_GetTick();
-    uint8_t goToCharge = false; // change this to false on final build
-    while (HAL_GetTick() - startTime < 3000) {
+    start_time = HAL_GetTick();
+    uint8_t goToCharge = 0; // change this to false on final build
+    update_adc_data(&acu);
+
+    // 3 seconds to check if we go to charge
+    while (HAL_GetTick() - start_time < 3000) {
         if(!acu_check(&acu, (uint8_t)state, false)){
             state = SHITDOWN;
             return;
         }
-        if(RxHeader_Charger.Identifier == Charger_Data_ACU){
+        // signal to go to charge!
+        if(acu.chgr->chgr_status ^ CHARGER_COOMMMM){ // (if X ^ 1) => true
             print_lpuart("Charger_Data_ACU ping received!\n");
             goToCharge = 1;
         }
-        update_ts_voltage(&acu);
+        
+        // actively check total_voltage vs ts_voltage just in case
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){
-            state = SHITDOWN;
+            print_lpuart("TS Voltage went down in Precharge\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
-            print_lpuart("acu.ts_voltage < THRESHOLD\n");
+            state = SHITDOWN;
             return;
         }
-        can_dump(&acu); // dump everything
+        update_adc_data(&acu);
         LL_mDelay(50);
     }
 
-    acu.relay_state = 0b111; // close all relays
-    enqueue(ACU_Status_3,FDCAN3); // IDK JUST SENDING RELAY STATUS
+    acu.relay_state |= AIR_PLUS;
+    enqueue(ACU_Status_3,FDCAN3);
 
     if(goToCharge){
         acu.chg_ctrl = PLS_CHARGE;
@@ -147,7 +167,6 @@ void precharge(){
     else{
         acu.chg_ctrl = NO_CHARGE;
         state = NORMAL;
-        print_lpuart("Precharge Done. Ready to drive. State Normal\n");
     }
     return;
 }
@@ -159,12 +178,15 @@ uint32_t last_call_time = 0;
 
 void charge(){
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
+
     if(!acu_check(&acu, (uint8_t)state, false)){
         state = SHITDOWN;
         return;
     }
+    
     if(HAL_GetTick() - last_charge_time >= 2000){
-        reset_discharge(&battery); // currently does nothing
+        reset_discharge(&battery); // TODO: config cell balancing
+
         last_charge_time = HAL_GetTick();
         if(!state_system_check(true, false)){
             state = SHITDOWN;
@@ -174,6 +196,7 @@ void charge(){
         //voltage checks done in system check, kick off cell balancing
         do_cell_balancing(&battery); 
     }
+
     if(HAL_GetTick() - last_send_time > 990){
         last_send_time = HAL_GetTick();
         if(battery.max_cell_volt > battery.max_volt_thresh){
@@ -181,7 +204,9 @@ void charge(){
         } else {
             battery.max_chg_current = acu.target_current;
         }
-        battery.max_chg_current = acu.target_current; // this part doens't really make sense bc we aren't really sending the val we just updated
+        // TODO: figure this line out
+        battery.max_chg_current = acu.target_current; 
+        //every 0.99 seconds send charger "ping"
         enqueue(ACU_Charger_Control,FDCAN3);
     }
 
@@ -194,10 +219,13 @@ void charge(){
 
     // re-measure current sensor ref every 5 minutes
     if (HAL_GetTick() - last_call_time > 300000) {
+
         last_call_time = HAL_GetTick();
-        state = NORMAL; // turn off charger
+        state = NORMAL; // turn charger off
+
         acu.chg_ctrl = NO_CHARGE;
         enqueue(ACU_Charger_Control,FDCAN3);
+
         LL_mDelay(1000);
 
         state = CHARGE; // turn charger back on
@@ -205,18 +233,21 @@ void charge(){
         enqueue(ACU_Charger_Control,FDCAN3);
     }
     
+    return;
 }
 
 uint8_t tsVoltErrCount = 0;
 void normal(){
-    if(state_system_check(false, false)){
+    
+    if(!state_system_check(false, false)){
         print_lpuart("SystemCheck failed in NORMAL state\n");
         state = SHITDOWN;
         return;
     }
 
+    update_adc_data(&acu);
     float totalV = get_total_voltage(&acu);
-    if (fabs(acu.ts_voltage - totalV) > 80) {
+    if (fabsf(acu.ts_voltage - totalV) > 80) {
         print_lpuart("TS voltage mismatch");
         tsVoltErrCount++;
         if (tsVoltErrCount >= ERRMG_ACU_ERR) {
@@ -234,13 +265,13 @@ void normal(){
         tsVoltErrCount = 0;
     }
 
-    //cycle maxes out at 8
     cycle++;
     cycle = cycle % 8;
 
-    if (acu.acu_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
+    update_adc_data(&acu);
+    if (acu.ts_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
     if (HAL_GetTick() - acu.cur_LastHighTime > 10000) {
-        update_ts_voltage(&acu);
+        update_adc_data(&acu);
     }
 }
 

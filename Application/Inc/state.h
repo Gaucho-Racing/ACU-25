@@ -18,6 +18,7 @@ void standby();
 void precharge();
 void charge();
 void normal();
+uint8_t get_state();
 bool state_system_check(bool full_check, bool startup);
 
 // Other Functions

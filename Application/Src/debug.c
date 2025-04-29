@@ -87,7 +87,6 @@ uint8_t spi_read_string(uint8_t *buffer, uint16_t length){
     uint32_t counter = 0;
     while (TPL_RxBufferLevel == 0) {
       if(counter++ > SPI_LOOP_TIMEOUT) {
-        // print_lpuart("|timeout\n");
         return 1;
       }
       BCC_MCU_WaitUs(1);
@@ -95,11 +94,7 @@ uint8_t spi_read_string(uint8_t *buffer, uint16_t length){
     buffer[i] = TPL_RxBuffer[TPL_RxBufferBottom];
     TPL_RxBufferBottom++;
     TPL_RxBufferLevel--;
-    // char printBuffer[8];
-    // sprintf(printBuffer, "|%u", TPL_RxBufferLevel);
-    // print_lpuart(printBuffer);
   }
-  // print_lpuart("\n");
   return 0;
 }
 

@@ -1,10 +1,12 @@
 #include "acu.h"
+extern uint8_t get_state();
 extern void print_lpuart(char* arr);
 extern void print_can_msg(uint8_t *arr);
  
 extern volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
 extern volatile uint8_t CAN_RxBufferBottom; // Index of oldest data ==> increment this whenever the data is processed
 extern volatile uint8_t CAN_RxBufferTop;
+extern volatile uint8_t CAN_RxBufferLevel;
 
 extern FDCAN_TxHeaderTypeDef TxHeader;
 extern FDCAN_RxHeaderTypeDef RxHeader;
@@ -17,13 +19,12 @@ extern uint8_t CAN_TxData[64];
 extern uint8_t CAN_RxData[64];
 extern uint16_t adc_data[6];
 
-extern volatile uint8_t p_top, p_bottom, d_top, d_bottom, c_top, c_bottom;
+extern volatile uint8_t p_top, p_bottom, p_level, d_top, d_bottom, d_level, c_top, c_bottom, c_level;
 extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 extern volatile uint8_t CAN_1_flag, CAN_2_flag, CAN_3_flag;
 
 void acu_init(ACU * acu){
     acu->lastChrgRecieveTime = 0.0f;
-    acu->relay_state = 0;
     acu->chg_ctrl = NO_CHARGE;
     acu->acuErrCount = 0;
     return;
@@ -38,7 +39,7 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
     bool hasErrors = false;
 
     // check overcurrent
-    if(acu->acu_current > MAX_HV_CURRENT){
+    if(acu->ts_current > MAX_HV_CURRENT){
         #if DEBUGG
             print_lpuart("Overcurrent detected\n");
         #endif
@@ -49,7 +50,7 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
             acu->acu_err_warns |= ACU_ERR_OVER_CURR;
         }
     }
-    else if(acu->acu_current > MAX_HV_CURRENT*0.8f){
+    else if(acu->ts_current > MAX_HV_CURRENT*0.8f){
         print_lpuart("High Current Warning\n"); // not sure what this is about
     }
 
@@ -74,14 +75,14 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
     }
 
     //shutdown voltage, should be close to GLV
-    if(fabs(acu->shutdown_volt - acu->glv_voltage) > ERRMG_GLV_SDC && !startup && state == 3){
+    if(fabsf(acu->sdc_volt_w - acu->glv_voltage) > GLV_SDC_LOW && !startup && state == 3){
         print_lpuart("Shutdown volt not close enough of GLV\n");
 
         char buff[32];
-        sprintf(buff, "%.3f\n", fabs(acu->shutdown_volt - acu->glv_voltage));
+        sprintf(buff, "%.3f\n", fabsf(acu->sdc_volt_w - acu->glv_voltage));
         print_lpuart(buff);
 
-        if(acu->shutdown_volt < acu->glv_voltage) {
+        if(acu->sdc_volt_w < acu->glv_voltage) {
             acu->acuErrCount++;
             hasErrors = true;
             if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -89,7 +90,7 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
                 acu->acu_err_warns |= ACU_ERR_UNDER_VOLT;
             }
         }
-        else if(acu->shutdown_volt > acu->glv_voltage){
+        else if(acu->sdc_volt_w > acu->glv_voltage){
             acu->acuErrCount++;
             hasErrors = true;
             if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -107,7 +108,7 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
     if(acu->glv_voltage < UNDER_VOLTAGE_GLV){
         acu->acu_err_warns |= ACU_ERR_UV_12_V;
     }
-    if(acu->sdc_voltage < UNDER_VOLTAGE_SDCV){
+    if(acu->sdc_volt_w < UNDER_VOLTAGE_SDCV){
         acu->acu_err_warns |= ACU_ERR_UV_SDC;
     }
     return !hasErrors;
@@ -115,7 +116,7 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
 
 /// @brief Checks CAN_RxBuffer and parses everything that's incoming
 /// @param acu 
-void can_kirby_it(ACU* acu){
+void can_read_handler(ACU* acu){
     while(CAN_RxBufferTop > CAN_RxBufferBottom){
 
         FDCAN_GlobalTypeDef * type = CAN_RxBuffer[CAN_RxBufferBottom].instance;
@@ -126,9 +127,16 @@ void can_kirby_it(ACU* acu){
         bzero((void*)CAN_RxBuffer[CAN_RxBufferBottom].data, sizeof(CAN_RxBuffer[CAN_RxBufferBottom].data));
 
         CAN_RxBufferBottom++;
+        CAN_RxBufferLevel--;
     }
 }
 
+/// @brief Parses single CAN message
+/// @param acu 
+/// @param which_can 
+/// @param id 
+/// @param size 
+/// @param data 
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint32_t size, uint8_t * data){
     float values = 0.0f;
     uint32_t millis = HAL_GetTick();
@@ -240,7 +248,10 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint32_t 
     }
 }
 
+/// @brief Takes top message request off buffer and sends over corresponding CAN
+/// @param acu 
 void dequeue(ACU* acu){
+    if(CAN_1_flag == 0 && CAN_2_flag == 0 && CAN_3_flag == 0) return;
     // priority 1: CAN_Primary
     switch(CAN_1_flag){ 
         case 1: // ACU_Debug_2_Debug
@@ -287,8 +298,8 @@ void dequeue(ACU* acu){
             CAN_TxData[1] = (uint16_t)(total_volt * 100.0f);
             CAN_TxData[2] = ((uint16_t)(acu->ts_voltage * 100.0f)) >> 8;
             CAN_TxData[3] = (uint16_t)(acu->ts_voltage * 100.0f);
-            CAN_TxData[4] = ((uint16_t)((acu->acu_current + 327.68f) * 100.0f)) >> 8;
-            CAN_TxData[5] = (uint16_t)((acu->acu_current + 327.68f) * 100.0f);
+            CAN_TxData[4] = ((uint16_t)((acu->ts_current + 327.68f) * 100.0f)) >> 8;
+            CAN_TxData[5] = (uint16_t)((acu->ts_current + 327.68f) * 100.0f);
             CAN_TxData[6] = acu->acu_SOC * 51 * 0.2;
             CAN_TxData[7] = acu->glv_SOC * 51 * 0.2;
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
@@ -299,16 +310,16 @@ void dequeue(ACU* acu){
         case 6: // ACU_Status_2
             TxHeader.Identifier = ACU_Status_2;
             TxHeader.DataLength = FDCAN_DLC_BYTES_7;
-            CAN_TxData[0] = 0; // 20v Voltage
-            CAN_TxData[1] = (uint8_t)acu->glv_voltage * 10.0f;
-            CAN_TxData[2] = (uint8_t)acu->sdc_voltage * 10.0f;
+            CAN_TxData[0] = 0; // 20v GLV voltage
+            CAN_TxData[1] = (uint8_t)acu->voltage_12v * 10.0f;
+            CAN_TxData[2] = (uint8_t)acu->sdc_volt_w * 10.0f;
             CAN_TxData[3] = (uint8_t)(acu->bty->min_cell_volt -2.0f) * 100.0f;
             CAN_TxData[4] = (uint8_t)(acu->bty->max_cell_temp * 4.0f);
             CAN_TxData[5] = (uint8_t)(acu->acu_err_warns & 0xFF); // takes [OT, OV, UV, OC, UC, UV_20v, UV_GLV, UV_SDC]
             CAN_TxData[6] = ((uint8_t)(acu->acu_err_warns >> 8)) & 0xff; // takes precharge error to lsb
-            CAN_TxData[6] += (acu->ir_precharge_state << 1);
-            CAN_TxData[6] += (acu->ir_state << 2);
-            CAN_TxData[6] += (acu->software_latch << 3);
+            CAN_TxData[6] |= (acu->relay_state & AIR_PLUS) >> 1;
+            CAN_TxData[6] |= (acu->relay_state & AIR_MINUS) >> 1;
+            CAN_TxData[6] |= acu->acu_latch >> 3; 
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Status_2 failed...\n");
             }
@@ -438,89 +449,93 @@ void dequeue(ACU* acu){
             break;
     }
 }
+
+/// @brief Takes incoming CAN message request and put into send buffer
+/// @param id 
+/// @param which_can 
 void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
-    uint8_t primary_full = (p_top != 0 && p_top == p_bottom);
-    uint8_t data_full = (d_top != 0 && d_top == d_bottom);
-    uint8_t charger_full = (c_top != 0 && c_top == c_bottom);    
+    uint8_t primary_full = (p_level == 64U);
+    uint8_t data_full = (d_level == 64U);
+    uint8_t charger_full = (c_level == 64U);    
     switch (id){
         case ACU_Debug_2_Debug:
             if(primary_full) return;
             prim_q[p_top] = 1;
-            p_top++;
+            p_top++; p_level++;
             break;       
         case ACU_Ping_Debug:
             if(which_can == FDCAN1){
                 if(primary_full) return;
                 prim_q[p_top] = 2;
-                p_top++;
+                p_top++; p_level++;
             }
             else if (which_can == FDCAN2){
                 if(data_full) return;
                 data_q[d_top] = 1;
-                d_top++;
+                d_top++; d_level++;
             }
             break;     
         case ACU_Ping_ECU:
             if(which_can == FDCAN1){
                 if(primary_full) return;
                 prim_q[p_top] = 3;
-                p_top++;
+                p_top++; p_level++;
             }
             else if(which_can == FDCAN2){
                 if(data_full) return;
                 data_q[d_top] = 2;
-                d_top++;
+                d_top++; d_level++;
             }
             break;    
         case ACU_Debug_FD:
             if(data_full) return;
             data_q[d_top] = 3;
-            d_top++;
+            d_top++; d_level++;
             break;       
         case ACU_Status_1:
             if(primary_full) return;
             prim_q[p_top] = 5;
-            p_top++;
+            p_top++; p_level++;
             break;       
         case ACU_Status_2:
             if(primary_full) return;
             prim_q[p_top] = 6;
-            p_top++;
+            p_top++; p_level++;
             break;       
         case ACU_Status_3:
             if(primary_full) return;
             prim_q[p_top] = 7;
-            p_top++;
+            p_top++; p_level++;
             break;       
         case ACU_Cell_Data_1:
             if(data_full) return;
             data_q[d_top] = 4;
-            d_top++;
+            d_top++; d_level++;
             break;    
         case ACU_Cell_Data_2:
             if(data_full) return;
             data_q[d_top] = 5;
-            d_top++;
+            d_top++; d_level++;
             break;    
         case ACU_Cell_Data_3:
             if(data_full) return;
             data_q[d_top] = 6;
-            d_top++;
+            d_top++; d_level++;
             break;    
         case ACU_Cell_Data_4:
             if(data_full) return;
             data_q[d_top] = 6;
-            d_top++;
+            d_top++; d_level++;
             break;    
         case ACU_Cell_Data_5:
             if(data_full) return;
             data_q[d_top] = 7;
-            d_top++;
+            d_top++; d_level++;
             break;     
         case ACU_Charger_Control:
             if(charger_full) return;
             charger_q[c_top] = 1;
-            c_top++;
+            c_top++; c_level++;
             break;
         // case ACU_DC_DC_Status:
             // deprecated for now
@@ -529,6 +544,9 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
             break;
     }
 }
+
+/// @brief Massive dumping of CAN message requests
+/// @param acu 
 void can_dump(ACU *acu){
     print_lpuart("DUMPING ACU DATA...\n");
     enqueue(ACU_Cell_Data_1, FDCAN2);
@@ -547,7 +565,9 @@ void can_dump(ACU *acu){
     print_lpuart("DONE DUMPING ACU DATA...\n");
 }
 
-// All cell voltages added up and returns sum as float
+/// @brief All cell voltages added up and returns sum as float
+/// @param acu 
+/// @return total voltage as a float
 float get_total_voltage(ACU* acu){
     float total = 0.0;
     for(int i = 0; i < NUM_TOTAL_IC; i++){
@@ -569,16 +589,25 @@ uint8_t fconstrain(float value){
     return (uint8_t)value;
 }
 
-void update_ts_voltage(ACU* acu){
-    acu->ts_voltage = adc_data[0];
-//     acu->glv_voltage = adc_data[1];
-//     acu->sdc_voltage = adc_data[2];
+/// @brief updates adc_data[]
+/// @param acu 
+void update_adc_data(ACU* acu){
+    acu->ts_current = adc_data[0];
+    acu->ts_voltage = adc_data[1];
+    acu->sdc_volt_w = adc_data[2];
+    acu->sdc_volt_v = adc_data[3];
+    acu->voltage_12v = adc_data[4];
+    acu->water_sense = adc_data[5];
 }
 
+/// @brief IMPLEMENT THIS
+/// @param acu 
 void update_all(ACU * acu){
-    update_ts_voltage(acu); // updates: ts_voltage, glv voltage, sdc_voltage
+    update_adc_data(acu);
 }
 
+/// @brief IMPLEMENT THIS
+/// @param acu 
 void reset_latch(ACU *acu){
     return;
 }

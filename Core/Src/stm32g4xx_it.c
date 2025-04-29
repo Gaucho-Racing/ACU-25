@@ -22,6 +22,7 @@
 #include "stm32g4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "config.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,7 +50,10 @@ extern volatile uint8_t TPL_RxBufferTop; // Index of newest data
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
+extern void parse_data();
+extern void dequeue_in_irq();
 extern void print_lpuart(char* arr);
+extern void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -62,7 +66,8 @@ extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 extern FDCAN_HandleTypeDef hfdcan3;
 /* USER CODE BEGIN EV */
-extern volatile uint8_t p_bottom, d_bottom, c_bottom;
+extern volatile uint8_t CAN_RxBufferLevel;
+extern volatile uint8_t p_bottom, d_bottom, c_bottom, p_level, d_level, c_level;
 extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 extern volatile uint8_t CAN_1_flag;
 extern volatile uint8_t CAN_2_flag;
@@ -197,24 +202,48 @@ void SysTick_Handler(void)
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
-  // NOTE: we can tweak when we should be checking for these later
+  // always check if we can send data
+  if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue_in_irq();
+
+  // always check if we can read data
+  if(CAN_RxBufferLevel > 0) parse_data();
+
+  // we can tweak this later
   tickCount++;
-  if (tickCount >= 100 && CAN_1_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) != 0) 
+  
+  // queue data to send occasionally
+  if(tickCount >= 100){
+    enqueue(ACU_Cell_Data_1, FDCAN2);
+    enqueue(ACU_Cell_Data_2, FDCAN2);
+    enqueue(ACU_Cell_Data_3, FDCAN2);
+    enqueue(ACU_Cell_Data_4, FDCAN2);
+    enqueue(ACU_Cell_Data_5, FDCAN2);
+    enqueue(ACU_Status_1,FDCAN1);
+    enqueue(ACU_Status_2,FDCAN1);
+    enqueue(ACU_Status_3,FDCAN1);
+    enqueue(ACU_Charger_Control, FDCAN3);
+  }
+
+  // occasionally push data to "ready send"
+  if (CAN_1_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) != 0) 
   {
     tickCount = 0;
     CAN_1_flag = prim_q[p_bottom];
+    p_level--;
     p_bottom++;
   }
-  if (tickCount >= 100 && CAN_2_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan2) != 0) 
+  if (CAN_2_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan2) != 0) 
   {
     tickCount = 0;
     CAN_2_flag = data_q[d_bottom];
+    d_level--;
     d_bottom++;
   }
-  if (tickCount >= 100 && CAN_3_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan3) != 0) 
+  if (CAN_3_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan3) != 0) 
   {
     tickCount = 0;
     CAN_3_flag = charger_q[c_bottom];
+    c_level--;
     c_bottom++;
   }
   /* USER CODE END SysTick_IRQn 1 */
@@ -268,8 +297,8 @@ void SPI2_IRQHandler(void)
   }
   /* USER CODE END SPI2_IRQn 0 */
   /* USER CODE BEGIN SPI2_IRQn 1 */
-  TPL_RxBufferLevel++;
   TPL_RxBuffer[TPL_RxBufferTop] = LL_SPI_ReceiveData8(SPI2);
+  TPL_RxBufferLevel++;
   TPL_RxBufferTop++;
   /* USER CODE END SPI2_IRQn 1 */
 }

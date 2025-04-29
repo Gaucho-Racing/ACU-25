@@ -271,7 +271,7 @@ bcc_status_t check_volt(Battery *bty) {
         // check stack voltage vs real sum aren't too different
         float manual_sum = 0;
         for (uint8_t j = 0; j < NUM_CELL_IC; j++) manual_sum += bty->cell_volt[(i*NUM_CELL_IC)+j];
-        if(fabs(bty->stackVoltage[i] - manual_sum) > 0.5){
+        if(fabsf(bty->stackVoltage[i] - manual_sum) > 0.5){
             print_lpuart("stack voltage vs manual sum of cell volts is > 0.5!\n");
             return BCC_STATUS_DIAG_FAIL;
         }

@@ -80,15 +80,19 @@ typedef struct {
     uint8_t acu_SOC; // Accumulator state of charge (Based on lowest cell)
     uint8_t glv_SOC; // GLV state of charge
 
-    float ts_voltage;  // output terminal voltage of ACU
     float acu_current; // current output of ACU
 
     // ADC Stuff
-    float shutdown_volt; // preset voltage threshold
-    float sdc_voltage;  // voltage b4 ACU latch - node 1
-    float sdc_voltage_2; // node 2
-    float voltage_12v;  // 12V voltage
-    float glv_voltage;  // from adc_data = JUST SET TO 0
+    // 0:ts_current, 1:ts_voltage, 2:sdc_volt_w, 
+    // 3:sdc_volt_v, 4:voltage_12v,5:water_sense
+    float ts_voltage;  // ts_v
+    float ts_current;  // uc_ts_i
+    float sdc_volt_w;  // sdcw_w => BEFORE ACU latch
+    float sdc_volt_v;  // sdcv_v => AFTER ACU latch
+    float voltage_12v; // glv voltage
+    float water_sense; // uc_water
+
+    float glv_voltage;  // from adc_data = JUST SET TO 0?
     
     // ACU-Status 3
     float hv_input_voltage;  // 600v input voltage => Apparantly not needed anymore
@@ -99,13 +103,10 @@ typedef struct {
     // from GR24 => not sure if we still need to use
     uint32_t cur_LastHighTime;
     uint32_t lastChrgRecieveTime;
-    uint8_t relay_state; /* Bit 0: AIR+ State (1=closed)
-                            Bit 1: AIR- State (1=closed)
-                            Bit 2: Precharging (1=in progress, useless)
-                            Bit 3: nothing
-                            Bit 4: Shutdown (1 = is shutdown)
-                            Bit 5: LatchNotClosed
-                            */
+
+    // 0: AIR+ | 1: AIR- | 2: Precharge
+    uint8_t relay_state; 
+    uint8_t acu_latch;
 
 
     // ACU errors/warnings
@@ -113,9 +114,9 @@ typedef struct {
     uint16_t acu_err_warns; // [ 0:OT, OV, UV, OC, UC, UV_20v, UV_GLV, 7:UV_SDC, 8:Precharge, 0, 0, 0, 0, 0, 0, 0]        
 
     // ACU states => THIS IS NOT USED
-    uint8_t ir_precharge_state; // 0: open, 1: closed
-    uint8_t ir_state;           // 0: open, 1: closed
-    uint8_t software_latch;     // 0: open, 1: closed
+    // uint8_t ir_precharge_state; // 0: open, 1: closed
+    // uint8_t ir_state;           // 0: open, 1: closed
+    // uint8_t software_latch;     // 0: open, 1: closed
 
     // ACU Precharge via Tx
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
@@ -125,19 +126,20 @@ void acu_init(ACU * acu);
 bool acu_check(ACU * acu, uint8_t state, bool startup);
 
 // Send CAN Messages
+
 void dequeue(ACU* acu);
 void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 
 // Receive CAN Messages
-void can_kirby_it(ACU* acu);
+
+void can_read_handler(ACU* acu);
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint32_t size, uint8_t * data);
 
 // Other Messages
 void can_dump(ACU *acu);
 
-// modifiers
 void reset_latch(ACU *acu);
-void update_ts_voltage(ACU* acu);
+void update_adc_data(ACU* acu);
 void update_all(ACU * acu);
 
 float get_total_voltage(ACU* acu);

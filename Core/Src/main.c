@@ -58,7 +58,7 @@ ACU acu;
 Battery battery;
 
 // ADC Data
-uint16_t adc_data[6]; // 0: ts_volt, 1: glv_volt, 2: sdc_volt_1, 3: sdc_volt_2, 4:sth, 5:sth
+uint16_t adc_data[6]; // 0: ts_current, 1: ts_voltage, 2: sdc_volt_w, 3: sdc_volt_v, 4:volt_12v, 5: water_sense
 
 // BCC
 uint8_t bcc_cooked_count = 0;
@@ -96,13 +96,14 @@ uint8_t CAN_RxData[64];
 
 // SHARED BUFFER => ACCESSIBLE BY INTERRUPT HANDLER AND DEV (ME!)
 volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
+volatile uint8_t CAN_RxBufferLevel = 0; // tells you level = abs(top - bottom), this is needed
 volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data ==> increment this whenever the data is processed
 volatile uint8_t CAN_RxBufferTop = 0; // Index of newest data ==> decrement this whenever new data is met in the interrupt handler
 
 volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
-volatile uint8_t p_top = 0, p_bottom = 0;
-volatile uint8_t d_top = 0, d_bottom = 0;
-volatile uint8_t c_top = 0, c_bottom = 0;
+volatile uint8_t p_top = 0, p_bottom = 0, p_level = 0;
+volatile uint8_t d_top = 0, d_bottom = 0, d_level = 0;
+volatile uint8_t c_top = 0, c_bottom = 0, c_level = 0;
 
 volatile uint8_t CAN_1_flag = 0;
 volatile uint8_t CAN_2_flag = 0;
@@ -118,6 +119,8 @@ extern void debug();
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+void dequeue_in_irq();
+void parse_data();
 
 void DWT_Delay_Init();
 void print_lpuart(char* arr);
@@ -134,6 +137,16 @@ void print_can_msg(uint8_t * arr);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/// @brief lazy way to read without the need for acu pointer to be passed
+void parse_data(){
+  can_read_handler(&acu);
+}
+
+/// @brief lazy way to send data without the need for acu pointer to be passed
+void dequeue_in_irq(){
+  dequeue(&acu);
+}
 
 void print_lpuart(char* arr) {
   uint32_t idx = 0; // index
@@ -180,15 +193,13 @@ int setup(){
   bcc_error = BCC_Init(&(battery.drvConfig));
   uint8_t counter = TRIES;
   while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
-    print_lpuart("failed BCC_Init...");
     print_bcc_status(bcc_error);
     LL_mDelay(1000);
-    print_lpuart("retrying...\n");
     bcc_error = BCC_Init(&(battery.drvConfig));
   }
   if (counter == 0){
     state = SHITDOWN;
-    print_lpuart("you goon...\n");
+    print_lpuart("failed BCC_Init...");
     return -1;
   }
 
@@ -357,13 +368,12 @@ int main(void)
       state = SHITDOWN;
     }
 
-    // CAN READ MESSAGES
-    if(CAN_RxBufferBottom != CAN_RxBufferTop) can_kirby_it(&acu);
-    
-    // CAN TRANSFER MESSAGES
-    if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue(&acu);
+    // MOVED THESE TO INTERRUPT HANDLER
+    // if(CAN_RxBufferLevel > 0) can_read_handler(&acu);
+    // if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue(&acu);
 
-    acu.ts_voltage = adc_data[0];
+    acu.ts_current = adc_data[0];
+    acu.ts_voltage = adc_data[1];
 
     // SYSTEM CHECK
     bool b_check = battery_check(&battery, true);
@@ -374,9 +384,8 @@ int main(void)
       state = SHITDOWN;
     }
     
-    // deprecated
-    // acu.glv_voltage = adc_data[1];
-    // acu.sdc_voltage = adc_data[2];
+    acu.sdc_volt_w = adc_data[2];
+    acu.sdc_volt_v = adc_data[3];
 
     BCC_MCU_WaitMs(500);
 
@@ -574,8 +583,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     // Check if a new message is received in FIFO 0
     if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)
     {
-        // if buffer full, then skip recieval of this mesage, unlikely for this to happen
-        if(CAN_RxBufferTop == CAN_RxBufferBottom && CAN_RxBufferTop != 0) return;
+        // if buffer full, then skip recieval of this mesage
+        if(CAN_RxBufferLevel == 255U) return;
         // Retrieve the message from FIFO 0
         if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CAN_RxData) == HAL_OK)
         {
