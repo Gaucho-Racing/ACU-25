@@ -123,7 +123,7 @@ typedef struct {
 } ACU;
 
 void acu_init(ACU * acu);
-bool acu_check(ACU * acu, uint8_t state, bool startup);
+bool acu_check(ACU * acu, bool startup);
 
 // Send CAN Messages
 
@@ -133,22 +133,19 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 // Receive CAN Messages
 
 void can_read_handler(ACU* acu);
-void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint32_t size, uint8_t * data);
+void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data);
 
 // Other Messages
-void can_dump(ACU *acu);
+// void can_dump(ACU *acu);
 
-void reset_latch(ACU *acu);
 void update_adc_data(ACU* acu);
-void update_all(ACU * acu);
-
 float get_total_voltage(ACU* acu);
 
 // helpers
 uint8_t fconstrain(float value);
 
 // TO IMPLEMENT
-void charger_check(ACU* acu); // check chgr_status
-uint8_t calculate_acu_soc(ACU* acu); // sets acu_SOC based on lowest cell voltage
-uint8_t calculate_glv_soc(ACU* acu); // sets acu_GLV based on ???
+// void charger_check(ACU* acu); // check chgr_status
+// uint8_t calculate_acu_soc(ACU* acu); // sets acu_SOC based on lowest cell voltage
+// uint8_t calculate_glv_soc(ACU* acu); // sets acu_GLV based on ???
 #endif

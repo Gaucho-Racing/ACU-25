@@ -125,7 +125,6 @@ void parse_data();
 void DWT_Delay_Init();
 void print_lpuart(char* arr);
 void print_bcc_status(bcc_status_t bccStatus);
-void print_bcc_fault(bcc_fault_status_t fault);
 int16_t Read_ADC1_Channel(uint32_t channel);
 
 // interrupt stuff
@@ -368,10 +367,6 @@ int main(void)
       state = SHITDOWN;
     }
 
-    // MOVED THESE TO INTERRUPT HANDLER
-    // if(CAN_RxBufferLevel > 0) can_read_handler(&acu);
-    // if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue(&acu);
-
     acu.ts_current = adc_data[0];
     acu.ts_voltage = adc_data[1];
 
@@ -479,50 +474,6 @@ void DWT_Delay_Init(void){
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0;  // Reset counter
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; // Enable counter
-}
-
-/// @brief Print BCC_FAULT_STATUS faults
-/// @param fault 
-void print_bcc_fault(bcc_fault_status_t fault){
-  switch (fault)
-  {
-  case BCC_FS_CELL_OV:
-      print_lpuart("CT overvoltage fault (register CELL_OV_FLT).\n");
-      break;
-  case BCC_FS_CELL_UV:
-      print_lpuart("CT undervoltage fault (register CELL_UV_FLT).\n");
-      break;
-  case BCC_FS_CB_OPEN:
-      print_lpuart("Open CB fault (register CB_OPEN_FLT).\n");
-      break;
-  case BCC_FS_CB_SHORT:
-      print_lpuart("Short CB fault (register CB_SHORT_FLT).\n");
-      break;
-  case BCC_FS_GPIO_STATUS:
-      print_lpuart("GPIO status (register GPIO_STS).\n");
-      break;
-  case BCC_FS_AN_OT_UT:
-      print_lpuart("AN over and undertemperature (register AN_OT_UT_FLT). \n");
-      break;
-  case BCC_FS_GPIO_SHORT:
-      print_lpuart("Short GPIO/open AN diagnostic (register GPIO_SHORT_ANx_OPEN_STS). \n");
-      break;
-  case BCC_FS_COMM:
-      print_lpuart("Number of communication errors detected (register COM_STATUS).\n");
-      break;
-  case BCC_FS_FAULT1:
-      print_lpuart("Fault status (register FAULT1_STATUS).\n");
-      break;
-  case BCC_FS_FAULT2:
-      print_lpuart("Fault status (register FAULT2_STATUS).\n");
-      break;
-  case BCC_FS_FAULT3:
-      print_lpuart("Fault status (register FAULT3_STATUS).\n");
-      break;
-  default:
-      print_lpuart("Unknown status\n");
-      break;
-  }
 }
 
 /// @brief Print BCC Status messages

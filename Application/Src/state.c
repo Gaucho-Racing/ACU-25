@@ -1,10 +1,10 @@
 #include "state.h"
 
 extern uint8_t cycle;
+extern uint16_t adc_data[6];
 extern FDCAN_RxHeaderTypeDef RxHeader_Charger;
 
 extern void print_lpuart(char* arr);
-extern uint16_t adc_data[6];
 
 float constrain(float value, float lowerBound, float upperBound) {
     if (value < lowerBound) {
@@ -24,7 +24,7 @@ void shitdown(){
     
     // Open all
     acu.relay_state = 0;
-    acu.chg_ctrl = NO_CHARGE;
+    acu.chg_ctrl = (uint8_t)NO_CHARGE;
     enqueue(ACU_Charger_Control, FDCAN3);
 
     //indicates to battery to stop charging
@@ -136,7 +136,7 @@ void precharge(){
 
     // 3 seconds to check if we go to charge
     while (HAL_GetTick() - start_time < 3000) {
-        if(!acu_check(&acu, (uint8_t)state, false)){
+        if(!acu_check(&acu, false)){
             state = SHITDOWN;
             return;
         }
@@ -179,7 +179,7 @@ uint32_t last_call_time = 0;
 void charge(){
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
 
-    if(!acu_check(&acu, (uint8_t)state, false)){
+    if(!acu_check(&acu, false)){
         state = SHITDOWN;
         return;
     }
@@ -193,7 +193,7 @@ void charge(){
             print_lpuart("Failed system check inside of charge\n");
             return;
         }
-        //voltage checks done in system check, kick off cell balancing
+        // do cell balancing
         do_cell_balancing(&battery); 
     }
 
@@ -275,18 +275,43 @@ void normal(){
     }
 }
 
-// returns false if failed, else return true
+/// @brief System Check for everything
+/// @param full_check 
+/// @param startup 
+/// @return returns True if passes, False otherwise
 bool state_system_check(bool full_check, bool startup){
-    bool a_check = acu_check(&acu, state, startup);
+
+    bool a_check = acu_check(&acu, startup);
+    #ifdef DEBUGG
+    if(a_check == false){
+        print_lpuart("Failed acu_check\n");
+    }
+    #endif
+
     bool b_check = battery_check(&battery, full_check);
+    #ifdef DEBUGG
+    if(b_check == false){
+        print_lpuart("Failed battery_check\n");
+    }
+    #endif
 
     // update errors
-    if(battery.faults & BCC_FS_CELL_OV){
+    if(battery.battery_faults & BATTERY_FAULT_CELL_OV){
         acu.acu_err_warns |= ACU_ERR_OVER_VOLT;
     }
-    if(battery.faults & BCC_FS_CELL_UV){
+    if(battery.battery_faults & BATTERY_FAULT_CELL_UV){
         acu.acu_err_warns |= ACU_ERR_UNDER_VOLT;
     }
+    if(battery.battery_faults & BATTERY_FAULT_CELL_OT){
+        acu.acu_err_warns |= ACU_ERR_OVER_TEMP;
+    }
+
+    if(a_check == false){
+        // print all current errors
+    }
+    if(b_check == false){
+        // print all current errors
+    }
     
-    return !a_check || !b_check;
+    return !a_check & !b_check;
 }

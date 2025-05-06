@@ -29,12 +29,21 @@ void acu_init(ACU * acu){
     acu->acuErrCount = 0;
     return;
 }
-bool acu_check(ACU * acu, uint8_t state, bool startup){
-    update_all(acu);
+
+/// @brief ACU check => current, glv voltage, shut down voltage, warnings
+/// @param acu 
+/// @param state 
+/// @param startup 
+/// @return True if passes, False otherwise
+bool acu_check(ACU * acu, bool startup){
+
+    update_adc_data(acu);
+    acu->relay_state = 0; // DOUBLE CHECK THIS
 
     // clean the slate
     acu->acu_err_warns &= ~(ACU_CLEAR_ERRR);
     acu->acu_err_warns &= ~(ACU_CLEAR_WARN);
+    
     uint8_t lastAcuErrCount = acu->acuErrCount;
     bool hasErrors = false;
 
@@ -51,12 +60,18 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
         }
     }
     else if(acu->ts_current > MAX_HV_CURRENT*0.8f){
-        print_lpuart("High Current Warning\n"); // not sure what this is about
+        print_lpuart("High Current Warning\n"); // JUST A PRINT STATEMENT
     }
+
+    // skip dcdc current checks?  bc they are handled elsewhere?
 
     //glv voltage
     if(acu->glv_voltage < MIN_GLV_VOLT){
-        if (acu->glv_voltage > 3) print_lpuart("GLV Undervolt detected\n");
+        if (acu->glv_voltage > 3) {
+            #if DEBUGG
+            print_lpuart("GLV Undervolt detected\n");
+            #endif
+        }
         acu->acuErrCount++;
         hasErrors = true;
         if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -74,13 +89,15 @@ bool acu_check(ACU * acu, uint8_t state, bool startup){
         }
     }
 
-    //shutdown voltage, should be close to GLV
-    if(fabsf(acu->sdc_volt_w - acu->glv_voltage) > GLV_SDC_LOW && !startup && state == 3){
+    //sdc_volt_w should be close to glv_voltage
+    if(fabsf(acu->sdc_volt_w - acu->glv_voltage) > GLV_SDC_LOW && !startup && get_state() == 3){
         print_lpuart("Shutdown volt not close enough of GLV\n");
 
+        #if DEBUGG
         char buff[32];
         sprintf(buff, "%.3f\n", fabsf(acu->sdc_volt_w - acu->glv_voltage));
         print_lpuart(buff);
+        #endif
 
         if(acu->sdc_volt_w < acu->glv_voltage) {
             acu->acuErrCount++;
@@ -121,9 +138,8 @@ void can_read_handler(ACU* acu){
 
         FDCAN_GlobalTypeDef * type = CAN_RxBuffer[CAN_RxBufferBottom].instance;
         uint32_t id = CAN_RxBuffer[CAN_RxBufferBottom].identifier;
-        uint32_t size = CAN_RxBuffer[CAN_RxBufferBottom].length;
 
-        can_read(acu, type, id, size, (uint8_t *)(&CAN_RxBuffer[CAN_RxBufferBottom].data));
+        can_read(acu, type, id, (uint8_t *)(&CAN_RxBuffer[CAN_RxBufferBottom].data));
         bzero((void*)CAN_RxBuffer[CAN_RxBufferBottom].data, sizeof(CAN_RxBuffer[CAN_RxBufferBottom].data));
 
         CAN_RxBufferBottom++;
@@ -137,7 +153,7 @@ void can_read_handler(ACU* acu){
 /// @param id 
 /// @param size 
 /// @param data 
-void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint32_t size, uint8_t * data){
+void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data){
     float values = 0.0f;
     uint32_t millis = HAL_GetTick();
     switch (id){
@@ -326,20 +342,6 @@ void dequeue(ACU* acu){
             CAN_1_flag = 0;
             break;
         case 7: // ACU_Status_3
-            // TxHeader.Identifier = ACU_Status_3;
-            // TxHeader.DataLength = FDCAN_DLC_BYTES_12;
-            // CAN_TxData[0] = (uint16_t)(acu->hv_input_voltage * 100.0f) >> 8;
-            // CAN_TxData[1] = (uint16_t)(acu->hv_input_voltage * 100.0f);
-            // CAN_TxData[2] = (uint16_t)(acu->hv_output_voltage * 100.0f) >> 8;
-            // CAN_TxData[3] = (uint16_t)(acu->hv_output_voltage * 100.0f);
-            // CAN_TxData[4] = (uint16_t)(acu->hv_input_current * 1000.0f) >> 8;
-            // CAN_TxData[5] = (uint16_t)(acu->hv_input_current * 1000.0f);
-            // CAN_TxData[6] = (uint16_t)(acu->hv_output_current * 1000.0f) >> 8;
-            // CAN_TxData[7] = (uint16_t)(acu->hv_output_current * 1000.0f);
-            // CAN_TxData[8] = CAN_TxData[9] = CAN_TxData[10] = CAN_TxData[11] = 0;
-            // if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
-            //     print_lpuart("ACU_Status_3 failed...\n");
-            // }
             CAN_1_flag = 0;
             break;   
         default:
@@ -545,26 +547,6 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
     }
 }
 
-/// @brief Massive dumping of CAN message requests
-/// @param acu 
-void can_dump(ACU *acu){
-    print_lpuart("DUMPING ACU DATA...\n");
-    enqueue(ACU_Cell_Data_1, FDCAN2);
-    enqueue(ACU_Cell_Data_2, FDCAN2);
-    enqueue(ACU_Cell_Data_3, FDCAN2);
-    enqueue(ACU_Cell_Data_4, FDCAN2);
-    enqueue(ACU_Cell_Data_5, FDCAN2);
-    enqueue(ACU_Status_1,FDCAN1);
-    enqueue(ACU_Status_2,FDCAN1);
-    enqueue(ACU_Status_3,FDCAN1);
-    enqueue(ACU_Charger_Control, FDCAN3);
-    // enqueue(ACU_DC_DC_Status,FDCAN2);
-    // enqueue(IMD_General_ACU,FDCAN2);
-    // enqueue(IMD_Voltage_ACU,FDCAN2);
-    // enqueue(IMD_IT_System_ACU,FDCAN2);
-    print_lpuart("DONE DUMPING ACU DATA...\n");
-}
-
 /// @brief All cell voltages added up and returns sum as float
 /// @param acu 
 /// @return total voltage as a float
@@ -598,16 +580,4 @@ void update_adc_data(ACU* acu){
     acu->sdc_volt_v = adc_data[3];
     acu->voltage_12v = adc_data[4];
     acu->water_sense = adc_data[5];
-}
-
-/// @brief IMPLEMENT THIS
-/// @param acu 
-void update_all(ACU * acu){
-    update_adc_data(acu);
-}
-
-/// @brief IMPLEMENT THIS
-/// @param acu 
-void reset_latch(ACU *acu){
-    return;
 }

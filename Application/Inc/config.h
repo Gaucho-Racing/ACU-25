@@ -13,14 +13,14 @@
 
 #define SPI_LOOP_TIMEOUT 500
 
-#define KEY_PRESSED     GPIO_PIN_RESET
-#define NOT_PRESSED     GPIO_PIN_SET
+// #define KEY_PRESSED     GPIO_PIN_RESET
+// #define NOT_PRESSED     GPIO_PIN_SET
     
 #define CELL_MAX_VOLT 4.2f
 #define CELL_MIN_VOLT 0.9f
 
-#define CELL_MIN_TEMP 0.0 // to set later => when printing multiply by 0.1 to get Celcius
-#define CELL_MAX_TEMP 1000.0 // to set later => when printing multiply by 0.1 to get Celcius
+#define CELL_MIN_TEMP 0.0 // to set later
+#define CELL_MAX_TEMP 1000.0 // to set later
 
 //acu limits
 #define MAX_HV_CURRENT 135
@@ -35,12 +35,25 @@
 #define ACU_ERR_OVER_VOLT   0b0100000000000000
 #define ACU_ERR_UNDER_VOLT  0b0010000000000000
 #define ACU_ERR_OVER_CURR   0b0001000000000000
+#define ACU_PRECHARGE       0b0000000100000000
+#define ACU_CLEAR_ERRR      0b1111000100000000
+
 #define ACU_ERR_UV_20_V     0b0000100000000000 // warning
 #define ACU_ERR_UV_12_V     0b0000010000000000 // warning
 #define ACU_ERR_UV_SDC      0b0000001000000000 // warning
-#define ACU_PRECHARGE       0b0000000100000000
 #define ACU_CLEAR_WARN      0b0000111000000000
-#define ACU_CLEAR_ERRR      0b1111000100000000
+
+// battery fault masks
+#define BATTERY_FAULT_CELL_OV 0b10000000
+#define BATTERY_FAULT_CELL_UV 0b01000000
+#define BATTERY_FAULT_CB_OPEN 0b00100000
+#define BATTERY_FAULT_CB_SHRT 0b00010000
+#define BATTERY_FAULT_CELL_OT 0b00001000
+#define BATTERY_FAULT_CELL_UT 0b00001001 // SHHHHHH don't worry about this mux
+#define BATTERY_FAULT_GPIO_ST 0b00000100
+#define BATTERY_FAULT_GPIO_SH 0b00000010
+#define BATTERY_FAULT_COMM_FL 0b00000001
+
 
 // charger error masks
 #define CHARGER_HW_FAIL     0b10000
@@ -74,10 +87,10 @@
 // error margins
 #define GLV_SDC_LOW 1.0f
 #define SDC_HIGH 9.0f
+#define ERRMG_ACU_ERR 50
 // #define ERRMG_5V 0.2
 // #define ERRMG_CELL_VOLT_ERR 20
 // #define ERRMG_CELL_TEMP_ERR 50
-#define ERRMG_ACU_ERR 50
 
 // ADC Warning Thresholds
 #define UNDER_VOLTAGE_20V 15
@@ -90,17 +103,17 @@
 /* Send ***********************************************************/
 // CAN1
 #define ACU_Debug_2_Debug       0x300001    // FLAG = 1 (CAN1)
-#define ACU_Ping_Debug          0x300201    // FLAG = 2 (CAN1/CAN2)
-#define ACU_Ping_ECU            0x300202    // FLAG = 3 (CAN1/CAN2)
+#define ACU_Ping_Debug          0x300201    // FLAG = 2 (CAN1)
+#define ACU_Ping_ECU            0x300202    // FLAG = 3 (CAN1)
 
-#define ACU_Status_1            0x300702    // FLAG = 5
-#define ACU_Status_2            0x300802    // FLAG = 6
-#define ACU_Status_3            0x300902    // FLAG = 7
+#define ACU_Status_1            0x300702    // FLAG = 5 (CAN1)
+#define ACU_Status_2            0x300802    // FLAG = 6 (CAN1)
+#define ACU_Status_3            0x300902    // FLAG = 7 (CAN1)
 #define ACU_DC_DC_Status        0x301202    // DEPRECATED
 
 // CAN2
-// ACU_Ping_Debug               0x300201    // FLAG = 1 (CAN1/CAN2)
-// ACU_Ping_ECU                 0x300202    // FLAG = 2 (CAN1/CAN2)
+// ACU_Ping_Debug               0x300201    // FLAG = 1 (CAN2)
+// ACU_Ping_ECU                 0x300202    // FLAG = 2 (CAN2)
 #define ACU_Debug_FD            0x300101    // FLAG = 3 (CAN2)
 #define ACU_Cell_Data_1         0x300DFF    // FLAG = 4 (CAN2)
 #define ACU_Cell_Data_2         0x300EFF    // FLAG = 5 (CAN2)
@@ -109,7 +122,7 @@
 #define ACU_Cell_Data_5         0x3011FF    // FLAG = 8 (CAN2)
 
 // CAN3
-#define ACU_Charger_Control     0x1806E5F4  // FLAG = 1
+#define ACU_Charger_Control     0x1806E5F4  // FLAG = 1 (CAN3)
 
 /* Receive ********************************************************/
 // CAN1

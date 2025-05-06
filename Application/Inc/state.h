@@ -18,11 +18,10 @@ void standby();
 void precharge();
 void charge();
 void normal();
-uint8_t get_state();
-bool state_system_check(bool full_check, bool startup);
 
-// Other Functions
+bool state_system_check(bool full_check, bool startup);
 float constrain(float value, float lowerBound, float upperBound);
+uint8_t get_state();
 
 // Externs
 extern ACU acu;
