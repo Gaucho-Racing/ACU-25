@@ -1,7 +1,6 @@
 #include "acu.h"
 extern uint8_t get_state();
 extern void print_lpuart(char* arr);
-extern void print_can_msg(uint8_t *arr);
  
 extern volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
 extern volatile uint8_t CAN_RxBufferBottom; // Index of oldest data ==> increment this whenever the data is processed
@@ -23,11 +22,27 @@ extern volatile uint8_t p_top, p_bottom, p_level, d_top, d_bottom, d_level, c_to
 extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 extern volatile uint8_t CAN_1_flag, CAN_2_flag, CAN_3_flag;
 
+/// @brief initialize acu variables, reads data, updates adc
+/// @param acu 
 void acu_init(ACU * acu){
     acu->lastChrgRecieveTime = 0.0f;
     acu->chg_ctrl = NO_CHARGE;
     acu->acuErrCount = 0;
-    return;
+    acu->acu_err_warns = 0;
+
+    uint8_t count = 0;
+    while (fabsf(get_total_voltage(acu) - 1.235f) > ERRMG_ISNS_VREF) {
+        // HV current too far from zero. Check hardware.
+        if (count > 10) {
+            for (uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+                acu->bty->stack_voltage[i] = 1.235f; 
+            }
+            break;
+        }
+        count++;
+        LL_mDelay(500);
+        update_adc_data(acu);
+    }
 }
 
 /// @brief ACU check => current, glv voltage, shut down voltage, warnings
@@ -66,8 +81,8 @@ bool acu_check(ACU * acu, bool startup){
     // skip dcdc current checks?  bc they are handled elsewhere?
 
     //glv voltage
-    if(acu->glv_voltage < MIN_GLV_VOLT){
-        if (acu->glv_voltage > 3) {
+    if(acu->voltage_12v < MIN_GLV_VOLT){
+        if (acu->voltage_12v > 3) {
             #if DEBUGG
             print_lpuart("GLV Undervolt detected\n");
             #endif
@@ -79,7 +94,7 @@ bool acu_check(ACU * acu, bool startup){
             acu->acu_err_warns |= ACU_ERR_UNDER_VOLT;
         }
     }
-    if(acu->glv_voltage > MAX_GLV_VOLT){
+    if(acu->voltage_12v > MAX_GLV_VOLT){
         print_lpuart("GLV Overvolt detected\n");
         acu->acuErrCount++;
         hasErrors = true;
@@ -89,17 +104,17 @@ bool acu_check(ACU * acu, bool startup){
         }
     }
 
-    //sdc_volt_w should be close to glv_voltage
-    if(fabsf(acu->sdc_volt_w - acu->glv_voltage) > GLV_SDC_LOW && !startup && get_state() == 3){
+    //sdc_volt_w should be close to voltage_12v (glv_voltage)
+    if(fabsf(acu->sdc_volt_w - acu->voltage_12v) > GLV_SDC_LOW && !startup && get_state() == 3){
         print_lpuart("Shutdown volt not close enough of GLV\n");
 
         #if DEBUGG
         char buff[32];
-        sprintf(buff, "%.3f\n", fabsf(acu->sdc_volt_w - acu->glv_voltage));
+        sprintf(buff, "%.3f\n", fabsf(acu->sdc_volt_w - acu->voltage_12v));
         print_lpuart(buff);
         #endif
 
-        if(acu->sdc_volt_w < acu->glv_voltage) {
+        if(acu->sdc_volt_w < acu->voltage_12v) {
             acu->acuErrCount++;
             hasErrors = true;
             if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -107,7 +122,7 @@ bool acu_check(ACU * acu, bool startup){
                 acu->acu_err_warns |= ACU_ERR_UNDER_VOLT;
             }
         }
-        else if(acu->sdc_volt_w > acu->glv_voltage){
+        else if(acu->sdc_volt_w > acu->voltage_12v){
             acu->acuErrCount++;
             hasErrors = true;
             if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -122,7 +137,7 @@ bool acu_check(ACU * acu, bool startup){
     if(acu->ts_voltage < UNDER_VOLTAGE_20V){
         acu->acu_err_warns |= ACU_ERR_UV_20_V;
     }
-    if(acu->glv_voltage < UNDER_VOLTAGE_GLV){
+    if(acu->voltage_12v < UNDER_VOLTAGE_GLV){
         acu->acu_err_warns |= ACU_ERR_UV_12_V;
     }
     if(acu->sdc_volt_w < UNDER_VOLTAGE_SDCV){
@@ -177,30 +192,30 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             values = 0.0f;
             values += data[0] << 8;
             values += data[1];
-            acu->chgr->charger_output_voltage = values * 0.1; // this should be sent to somewhere
+            acu->chgr->charger_output_voltage = values * 0.1f; // this should be sent to somewhere
 
             values += data[2] << 8;
             values += data[3];
-            acu->chgr->charger_output_current = values * 0.1; // this should be sent to somewhere
+            acu->chgr->charger_output_current = values * 0.1f; // this should be sent to somewhere
             acu->chgr->chgr_status = data[4]; // need to check for this when checking acu
             break;  
         case Config_Charge_ACU:
             values = 0.0f;
             values += data[0] << 8;
             values += data[1];
-            acu->target_voltage = values * 0.1;
+            acu->target_voltage = values * 0.1f;
             values = data[2] << 8;
             values += data[3];
-            acu->target_current = values* 0.1;
+            acu->target_current = values* 0.1f;
             break;  
         case Config_Ops_ACU:
             values = 0.0f;
             values += data[0] << 8;
             values += data[1];
-            acu->bty->min_volt_thresh = values * 0.1;
+            acu->bty->min_volt_thresh = values * 0.1f;
             values = data[2] << 8;
             values += data[3];
-            acu->bty->max_temp_thresh = values * 0.1;
+            acu->bty->max_temp_thresh = values * 0.1f;
             break;  
         case EM_Measurements_ACU: // i think
             acu->em->em_current = (float)((unsigned long)(data[3]<<24)|(unsigned long)(data[2])<<16|data[1]<<8|data[0]);
@@ -218,15 +233,15 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             break;  
         case EM_Temperature_ACU:
             uint8_t mux_signal = data[0] & 0b11;
-            acu->em->min_temp = (uint8_t)(data[1] * 0.5);
-            acu->em->max_temp = (uint8_t)(data[2] * 0.5);
+            acu->em->min_temp = (uint8_t)(data[1] * 0.5f);
+            acu->em->max_temp = (uint8_t)(data[2] * 0.5f);
 
             acu->em->num_sensors = (uint8_t)((data[0] & 0b001111)<<2);
-            acu->em->temps[mux_signal*5] = (uint8_t)(data[3] * 0.5);
-            acu->em->temps[mux_signal*5+1] = (uint8_t)(data[4] * 0.5);
-            acu->em->temps[mux_signal*5+2] = (uint8_t)(data[5] * 0.5);
-            acu->em->temps[mux_signal*5+3] = (uint8_t)(data[6] * 0.5);
-            acu->em->temps[mux_signal*5+4] = (uint8_t)(data[7] * 0.5);
+            acu->em->temps[mux_signal*5] = (uint8_t)(data[3] * 0.5f);
+            acu->em->temps[mux_signal*5+1] = (uint8_t)(data[4] * 0.5f);
+            acu->em->temps[mux_signal*5+2] = (uint8_t)(data[5] * 0.5f);
+            acu->em->temps[mux_signal*5+3] = (uint8_t)(data[6] * 0.5f);
+            acu->em->temps[mux_signal*5+4] = (uint8_t)(data[7] * 0.5f);
 
             break;  
         case IMD_Response_ACU:
@@ -316,8 +331,8 @@ void dequeue(ACU* acu){
             CAN_TxData[3] = (uint16_t)(acu->ts_voltage * 100.0f);
             CAN_TxData[4] = ((uint16_t)((acu->ts_current + 327.68f) * 100.0f)) >> 8;
             CAN_TxData[5] = (uint16_t)((acu->ts_current + 327.68f) * 100.0f);
-            CAN_TxData[6] = acu->acu_SOC * 51 * 0.2;
-            CAN_TxData[7] = acu->glv_SOC * 51 * 0.2;
+            CAN_TxData[6] = acu->acu_SOC * 51 * 0.2f;
+            CAN_TxData[7] = acu->glv_SOC * 51 * 0.2f;
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
                 print_lpuart("ACU_Status_1 failed...\n");
             }
@@ -580,4 +595,16 @@ void update_adc_data(ACU* acu){
     acu->sdc_volt_v = adc_data[3];
     acu->voltage_12v = adc_data[4];
     acu->water_sense = adc_data[5];
+}
+
+/// @brief just prints adc_data
+void print_adc_data(ACU *acu){
+    print_lpuart("ADC Data: -------------------------------\n");
+    char buff[100];
+    bzero(buff, sizeof(buff));
+    sprintf(buff, "ts_curr: %.3f | ts_volt: %.3f\nsdc_w: %.3f | sdc_v: %.3f\n12v: %.3f | water_sense: %3f\n", 
+        acu->ts_current, acu->ts_voltage, acu->sdc_volt_w,  acu->sdc_volt_v, acu->voltage_12v, acu->water_sense);
+    print_lpuart(buff);
+    print_lpuart("-----------------------------------------\n");
+
 }

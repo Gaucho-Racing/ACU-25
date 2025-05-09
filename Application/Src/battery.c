@@ -27,7 +27,8 @@ void clear_faults(bcc_drv_config_t * drvConfig)
         if(status != BCC_STATUS_SUCCESS) return;
     }
 }
-bcc_status_t init_registers(Battery * bty)
+
+bool init_registers(Battery * bty)
 {
     uint8_t cid, i;
     bcc_status_t status;
@@ -39,12 +40,13 @@ bcc_status_t init_registers(Battery * bty)
             {
                 status = BCC_Reg_Write(&(bty->drvConfig), (bcc_cid_t)cid,
                         init_regs[i].address, init_regs[i].value);
-                    if(status != BCC_STATUS_SUCCESS) return status;
+                    if(status != BCC_STATUS_SUCCESS) return false;
             }
         }
     }
-    return BCC_STATUS_SUCCESS;
+    return true;
 }
+
 
 void print_temp(const float * temperatures, const uint8_t cid, uint8_t index){
     char printBuff[32];
@@ -112,7 +114,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 
             bzero(measurements, sizeof(measurements));
             error = BCC_Meas_GetStackVoltage(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
-            bty->stackVoltage[i] = *measurements * 1e-6f; // theres ~ .3 difference from manual calcs
+            bty->stack_voltage[i] = *measurements * 1e-6f; // theres ~ .3 difference from manual calcs
 
             // RIP debugging
             #ifdef DEBUGG
@@ -263,11 +265,28 @@ bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellInd
     return errors;
 }
 
+bool init_cell_balancing(Battery * bty){
+    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
+    {
+        if((BCC_CB_Enable(&(bty->drvConfig), (bcc_cid_t)(i+1),  true)) != BCC_STATUS_SUCCESS) {
+            for(uint8_t j = 0; j < NUM_CELL_IC; j++){
+                bty->cell_balancing[i*NUM_CELL_IC+j] = 100;
+            }
+            print_lpuart("CELL BALANCING SETUP ISSuE\n");
+            return 0;
+        }
+        for(uint8_t j = 0; j < NUM_CELL_IC; j++){
+            bty->cell_balancing[i*NUM_CELL_IC+j] = 0;
+        }
+    }
+    return 1;
+}
+
 /// @brief Check cell temps with bounds, updates errs
 /// @param bty the hopefully not cooked battery
 /// @return 1 if it passes, 0 otherwise
-uint8_t check_temp(Battery *bty){
-    uint8_t success = 1;
+bool check_temp(Battery *bty){
+    bool success = 1;
     bty->cell_temp_errors = 0;
 
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
@@ -275,13 +294,13 @@ uint8_t check_temp(Battery *bty){
             // overtemp check
             if(bty->cell_temp[i*NUM_CELL_IC + j] > bty->max_temp_thresh){
                 bty->cell_temp_errors++;
-                bty->battery_faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
+                bty->faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
                 success = 0;
             }
             // undertemp check
             if(bty->cell_temp[i*NUM_CELL_IC + j] < bty->min_temp_thresh){
                 bty->cell_temp_errors++;
-                bty->battery_faults |= BATTERY_FAULT_CELL_UT;
+                bty->faults |= BATTERY_FAULT_CELL_UT; // probably not the correct one
                 success = 0;
             }
         }
@@ -292,7 +311,7 @@ uint8_t check_temp(Battery *bty){
 /// @brief Check cell volts with bounds, updates errs
 /// @param bty the hopefully not cooked battery
 /// @return 1 if it passes, 0 otherwise
-uint8_t check_volt(Battery *bty) {
+bool check_volt(Battery *bty) {
     uint8_t success = 1;
     bty->cell_volt_errors = 0;
 
@@ -317,7 +336,7 @@ uint8_t check_volt(Battery *bty) {
         // check stack voltage vs real sum aren't too different
         float manual_sum = 0;
         for (uint8_t j = 0; j < NUM_CELL_IC; j++) manual_sum += bty->cell_volt[(i*NUM_CELL_IC)+j];
-        if(fabsf(bty->stackVoltage[i] - manual_sum) > 0.5){
+        if(fabsf(bty->stack_voltage[i] - manual_sum) > 0.5){
             bty->cell_volt_errors++;
             print_lpuart("stack voltage vs manual sum of cell volts is > 0.5!\n");
             success = 0;
@@ -329,11 +348,11 @@ uint8_t check_volt(Battery *bty) {
 /// @brief 
 /// @param bty 
 /// @param fullcheck 
-/// @return True if passes, False otherwise
+/// @return 1 if passes, 0 otherwise
 bool battery_check(Battery *bty, bool fullcheck){
 
     bcc_status_t errors = BCC_STATUS_SUCCESS;
-    uint8_t success = 0;
+    bool success = 1;
 
     if(fullcheck){
         errors = read_device_measurements(bty, false, true); // read temps only
@@ -393,7 +412,7 @@ void print_voltage(Battery *bty){
         print_lpuart("-- -- -- -- -- -- -- -- -- -- -- -- -- --\n");
         char buff[100];
         bzero(buff, sizeof(buff));
-        sprintf(buff, "Min volt: %.3f | Max volt: %.3f\nStack Voltage: %.3f | IC Temp: %.3f\n", min_volt, max_volt, bty->stackVoltage[i], bty->icTemp[i]);
+        sprintf(buff, "Min volt: %.3f | Max volt: %.3f\nStack Voltage: %.3f | IC Temp: %.3f\n", min_volt, max_volt, bty->stack_voltage[i], bty->icTemp[i]);
         print_lpuart(buff);
     }
     print_lpuart("-----------------------------------------\n");

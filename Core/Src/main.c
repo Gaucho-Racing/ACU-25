@@ -62,10 +62,9 @@ uint16_t adc_data[6]; // 0: ts_current, 1: ts_voltage, 2: sdc_volt_w, 3: sdc_vol
 
 // BCC
 uint8_t bcc_cooked_count = 0;
-uint16_t bcc_faults;
 uint32_t BCC_MCU_Timeout_Start;
 uint32_t BCC_MCU_Timeout_length = 0;
-bcc_status_t bcc_error;
+bcc_status_t bcc_error; // just so we don't have to keep creating more status vars
 
 // communication BCC - TPL
 volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data => Replace with struct holding CAN RxBuffer
@@ -111,6 +110,7 @@ volatile uint8_t CAN_3_flag = 0;
 
 // stateful things
 State state;
+extern void update_adc_data(ACU* acu);
 extern void dequeue(ACU* acu);
 extern void debug();
 
@@ -129,9 +129,9 @@ int16_t Read_ADC1_Channel(uint32_t channel);
 
 // interrupt stuff
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs);
+uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
+uint8_t spi_send_string(const uint8_t *data, uint16_t length);
 
-// to delete functions
-void print_can_msg(uint8_t * arr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -156,13 +156,38 @@ void print_lpuart(char* arr) {
   }
 }
 
-void print_can_msg(uint8_t * arr){
-  uint32_t idx = 0; // index
-  while (arr[idx]) {
-    while (!LL_LPUART_IsActiveFlag_TXE(LPUART1));
-    LL_LPUART_TransmitData8(LPUART1, arr[idx]);
-    idx++;
+uint8_t spi_read_string(uint8_t *buffer, uint16_t length){
+  for (uint16_t i = 0; i < length; i++) {
+    uint32_t counter = 0;
+    while (TPL_RxBufferLevel == 0) {
+      if(counter++ > SPI_LOOP_TIMEOUT) {
+        return 1;
+      }
+      BCC_MCU_WaitUs(1);
+    }
+    buffer[i] = TPL_RxBuffer[TPL_RxBufferBottom];
+    TPL_RxBufferBottom++;
+    TPL_RxBufferLevel--;
   }
+  return 0;
+}
+
+uint8_t spi_send_string(const uint8_t *data, uint16_t length) {
+  uint32_t counter = 0;
+  BCC_MCU_WriteCsbPin(0, 0); // CS LOW
+  BCC_MCU_WaitUs(2); // delay required by MC33664
+  while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {
+    if(counter++ > SPI_LOOP_TIMEOUT) return 1;
+    BCC_MCU_WaitUs(1);
+  }
+  for (uint16_t i = 0; i < length; i++) {
+    LL_SPI_TransmitData8(SPI1, data[i]);
+    BCC_MCU_WaitUs(3); // don't know why but seems we need this
+  }
+  while (LL_SPI_IsActiveFlag_BSY(SPI1));
+  BCC_MCU_WaitUs(1); // delay required by MC33664
+  BCC_MCU_WriteCsbPin(0, 1); // CS HIGH
+  return 0;
 }
 
 // setup for bcc
@@ -178,7 +203,6 @@ int setup(){
   LL_ADC_REG_StartConversion(ADC1);
 
   // setup battery configuring
-  print_lpuart("configuring bcc...\n");
   battery.drvConfig.commMode = BCC_MODE_TPL;
   battery.drvConfig.drvInstance = 0U;
   battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
@@ -202,39 +226,26 @@ int setup(){
     return -1;
   }
 
-  bcc_error = init_registers(&battery);
-  while (bcc_error != BCC_STATUS_SUCCESS) {
-    print_lpuart("failed init_registers...");
-    LL_mDelay(1000);
-    bcc_error = init_registers(&battery);
-  }
-  
   battery.min_temp_thresh = CELL_MIN_TEMP;
   battery.max_temp_thresh = CELL_MAX_TEMP;
   battery.min_volt_thresh = CELL_MIN_VOLT;
   battery.max_volt_thresh = CELL_MAX_VOLT;
-  
+
+  bool succ = init_registers(&battery);
+  if (!succ) {
+    print_lpuart("failed init_registers...");
+    return -1;
+  }
+
   clear_faults(&(battery.drvConfig));
   print_lpuart("successful BCC_Init...\n");
 
-  // configure cell balancing
-  for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
-  {
-      if((BCC_CB_Enable(&(battery.drvConfig), (bcc_cid_t)(i+1),  true)) != BCC_STATUS_SUCCESS) {
-          print_lpuart("failed BCC_CB_Enable for cid [insert] ...\n");
-          state = SHITDOWN;
-          for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-            battery.cell_balancing[i*NUM_CELL_IC+j] = 100;
-          }
-          return -1;
-      }
-      for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-        battery.cell_balancing[i*NUM_CELL_IC+j] = 0;
-      }
-  }
-  state = STANDBY;
-  
+  // cb & first battery check
+  state = init_cell_balancing(&battery) && battery_check(&battery, true) == 1 ? STANDBY : SHITDOWN;
+  if (state == SHITDOWN) return 0;
+
   // setup acu
+  update_adc_data(&acu);
   acu_init(&acu);
   acu.bty = &battery;
 
@@ -294,7 +305,6 @@ int main(void)
       || (HAL_FDCAN_Start(&hfdcan2) != HAL_OK)
       || ( HAL_FDCAN_Start(&hfdcan3) != HAL_OK)) {
     print_lpuart("failed to HAL_FDCAN_Start");
-    Error_Handler();
   }
 
   // Activate interrupting capabilities
@@ -302,16 +312,20 @@ int main(void)
   HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
   HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
 
+  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_FULL, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_FULL, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO0_FULL, 0);
+
+  HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_MESSAGE_LOST, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_MESSAGE_LOST, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan3, FDCAN_IT_RX_FIFO0_MESSAGE_LOST, 0);
+
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
   LL_mDelay(1000);
   // DMA1_Channel1_IRQn enabled
 
   if(setup() != 0) state = SHITDOWN;
-
-
-
-  // default: cell balancing is off
   reset_discharge(&battery);
 
   // Configure TxHeader
@@ -367,9 +381,7 @@ int main(void)
       state = SHITDOWN;
     }
 
-    acu.ts_current = adc_data[0];
-    acu.ts_voltage = adc_data[1];
-
+    update_adc_data(&acu);
     // SYSTEM CHECK
     bool b_check = battery_check(&battery, true);
     if(b_check == false){
@@ -378,9 +390,6 @@ int main(void)
       enqueue(ACU_Status_2, FDCAN1);
       state = SHITDOWN;
     }
-    
-    acu.sdc_volt_w = adc_data[2];
-    acu.sdc_volt_v = adc_data[3];
 
     BCC_MCU_WaitMs(500);
 
@@ -402,8 +411,14 @@ int main(void)
         shitdown();
         break;
       default:
+        state = SHITDOWN;
         break;
     }
+    #ifdef DEBUGG
+    if(curr - prev > 500){
+      debug();
+    }
+    #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

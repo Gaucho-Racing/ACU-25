@@ -91,8 +91,6 @@ typedef struct {
     float sdc_volt_v;  // sdcv_v => AFTER ACU latch
     float voltage_12v; // glv voltage
     float water_sense; // uc_water
-
-    float glv_voltage;  // from adc_data = JUST SET TO 0?
     
     // ACU-Status 3
     float hv_input_voltage;  // 600v input voltage => Apparantly not needed anymore
@@ -108,19 +106,15 @@ typedef struct {
     uint8_t relay_state; 
     uint8_t acu_latch;
 
-
     // ACU errors/warnings
     uint8_t acuErrCount;
     uint16_t acu_err_warns; // [ 0:OT, OV, UV, OC, UC, UV_20v, UV_GLV, 7:UV_SDC, 8:Precharge, 0, 0, 0, 0, 0, 0, 0]        
 
-    // ACU states => THIS IS NOT USED
-    // uint8_t ir_precharge_state; // 0: open, 1: closed
-    // uint8_t ir_state;           // 0: open, 1: closed
-    // uint8_t software_latch;     // 0: open, 1: closed
-
     // ACU Precharge via Tx
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
 } ACU;
+
+// Basic blocks
 
 void acu_init(ACU * acu);
 bool acu_check(ACU * acu, bool startup);
@@ -135,9 +129,7 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 void can_read_handler(ACU* acu);
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data);
 
-// Other Messages
-// void can_dump(ACU *acu);
-
+void print_adc_data(ACU *acu);
 void update_adc_data(ACU* acu);
 float get_total_voltage(ACU* acu);
 

@@ -109,7 +109,7 @@ void precharge(){
             return;
         }
 
-        if(fabsf(acu.glv_voltage - acu.sdc_volt_w) > GLV_SDC_LOW){
+        if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
             print_lpuart("SDC voltage dropped while precharging!! Check connections\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2, FDCAN1);
@@ -296,13 +296,13 @@ bool state_system_check(bool full_check, bool startup){
     #endif
 
     // update errors
-    if(battery.battery_faults & BATTERY_FAULT_CELL_OV){
+    if(battery.faults & BATTERY_FAULT_CELL_OV){
         acu.acu_err_warns |= ACU_ERR_OVER_VOLT;
     }
-    if(battery.battery_faults & BATTERY_FAULT_CELL_UV){
+    if(battery.faults & BATTERY_FAULT_CELL_UV){
         acu.acu_err_warns |= ACU_ERR_UNDER_VOLT;
     }
-    if(battery.battery_faults & BATTERY_FAULT_CELL_OT){
+    if(battery.faults & BATTERY_FAULT_CELL_OT){
         acu.acu_err_warns |= ACU_ERR_OVER_TEMP;
     }
 

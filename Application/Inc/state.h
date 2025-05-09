@@ -26,6 +26,5 @@ uint8_t get_state();
 // Externs
 extern ACU acu;
 extern Battery battery;
-extern uint16_t bcc_faults;
 extern State state;
 #endif

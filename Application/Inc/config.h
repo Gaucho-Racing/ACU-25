@@ -6,9 +6,9 @@
 #define NUM_CELL_IC 14
 
 #define INIT_REG_CNT 45
-#define GPIO_CFG1 0.0
-#define GPIO_CFG2 0.0
-#define CBX_SET 1.0
+#define GPIO_CFG1 0.0f
+#define GPIO_CFG2 0.0f
+#define CBX_SET 1.0f
 #define RX_BUF_SIZE 8
 
 #define SPI_LOOP_TIMEOUT 500
@@ -19,14 +19,14 @@
 #define CELL_MAX_VOLT 4.2f
 #define CELL_MIN_VOLT 0.9f
 
-#define CELL_MIN_TEMP 0.0 // to set later
-#define CELL_MAX_TEMP 1000.0 // to set later
+#define CELL_MIN_TEMP 0.0f // to set later
+#define CELL_MAX_TEMP 1000.0f // to set later
 
 //acu limits
 #define MAX_HV_CURRENT 135
 #define MIN_GLV_VOLT 10
-#define MAX_GLV_VOLT 14.4
-
+#define MAX_GLV_VOLT 14.4f
+#define ERRMG_ISNS_VREF 0.2f
 #define MAX_READ_COUNT 8
 #define TRIES 5 // defines how many times we can retry an action
 
@@ -97,7 +97,7 @@
 #define UNDER_VOLTAGE_GLV 10
 #define UNDER_VOLTAGE_SDCV 9
 
-#define PRECHARGE_THRESHOLD 0.96 // fraction of total cell voltage
+#define PRECHARGE_THRESHOLD 0.96f // fraction of total cell voltage
 #define SAFE_V_TO_TURN_OFF 60
 
 /* Send ***********************************************************/

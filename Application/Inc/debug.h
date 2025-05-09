@@ -18,9 +18,32 @@
     typedef unsigned long long uint64_t; // maybe not needed?
 #endif
 
-// self-defined
-void debug();
-uint8_t spi_send_string(const uint8_t *data, uint16_t length);
-uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
+#define DEBUG_MODE 0 // will determine if we print debug statements
 
+#define DUMP_TARGETS 0
+#define DUMP_ADC_DATA 0
+
+#define DUMP_TEMPS 0
+#define DUMP_VOLTS 0
+
+#define CHARG_CTL 0
+#define DUMP_ERR_WARN 0
+
+#define DUMP_IMD_DATA 0
+#define DUMP_ENERGY_MEASURE_DATA 0
+#define DUMP_CHARGER_DATA 0
+
+#define DUMP_HV_INPUT_VOLT 0
+#define DUMP_HV_INPUT_CURR 0
+#define DUMP_HV_OUTPUT_VOLT 0
+#define DUMP_HV_OUTPUT_CURR 0
+
+#define PRINT_BATTERY_STATUS 0
+#define PRINT_BATTERY_FAULTS 0
+
+
+
+
+
+void debug();
 #endif
