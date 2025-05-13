@@ -5,8 +5,8 @@ extern uint32_t BCC_MCU_Timeout_Start;
 extern uint32_t BCC_MCU_Timeout_length;
 extern uint32_t spiRx[10];
 extern void print_lpuart(char* arr);
-extern uint8_t spi_send_string(const uint8_t *data, uint16_t length);
-extern uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
+extern uint8_t bcc_send_string(const uint8_t *data, uint16_t length);
+extern uint8_t bcc_read_string(uint8_t *buffer, uint16_t length);
 
 #define SYSTICK_LOAD (SystemCoreClock/1000000U)
 #define SYSTICK_DELAY_CALIB (SYSTICK_LOAD >> 1)
@@ -50,12 +50,12 @@ bcc_status_t BCC_MCU_TransferTpl(const uint8_t drvInstance, uint8_t txBuf[], uin
     memcpy(buffer, txBuf, 6);
 
     // send
-    if(spi_send_string(txBuf, BCC_MSG_SIZE) != 0) return BCC_STATUS_SPI_FAIL;
+    if(bcc_send_string(txBuf, BCC_MSG_SIZE) != 0) return BCC_STATUS_SPI_FAIL;
     // receive
     for (uint16_t rxCount = 0; rxCount < recvTrCnt; rxCount++) {
         memset(buffer, '\0', BCC_MSG_SIZE);
 
-        if (spi_read_string(buffer, BCC_MSG_SIZE) != 0){
+        if (bcc_read_string(buffer, BCC_MSG_SIZE) != 0){
             return BCC_STATUS_SPI_FAIL;
         }
         BCC_MCU_WaitUs(1);

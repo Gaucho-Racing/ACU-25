@@ -5,11 +5,11 @@
 
 // Typedef
 typedef enum {
-    STANDBY,
-    PRECHARGE,
-    CHARGE,
-    NORMAL, 
-    SHITDOWN
+    STANDBY,    // 🏠
+    PRECHARGE,  // 🙏
+    CHARGE,     // 🛌
+    NORMAL,     // 💃
+    SHITDOWN    // 🪦
 } State;
 
 // State Functions

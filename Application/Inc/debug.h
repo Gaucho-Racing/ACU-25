@@ -30,20 +30,9 @@
 #define DUMP_ERR_WARN 0
 
 #define DUMP_IMD_DATA 0
-#define DUMP_ENERGY_MEASURE_DATA 0
 #define DUMP_CHARGER_DATA 0
 
-#define DUMP_HV_INPUT_VOLT 0
-#define DUMP_HV_INPUT_CURR 0
-#define DUMP_HV_OUTPUT_VOLT 0
-#define DUMP_HV_OUTPUT_CURR 0
-
-#define PRINT_BATTERY_STATUS 0
-#define PRINT_BATTERY_FAULTS 0
-
-
-
-
+// #define DUMP_ENERGY_MEASURE_DATA 0
 
 void debug();
 #endif

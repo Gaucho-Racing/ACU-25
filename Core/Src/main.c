@@ -39,7 +39,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define ADC_SIZE 6U
+#define TPL_RX_BUFFER 256U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,32 +51,36 @@
 
 /* USER CODE BEGIN PV */
 
-// cycle tracker
+// trackers
 uint8_t cycle;
+bcc_status_t bcc_error; 
+uint8_t bcc_cooked_count = 0;
 
-// Devices & Sensors
+// BMS/ACU
 ACU acu;
 Battery battery;
 
 // ADC Data
-uint16_t adc_data[6]; // 0: ts_current, 1: ts_voltage, 2: sdc_volt_w, 3: sdc_volt_v, 4:volt_12v, 5: water_sense
+uint16_t adc_data[ADC_SIZE]; // 0: ts_current, 1: ts_voltage, 2: sdc_volt_w, 3: sdc_volt_v, 4:volt_12v, 5: water_sense
 
-// BCC
-uint8_t bcc_cooked_count = 0;
+// BCC - timeout vars
 uint32_t BCC_MCU_Timeout_Start;
 uint32_t BCC_MCU_Timeout_length = 0;
-bcc_status_t bcc_error; // just so we don't have to keep creating more status vars
 
 // communication BCC - TPL
-volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data => Replace with struct holding CAN RxBuffer
-volatile uint8_t TPL_RxBufferLevel = 0; // Number of bytes to be read
-volatile uint8_t TPL_RxBufferBottom = 0; // Index of oldest data
-volatile uint8_t TPL_RxBufferTop = 0; // Index of newest data
+volatile uint8_t TPL_RxBuffer[TPL_RX_BUFFER]; // store rx SPI data
+volatile uint8_t TPL_RxBufferLevel = 0; // bytes to be read
+volatile uint8_t TPL_RxBufferBottom = 0; // idx to oldest data
+volatile uint8_t TPL_RxBufferTop = 0; // idx to newest data
 
-// communication - FDCAN NOT PRIMARY
+// communication - FDCAN
 extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 extern FDCAN_HandleTypeDef hfdcan3;
+
+// communication headers - FDCAN
+FDCAN_TxHeaderTypeDef TxHeader; // PRIMARY
+FDCAN_RxHeaderTypeDef RxHeader; // PRIMARY
 
 FDCAN_TxHeaderTypeDef TxHeader_Data;
 FDCAN_RxHeaderTypeDef RxHeader_Data;
@@ -83,33 +88,31 @@ FDCAN_RxHeaderTypeDef RxHeader_Data;
 FDCAN_TxHeaderTypeDef TxHeader_Charger;
 FDCAN_RxHeaderTypeDef RxHeader_Charger;
 
-// communication - FDCAN PRIMARY
-FDCAN_TxHeaderTypeDef TxHeader; // PRIMARY
-FDCAN_RxHeaderTypeDef RxHeader; // PRIMARY
-
-
-// SHARED BUFFER => Each data will enter in through this buffer, but bc there are soo many gosh dang pieces of data being
-// sent over can, the rate at which data comes in will surpass the rate at which we process these data
-uint8_t CAN_TxData[64];
-uint8_t CAN_RxData[64];
-
-// SHARED BUFFER => ACCESSIBLE BY INTERRUPT HANDLER AND DEV (ME!)
-volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
-volatile uint8_t CAN_RxBufferLevel = 0; // tells you level = abs(top - bottom), this is needed
-volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data ==> increment this whenever the data is processed
-volatile uint8_t CAN_RxBufferTop = 0; // Index of newest data ==> decrement this whenever new data is met in the interrupt handler
-
+// communication queues - FDCAN
 volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 volatile uint8_t p_top = 0, p_bottom = 0, p_level = 0;
 volatile uint8_t d_top = 0, d_bottom = 0, d_level = 0;
 volatile uint8_t c_top = 0, c_bottom = 0, c_level = 0;
 
+// communication flags - FDCAN
 volatile uint8_t CAN_1_flag = 0;
 volatile uint8_t CAN_2_flag = 0;
 volatile uint8_t CAN_3_flag = 0;
 
-// stateful things
+// SHARED BUFFER: all data enter in through this buffer
+uint8_t CAN_TxData[64];
+uint8_t CAN_RxData[64];
+
+// SHARED BUFFER: ACCESSIBLE BY INTERRUPT HANDLER AND DEV (ME!)
+volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
+volatile uint8_t CAN_RxBufferLevel = 0; // tells you level = abs(top - bottom)
+volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data
+volatile uint8_t CAN_RxBufferTop = 0; // Index of newest data
+
+// STATE tracker
 State state;
+
+extern void print_bcc_status(bcc_status_t stat);
 extern void update_adc_data(ACU* acu);
 extern void dequeue(ACU* acu);
 extern void debug();
@@ -124,13 +127,10 @@ void parse_data();
 
 void DWT_Delay_Init();
 void print_lpuart(char* arr);
-void print_bcc_status(bcc_status_t bccStatus);
 int16_t Read_ADC1_Channel(uint32_t channel);
 
-// interrupt stuff
+// interrupt
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs);
-uint8_t spi_read_string(uint8_t *buffer, uint16_t length);
-uint8_t spi_send_string(const uint8_t *data, uint16_t length);
 
 /* USER CODE END PFP */
 
@@ -147,6 +147,8 @@ void dequeue_in_irq(){
   dequeue(&acu);
 }
 
+/// @brief out "print" function
+/// @param arr 
 void print_lpuart(char* arr) {
   uint32_t idx = 0; // index
   while (arr[idx]) {
@@ -156,41 +158,8 @@ void print_lpuart(char* arr) {
   }
 }
 
-uint8_t spi_read_string(uint8_t *buffer, uint16_t length){
-  for (uint16_t i = 0; i < length; i++) {
-    uint32_t counter = 0;
-    while (TPL_RxBufferLevel == 0) {
-      if(counter++ > SPI_LOOP_TIMEOUT) {
-        return 1;
-      }
-      BCC_MCU_WaitUs(1);
-    }
-    buffer[i] = TPL_RxBuffer[TPL_RxBufferBottom];
-    TPL_RxBufferBottom++;
-    TPL_RxBufferLevel--;
-  }
-  return 0;
-}
-
-uint8_t spi_send_string(const uint8_t *data, uint16_t length) {
-  uint32_t counter = 0;
-  BCC_MCU_WriteCsbPin(0, 0); // CS LOW
-  BCC_MCU_WaitUs(2); // delay required by MC33664
-  while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {
-    if(counter++ > SPI_LOOP_TIMEOUT) return 1;
-    BCC_MCU_WaitUs(1);
-  }
-  for (uint16_t i = 0; i < length; i++) {
-    LL_SPI_TransmitData8(SPI1, data[i]);
-    BCC_MCU_WaitUs(3); // don't know why but seems we need this
-  }
-  while (LL_SPI_IsActiveFlag_BSY(SPI1));
-  BCC_MCU_WaitUs(1); // delay required by MC33664
-  BCC_MCU_WriteCsbPin(0, 1); // CS HIGH
-  return 0;
-}
-
-// setup for bcc
+/// @brief setup function
+/// @return 0 for success, 1 for FAILURE 🤦‍♂️
 int setup(){
 
   // setup ADC
@@ -222,7 +191,7 @@ int setup(){
   }
   if (counter == 0){
     state = SHITDOWN;
-    print_lpuart("failed BCC_Init...");
+    print_lpuart("╭∩╮( •̀_·́ )╭∩╮ [Failed BCC_Init...]");
     return -1;
   }
 
@@ -233,12 +202,12 @@ int setup(){
 
   bool succ = init_registers(&battery);
   if (!succ) {
-    print_lpuart("failed init_registers...");
+    print_lpuart("╭∩╮( •̀_·́ )╭∩╮ [Failed init_registers...]");
     return -1;
   }
 
   clear_faults(&(battery.drvConfig));
-  print_lpuart("successful BCC_Init...\n");
+  print_lpuart("💎 [Successful BCC_Init...]\n");
 
   // cb & first battery check
   state = init_cell_balancing(&battery) && battery_check(&battery, true) == 1 ? STANDBY : SHITDOWN;
@@ -361,7 +330,7 @@ int main(void)
 
   if(!state_system_check(true, true)){
     state = SHITDOWN;
-    print_lpuart("System check failed, shutting down\n");
+    print_lpuart("(,,>﹏<,,) [SysCheck failed. Shutting down]\n");
   }
   else state = STANDBY;
   /* USER CODE END 2 */
@@ -375,13 +344,17 @@ int main(void)
       state = PRECHARGE;
     }
     else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
+      print_lpuart("(,,>﹏<,,) [ts_active command, but state > STANDBY]\n");
       state = PRECHARGE;
     }
-    else if(!acu.ts_active){
+    else if(!acu.ts_active){ // not sure if this is the correct move
+      print_lpuart("(,,>﹏<,,) [ts_active = 0; SHUTDOWN]\n");
       state = SHITDOWN;
     }
 
+    // READ: adc_data
     update_adc_data(&acu);
+
     // SYSTEM CHECK
     bool b_check = battery_check(&battery, true);
     if(b_check == false){
@@ -391,9 +364,8 @@ int main(void)
       state = SHITDOWN;
     }
 
-    BCC_MCU_WaitMs(500);
+    LL_mDelay(500);
 
-    // STATE TRANSITIONS
     switch(state){
       case (STANDBY):
         standby();
@@ -491,65 +463,15 @@ void DWT_Delay_Init(void){
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk; // Enable counter
 }
 
-/// @brief Print BCC Status messages
-/// @param bccStatus (bcc_status_t)
-void print_bcc_status(bcc_status_t bccStatus){
-  switch (bccStatus)
-  {
-  case BCC_STATUS_SUCCESS:
-      print_lpuart("Success\n");
-      break;
-  case BCC_STATUS_PARAM_RANGE:
-      print_lpuart("Parameter out of range\n");
-      break;
-  case BCC_STATUS_SPI_FAIL:
-      print_lpuart("SPI failed\n");
-      break;
-  case BCC_STATUS_COM_TIMEOUT:
-      print_lpuart("communication timeout\n");
-      break;
-  case BCC_STATUS_COM_ECHO:
-      print_lpuart("Echo frame doesn't correspond to sent frame\n");
-      break;
-  case BCC_STATUS_COM_CRC:
-      print_lpuart("CRC error\n");
-      break;
-  case BCC_STATUS_COM_MSG_CNT:
-      print_lpuart("Message counter mismatch\n");
-      break;
-  case BCC_STATUS_COM_NULL:
-      print_lpuart("NULL message\n");
-      break;
-  case BCC_STATUS_DIAG_FAIL:
-      print_lpuart("Diagnoctic mode not allowed\n");
-      break;
-  case BCC_STATUS_EEPROM_ERROR:
-      print_lpuart("EEPROM communication error\n");
-      break;
-  case BCC_STATUS_EEPROM_PRESENT:
-      print_lpuart("EEPROM device not detected\n");
-      break;
-  case BCC_STATUS_DATA_RDY:
-      print_lpuart("New convertion already running\n");
-      break;
-  case BCC_STATUS_TIMEOUT_START:
-      print_lpuart("BCC_MCU_StartTimeout function error\n");
-      break;
-  default:
-      print_lpuart("Unknown status\n");
-      break;
-  }
-}
-
-/// @brief Interrupt for receiving CAN messages
-/// @param hfdcan 
+/// @brief Interrupt handler for RX CAN messages
+/// @param hfdcan should always be FDCAN1
 /// @param RxFifo0ITs 
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
     // Check if a new message is received in FIFO 0
     if (RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE)
     {
-        // if buffer full, then skip recieval of this mesage
+        // if buffer full, then skip
         if(CAN_RxBufferLevel == 255U) return;
         // Retrieve the message from FIFO 0
         if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CAN_RxData) == HAL_OK)

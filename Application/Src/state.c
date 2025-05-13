@@ -3,9 +3,13 @@
 extern uint8_t cycle;
 extern uint16_t adc_data[6];
 extern FDCAN_RxHeaderTypeDef RxHeader_Charger;
-
 extern void print_lpuart(char* arr);
 
+/// @brief constrains float vlaues
+/// @param value 
+/// @param lowerBound 
+/// @param upperBound 
+/// @return another float
 float constrain(float value, float lowerBound, float upperBound) {
     if (value < lowerBound) {
         return lowerBound;
@@ -16,12 +20,15 @@ float constrain(float value, float lowerBound, float upperBound) {
     }
 }
 
+/// @brief returns the current state
+/// @return uint8_t of state
 uint8_t get_state(){
     return (uint8_t)(state);
 }
 
+/// @brief self explanatory
 void shitdown(){
-    
+    print_lpuart("State: 🪦");
     // Open all
     acu.relay_state = 0;
     acu.chg_ctrl = (uint8_t)NO_CHARGE;
@@ -44,19 +51,25 @@ void shitdown(){
         state = STANDBY;
     }
 }
+
 /// @brief do nothing, in initial state wait for VDM to send start command, maybe poll CAN
 void standby(){
+    print_lpuart("State: 🏠");
     // get ts_current
     update_adc_data(&acu);
     if(state_system_check(false, false) == false){
+        print_lpuart("𝓕𝓾𝓬𝓴\n");
         state = SHITDOWN;
     }
+
+    // update cycle
     cycle++;
     cycle = cycle % 8;
 }
 
 /// @brief State: PRECHARGE
 void precharge(){
+    print_lpuart("State: 🙏");
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
     acu.acu_err_warns &= ~(ACU_PRECHARGE);
 
@@ -67,15 +80,11 @@ void precharge(){
     //     state = SHUTDOWN;
     // }
 
-    #if DEBUGG
-        print_lpuart("State: precharge\n");
-    #endif
-
     LL_mDelay(100);
     update_adc_data(&acu);
 
     if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
-        print_lpuart("Latch not closed, skill issue\n");
+        print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
         acu.acu_latch = 0;
         state = SHITDOWN;
         return;
@@ -84,7 +93,7 @@ void precharge(){
     
     // system check
     if (!state_system_check(true, false)) {
-        print_lpuart("failed state_system_check\n");
+        print_lpuart("¯\\_(ツ)_/¯ failed state_system_check\n");
         state = SHITDOWN;
         return;
     }
@@ -104,20 +113,20 @@ void precharge(){
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
 
         if (!state_system_check(false, false)) {
-            print_lpuart("PreCharge (ts_voltage) => Shutdown\n");
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge (ts_voltage) => Shutdown\n");
             state = SHITDOWN;
             return;
         }
 
         if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
-            print_lpuart("SDC voltage dropped while precharging!! Check connections\n");
+            print_lpuart("¯\\_(ツ)_/¯ SDC voltage dropped while precharging!! Check connections\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2, FDCAN1);
             state = SHITDOWN;
             return;
         }
         if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
-            print_lpuart("Precharge timeout, error\n");
+            print_lpuart("¯\\_(ツ)_/¯ Precharge timeout, error\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2,FDCAN1);
             state = SHITDOWN;
@@ -125,7 +134,7 @@ void precharge(){
         }
 
         if(state != PRECHARGE){
-            print_lpuart("NOT IN PRECHARGE??????\n");
+            print_lpuart("🦍💨 NOT IN PRECHARGE??????\n");
         }
         update_adc_data(&acu);
     }
@@ -142,13 +151,13 @@ void precharge(){
         }
         // signal to go to charge!
         if(acu.chgr->chgr_status ^ CHARGER_COOMMMM){ // (if X ^ 1) => true
-            print_lpuart("Charger_Data_ACU ping received!\n");
+            print_lpuart("💩 Charger_Data_ACU ping received!\n");
             goToCharge = 1;
         }
         
         // actively check total_voltage vs ts_voltage just in case
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){
-            print_lpuart("TS Voltage went down in Precharge\n");
+            print_lpuart("( ˶°ㅁ°) !! TS Voltage went down in Precharge\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             state = SHITDOWN;
             return;
@@ -177,6 +186,7 @@ uint32_t last_send_time = 0;
 uint32_t last_call_time = 0;
 
 void charge(){
+    print_lpuart("State: 🛌");
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
 
     if(!acu_check(&acu, false)){
@@ -190,7 +200,7 @@ void charge(){
         last_charge_time = HAL_GetTick();
         if(!state_system_check(true, false)){
             state = SHITDOWN;
-            print_lpuart("Failed system check inside of charge\n");
+            print_lpuart("( ˶°ㅁ°) !! Failed system check inside of charge\n");
             return;
         }
         // do cell balancing
@@ -212,7 +222,7 @@ void charge(){
 
     //if no CAN data for 5 seconds, shut down
     if(HAL_GetTick() - acu.lastChrgRecieveTime > 5000){
-        print_lpuart("CHARGE: Charger CAN timeout, shutting down");
+        print_lpuart("( ˶°ㅁ°) !! CHARGE: Charger CAN timeout, shutting down");
         state = SHITDOWN;
         return;
     }
@@ -238,9 +248,9 @@ void charge(){
 
 uint8_t tsVoltErrCount = 0;
 void normal(){
-    
+    print_lpuart("State: 💃");
     if(!state_system_check(false, false)){
-        print_lpuart("SystemCheck failed in NORMAL state\n");
+        print_lpuart("( ˶°ㅁ°) !! SystemCheck failed in NORMAL state\n");
         state = SHITDOWN;
         return;
     }
@@ -248,7 +258,7 @@ void normal(){
     update_adc_data(&acu);
     float totalV = get_total_voltage(&acu);
     if (fabsf(acu.ts_voltage - totalV) > 80) {
-        print_lpuart("TS voltage mismatch");
+        print_lpuart("∘ ∘ ∘ ( °ヮ° ) ? TS voltage mismatch");
         tsVoltErrCount++;
         if (tsVoltErrCount >= ERRMG_ACU_ERR) {
             tsVoltErrCount = ERRMG_ACU_ERR;
@@ -265,6 +275,7 @@ void normal(){
         tsVoltErrCount = 0;
     }
 
+    // update cycle
     cycle++;
     cycle = cycle % 8;
 
@@ -282,18 +293,17 @@ void normal(){
 bool state_system_check(bool full_check, bool startup){
 
     bool a_check = acu_check(&acu, startup);
-    #ifdef DEBUGG
+
     if(a_check == false){
-        print_lpuart("Failed acu_check\n");
+        print_lpuart("(¬_¬\") Failed acu_check\n");
     }
-    #endif
+
 
     bool b_check = battery_check(&battery, full_check);
-    #ifdef DEBUGG
+
     if(b_check == false){
-        print_lpuart("Failed battery_check\n");
+        print_lpuart("(¬_¬\") Failed battery_check\n");
     }
-    #endif
 
     // update errors
     if(battery.faults & BATTERY_FAULT_CELL_OV){

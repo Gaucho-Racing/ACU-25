@@ -185,7 +185,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             enqueue(ACU_Ping_ECU, which_can);
             break;
         case Precharge_ACU:
-            acu->ts_active = data[0] & 1;
+            acu->ts_active = data[0] & 1; // determines whether we go to precharge
             break;  
         case Charger_Data_ACU:
             acu->lastChrgRecieveTime = millis;
@@ -194,6 +194,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             values += data[1];
             acu->chgr->charger_output_voltage = values * 0.1f; // this should be sent to somewhere
 
+            values = 0.0f;
             values += data[2] << 8;
             values += data[3];
             acu->chgr->charger_output_current = values * 0.1f; // this should be sent to somewhere
@@ -204,6 +205,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             values += data[0] << 8;
             values += data[1];
             acu->target_voltage = values * 0.1f;
+            values = 0.0f;
             values = data[2] << 8;
             values += data[3];
             acu->target_current = values* 0.1f;
@@ -213,6 +215,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             values += data[0] << 8;
             values += data[1];
             acu->bty->min_volt_thresh = values * 0.1f;
+            values = 0.0f;
             values = data[2] << 8;
             values += data[3];
             acu->bty->max_temp_thresh = values * 0.1f;
@@ -222,10 +225,10 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             acu->em->em_voltage = (float)((unsigned long)(data[7]<<24)|(unsigned long)(data[6])<<16|data[5]<<8|data[4]);
             break;  
         case EM_Data_1_ACU:
-            // "Team Signal 1/2: Fuck if I know"
+            // ???
             break;  
         case EM_Data_2_ACU:
-            // "Team Signal 3/4: Fuck if I know"
+            // ???
             break;  
         case EM_Status_ACU:
             acu->em->status = data[0];
@@ -331,8 +334,8 @@ void dequeue(ACU* acu){
             CAN_TxData[3] = (uint16_t)(acu->ts_voltage * 100.0f);
             CAN_TxData[4] = ((uint16_t)((acu->ts_current + 327.68f) * 100.0f)) >> 8;
             CAN_TxData[5] = (uint16_t)((acu->ts_current + 327.68f) * 100.0f);
-            CAN_TxData[6] = acu->acu_SOC * 51 * 0.2f;
-            CAN_TxData[7] = acu->glv_SOC * 51 * 0.2f;
+            CAN_TxData[6] = calculate_acu_soc(acu) * 51 * 0.2f;
+            CAN_TxData[7] = calculate_glv_soc(acu) * 51 * 0.2f;
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
                 print_lpuart("ACU_Status_1 failed...\n");
             }
@@ -597,7 +600,16 @@ void update_adc_data(ACU* acu){
     acu->water_sense = adc_data[5];
 }
 
+float calculate_acu_soc(ACU* acu){
+    return acu->bty->min_cell_volt / acu->target_voltage;
+}
+
+float calculate_glv_soc(ACU* acu){
+    return (1.0f * acu->voltage_12v) / acu->target_voltage;
+}
+
 /// @brief just prints adc_data
+/// @param acu
 void print_adc_data(ACU *acu){
     print_lpuart("ADC Data: -------------------------------\n");
     char buff[100];
@@ -607,4 +619,191 @@ void print_adc_data(ACU *acu){
     print_lpuart(buff);
     print_lpuart("-----------------------------------------\n");
 
+}
+
+/// @brief prints imd data
+/// @param acu 
+void print_imd_data(ACU* acu){
+    print_lpuart("IMD Data: -------------------------------\n");
+    char buff[150];
+    bzero(buff, sizeof(buff));
+    sprintf(buff,
+        "R_ISO_Corrected: %hu | R_ISO_Status: %u | ISO_Meas_Count: %u\n"
+        "Status_Warnings_Alarms: %hu | Status_Device_Activity: %u | HV_System: %.2f\n",
+        (unsigned short int)(acu->imd->r_iso_corrected),
+        (unsigned int)(acu->imd->r_iso_status),
+        (unsigned int)(acu->imd->iso_meas_count),
+        (unsigned short int)(acu->imd->status_warnings_alarms),
+        (unsigned int)(acu->imd->status_device_activity),
+        acu->imd->hv_system_voltage
+    );
+    print_lpuart(buff);
+    print_lpuart("-----------------------------------------\n");
+}
+
+/// @brief prints the errors and warnings of the IMD monitor
+/// @param acu 
+void print_imd_err_warn(ACU* acu){
+    print_lpuart("IMD Err/Warns: --------------------------\n");
+    char buff[50];
+    if(acu->imd->status_warnings_alarms & IMD_ERROR_ACTIVE){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "⛔: IMD Error\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & HV_POS_CONN_FAIL){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "➕: HV pos connection failed\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & HV_NEG_CONN_FAIL){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "➖: HV neg connection failed\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & EARTH_CONNN_FAIL){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "🛸: Earth connection failed\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & ISO_ALARM_ERRROR){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, ": 🚨ISO alarm error\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & ISO_WARN_ERRRROR){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "🇺🇳: ISO warning error\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & ISO_OUTDATED_ERR){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "👵🏻: ISO outdated...\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & UN_BALANCE_ALARM){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "⚖️: Unbalanced alarm\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & UNDERVOLTG_ALARM){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "🪫: Undervoltage alarm\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & UNSAFE_TOO_START){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "☠️: Unsafe to start\n");
+        print_lpuart(buff);
+    }
+    if(acu->imd->status_warnings_alarms & EARTH_LIFT_OPENN){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "🚠: Earth lift open\n");
+        print_lpuart(buff);
+    }
+    print_lpuart("-----------------------------------------\n");
+}
+
+/// @brief prints acu target volts & current. 
+/// @param acu 
+void print_targets(ACU * acu){
+    print_lpuart("Targets: --------------------------------\n");
+    char buff[100];
+    bzero(buff, sizeof(buff));
+    sprintf(buff, "Target Voltage: %.3f | Target Current: %.3f\n", 
+        acu->target_voltage, acu->target_current);
+    print_lpuart(buff);
+    print_lpuart("-----------------------------------------\n");
+}
+
+/// @brief prints charger data
+/// @param acu 
+void print_charger_data(ACU* acu){
+    print_lpuart("Charger Data: ---------------------------\n");
+    char buff[150];
+    bzero(buff, sizeof(buff));
+    sprintf(buff,
+        "Charger voltage: %u |Charger current: %u\n",
+        acu->chgr->charger_output_voltage,
+        acu->chgr->charger_output_current
+    );
+    print_lpuart(buff);
+    print_lpuart("-----------------------------------------\n\n");
+
+    print_lpuart("Charger Err/Warns: ----------------------\n");
+    char bufff[50];
+    if(acu->chgr->chgr_status & CHARGER_HW_FAIL){
+        bzero(bufff, sizeof(bufff));
+        sprintf(bufff, "⚙️: Hardware Failure\n");
+        print_lpuart(bufff);
+    }
+    if(acu->chgr->chgr_status & CHARGER_OV_TEMP){
+        bzero(bufff, sizeof(bufff));
+        sprintf(bufff, "🥵: Over Temp\n");
+        print_lpuart(bufff);
+    }
+    if(acu->chgr->chgr_status & CHARGER_IN_VOLT){
+        bzero(bufff, sizeof(bufff));
+        sprintf(bufff, "⚡: Wrong input voltage\n");
+        print_lpuart(bufff);
+    }
+    if(acu->chgr->chgr_status & CHARGER_CONNECT){
+        bzero(bufff, sizeof(bufff));
+        sprintf(bufff, "🐻‍❄️: Wrong polarity or NC\n");
+        print_lpuart(bufff);
+    }
+    if(acu->chgr->chgr_status & CHARGER_COOMMMM){
+        bzero(bufff, sizeof(bufff));
+        sprintf(bufff, "⏱️: Timeout\n");
+        print_lpuart(bufff);
+    }
+    print_lpuart("-----------------------------------------\n");
+}
+
+/// @brief prints acu errors & warnings
+/// @param acu 
+void print_errors_warning(ACU * acu){
+    print_lpuart("Err/Warns: ------------------------------\n");
+    char buff[30];
+    if(acu->acu_err_warns & ACU_ERR_OVER_TEMP){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: ACU Overtemperature\n");
+        print_lpuart(buff);
+    }
+    if(acu->acu_err_warns & ACU_ERR_OVER_VOLT){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: ACU Overvoltage\n");
+        print_lpuart(buff);
+    }
+    if(acu->acu_err_warns & ACU_ERR_UNDER_VOLT){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: ACU Undervoltage\n");
+        print_lpuart(buff);
+    }
+    if(acu->acu_err_warns & ACU_ERR_OVER_CURR){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: ACU Overcurrent\n");
+        print_lpuart(buff);
+    }
+    if(acu->acu_err_warns & ACU_PRECHARGE){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: ACU Precharge Issue\n");
+        print_lpuart(buff);
+    }
+    if(acu->acu_err_warns & ACU_ERR_UV_20_V){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: Undervoltage for 20v\n");
+        print_lpuart(buff);
+    }
+    if(acu->acu_err_warns & ACU_ERR_UV_12_V){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: Undervoltage for 12v\n");
+        print_lpuart(buff);
+    }
+    if(acu->acu_err_warns & ACU_ERR_UV_SDC){
+        bzero(buff, sizeof(buff));
+        sprintf(buff, "Error: Undervoltage for SDC\n");
+        print_lpuart(buff);
+    }
+    print_lpuart("-----------------------------------------\n");
 }

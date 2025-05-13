@@ -75,16 +75,10 @@ typedef struct {
     float target_current;
 
     uint8_t chg_ctrl; // 0b01 : Start Charging, 0b10: Stop Charging => to be sent from ACU to others via Tx
-
-    // ACU_Status_1
-    uint8_t acu_SOC; // Accumulator state of charge (Based on lowest cell)
-    uint8_t glv_SOC; // GLV state of charge
-
     float acu_current; // current output of ACU
 
     // ADC Stuff
-    // 0:ts_current, 1:ts_voltage, 2:sdc_volt_w, 
-    // 3:sdc_volt_v, 4:voltage_12v,5:water_sense
+    // 0:ts_current, 1:ts_voltage, 2:sdc_volt_w, 3:sdc_volt_v, 4:voltage_12v,5:water_sense
     float ts_voltage;  // ts_v
     float ts_current;  // uc_ts_i
     float sdc_volt_w;  // sdcw_w => BEFORE ACU latch
@@ -110,7 +104,7 @@ typedef struct {
     uint8_t acuErrCount;
     uint16_t acu_err_warns; // [ 0:OT, OV, UV, OC, UC, UV_20v, UV_GLV, 7:UV_SDC, 8:Precharge, 0, 0, 0, 0, 0, 0, 0]        
 
-    // ACU Precharge via Tx
+    // ACU PRECHARGE via TX
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
 } ACU;
 
@@ -129,8 +123,13 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 void can_read_handler(ACU* acu);
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data);
 
+void print_targets(ACU * acu);
+void print_imd_data(ACU* acu);
 void print_adc_data(ACU *acu);
 void update_adc_data(ACU* acu);
+void print_imd_err_warn(ACU* acu);
+void print_charger_data(ACU* acu);
+void print_errors_warning(ACU * acu);
 float get_total_voltage(ACU* acu);
 
 // helpers
@@ -138,6 +137,11 @@ uint8_t fconstrain(float value);
 
 // TO IMPLEMENT
 // void charger_check(ACU* acu); // check chgr_status
-// uint8_t calculate_acu_soc(ACU* acu); // sets acu_SOC based on lowest cell voltage
-// uint8_t calculate_glv_soc(ACU* acu); // sets acu_GLV based on ???
+
+// sets acu_SOC based on lowest cell voltage
+float calculate_acu_soc(ACU* acu); 
+
+// sets acu_GLV based on glv_volt?
+float calculate_glv_soc(ACU* acu); 
+
 #endif

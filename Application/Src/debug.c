@@ -4,15 +4,71 @@
 extern ACU acu;
 extern State state;
 
+extern void print_imd_data(ACU* acu);
+extern void print_targets(ACU * acu);
 extern void print_adc_data(ACU *acu);
 extern void print_lpuart(char* arr);
 extern void print_voltage(Battery *bty);
+extern void print_imd_err_warn(ACU* acu);
+extern void print_charger_data(ACU* acu);
 extern void print_temperature(Battery * bty);
+extern void print_errors_warning(ACU * acu);
+
+/// @brief Print BCC Status messages
+/// @param stat (bcc_status_t)
+void print_bcc_status(bcc_status_t stat){
+  switch (stat)
+  {
+  case BCC_STATUS_SUCCESS:
+      print_lpuart("Success\n");
+      break;
+  case BCC_STATUS_PARAM_RANGE:
+      print_lpuart("Parameter out of range\n");
+      break;
+  case BCC_STATUS_SPI_FAIL:
+      print_lpuart("SPI failed\n");
+      break;
+  case BCC_STATUS_COM_TIMEOUT:
+      print_lpuart("communication timeout\n");
+      break;
+  case BCC_STATUS_COM_ECHO:
+      print_lpuart("Echo frame doesn't correspond to sent frame\n");
+      break;
+  case BCC_STATUS_COM_CRC:
+      print_lpuart("CRC error\n");
+      break;
+  case BCC_STATUS_COM_MSG_CNT:
+      print_lpuart("Message counter mismatch\n");
+      break;
+  case BCC_STATUS_COM_NULL:
+      print_lpuart("NULL message\n");
+      break;
+  case BCC_STATUS_DIAG_FAIL:
+      print_lpuart("Diagnoctic mode not allowed\n");
+      break;
+  case BCC_STATUS_EEPROM_ERROR:
+      print_lpuart("EEPROM communication error\n");
+      break;
+  case BCC_STATUS_EEPROM_PRESENT:
+      print_lpuart("EEPROM device not detected\n");
+      break;
+  case BCC_STATUS_DATA_RDY:
+      print_lpuart("New convertion already running\n");
+      break;
+  case BCC_STATUS_TIMEOUT_START:
+      print_lpuart("BCC_MCU_StartTimeout function error\n");
+      break;
+  default:
+      print_lpuart("Unknown status\n");
+      break;
+  }
+}
 
 void debug(){
-  print_lpuart("------------------- Debug Start -------------------\n");
+  print_lpuart("------------------- 💥 Debug Start 💥 -------------------\n");
   #if DUMP_TARGETS == 1
-  // print target current, voltage, and temperature
+  print_targets(acu);
+
   #endif
 
   #if DUMP_VOLTS == 1
@@ -28,25 +84,32 @@ void debug(){
   #endif
 
   #if DUMP_ERR_WARN == 1
-  // print acu.acu_err_warns
+  print_errors_warning(&acu);
   #endif
 
   #if CHARG_CTL == 1
-  // print charger control, maybe status
+  char buff[40];
+  bzero(buff, sizeof(buff));
+  if(acu.chg_ctrl & PLS_CHARGE){
+    sprintf(buff, "Charge Control: pls charge\n");
+  }
+  else{
+    sprintf(buff, "Charge Control: pls no charge\n");
+  }
+  
+  print_lpuart(buff);
   #endif
 
   #if DUMP_IMD_DATA == 1
-  // print IMD data
+  print_imd_err_warn(&acu);
+  print_imd_data(&acu);
   
   #endif
-  #if DUMP_ENERGY_MEASURE_DATA == 1
-  // print EM data
-  
-  #endif
+
   #if DUMP_CHARGER_DATA == 1
-  // print Charger data
+  print_charger_data(&acu);
   
   #endif
-  print_lpuart("-------------------- End Debug --------------------\n");
+  print_lpuart("-------------------- 💣 End Debug 💣 --------------------\n");
 }
 
