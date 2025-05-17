@@ -159,7 +159,7 @@ void print_lpuart(char* arr) {
 }
 
 /// @brief setup function
-/// @return 0 for success, 1 for FAILURE 🤦‍♂️
+/// @return 0 for success, 1 for FAILURE 🤦‍♂�??
 int setup(){
 
   // setup ADC
@@ -167,7 +167,7 @@ int setup(){
   while (!LL_ADC_IsActiveFlag_ADRDY(ADC1));
   LL_DMA_SetPeriphAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)&ADC1->DR);
   LL_DMA_SetMemoryAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)adc_data);
-  LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_1, 3);
+  LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_1, 6);
   LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_1);
   LL_ADC_REG_StartConversion(ADC1);
 
@@ -186,12 +186,15 @@ int setup(){
   uint8_t counter = TRIES;
   while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
     print_bcc_status(bcc_error);
-    LL_mDelay(1000);
+    write_LED(1);
+    LL_mDelay(500);
+    write_LED(0);
+    LL_mDelay(500);
     bcc_error = BCC_Init(&(battery.drvConfig));
   }
   if (counter == 0){
     state = SHITDOWN;
-    print_lpuart("╭∩╮( •̀_·́ )╭∩╮ [Failed BCC_Init...]");
+    print_lpuart("╭∩�??( •�?_·́ )╭∩�?? [Failed BCC_Init...]");
     return -1;
   }
 
@@ -202,7 +205,7 @@ int setup(){
 
   bool succ = init_registers(&battery);
   if (!succ) {
-    print_lpuart("╭∩╮( •̀_·́ )╭∩╮ [Failed init_registers...]");
+    print_lpuart("╭∩�??( •�?_·́ )╭∩�?? [Failed init_registers...]");
     return -1;
   }
 
@@ -291,7 +294,7 @@ int main(void)
 
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
-  LL_mDelay(1000);
+  write_LED(1);
   // DMA1_Channel1_IRQn enabled
 
   if(setup() != 0) state = SHITDOWN;
@@ -330,7 +333,7 @@ int main(void)
 
   if(!state_system_check(true, true)){
     state = SHITDOWN;
-    print_lpuart("(,,>﹏<,,) [SysCheck failed. Shutting down]\n");
+    print_lpuart("(,,>�??<,,) [SysCheck failed. Shutting down]\n");
   }
   else state = STANDBY;
   /* USER CODE END 2 */
@@ -344,11 +347,11 @@ int main(void)
       state = PRECHARGE;
     }
     else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
-      print_lpuart("(,,>﹏<,,) [ts_active command, but state > STANDBY]\n");
+      print_lpuart("(,,>�??<,,) [ts_active command, but state > STANDBY]\n");
       state = PRECHARGE;
     }
     else if(!acu.ts_active){ // not sure if this is the correct move
-      print_lpuart("(,,>﹏<,,) [ts_active = 0; SHUTDOWN]\n");
+      print_lpuart("(,,>�??<,,) [ts_active = 0; SHUTDOWN]\n");
       state = SHITDOWN;
     }
 
@@ -364,6 +367,9 @@ int main(void)
       state = SHITDOWN;
     }
 
+    write_LED(1);
+    LL_mDelay(500);
+    write_LED(0);
     LL_mDelay(500);
 
     switch(state){
@@ -414,14 +420,15 @@ void SystemClock_Config(void)
   {
   }
   LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);
-  LL_RCC_HSI_Enable();
-   /* Wait till HSI is ready */
-  while(LL_RCC_HSI_IsReady() != 1)
+  LL_RCC_HSE_EnableBypass();
+  LL_RCC_HSE_Enable();
+   /* Wait till HSE is ready */
+  while(LL_RCC_HSE_IsReady() != 1)
   {
   }
 
-  LL_RCC_HSI_SetCalibTrimming(64);
-  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSI, LL_RCC_PLLM_DIV_1, 16, LL_RCC_PLLR_DIV_2);
+  LL_RCC_HSE_EnableCSS();
+  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_1, 32, LL_RCC_PLLR_DIV_2);
   LL_RCC_PLL_EnableDomain_SYS();
   LL_RCC_PLL_Enable();
    /* Wait till PLL is ready */

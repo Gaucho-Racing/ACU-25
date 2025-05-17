@@ -139,9 +139,16 @@ uint8_t fconstrain(float value);
 // void charger_check(ACU* acu); // check chgr_status
 
 // sets acu_SOC based on lowest cell voltage
-float calculate_acu_soc(ACU* acu); 
+float calculate_acu_soc(ACU* acu);
 
 // sets acu_GLV based on glv_volt?
-float calculate_glv_soc(ACU* acu); 
+float calculate_glv_soc(ACU* acu);
+
+// GPIO functions
+void write_bms_ok(bool state);
+void write_IRneg(bool state);
+void write_IRpos(bool state);
+void write_prechg(bool state);
+void write_LED(bool state);
 
 #endif

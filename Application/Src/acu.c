@@ -807,3 +807,58 @@ void print_errors_warning(ACU * acu){
     }
     print_lpuart("-----------------------------------------\n");
 }
+
+/// @brief writes the BMS OK signal to PC8
+/// @param state
+void write_bms_ok(bool state){
+    if (state){
+        LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_8);
+    }
+    else{
+        LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_8);
+    }
+}
+
+/// @brief writes the IR- signal to PC5
+/// @param state
+void write_IRneg(bool state){
+    if (state){
+        LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_5);
+    }
+    else{
+        LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_5);
+    }
+}
+
+/// @brief writes the IR+ signal to PC4
+/// @param state
+void write_IRpos(bool state){
+    if (state){
+        LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_4);
+    }
+    else{
+        LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_4);
+    }
+}
+
+/// @brief writes the precharge relay signal to PB0
+/// @param state
+void write_prechg(bool state){
+    if (state){
+        LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_0);
+    }
+    else{
+        LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_0);
+    }
+}
+
+/// @brief writes the debug LED signal to PA15
+/// @param state
+void write_LED(bool state){
+    if (state){
+        LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_15);
+    }
+    else{
+        LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_15);
+    }
+}
