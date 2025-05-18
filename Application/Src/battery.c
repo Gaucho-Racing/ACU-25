@@ -323,7 +323,7 @@ bool check_temp(Battery *bty){
     bty->cell_temp_errors = 0;
 
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
-        for(uint8_t j = 0; j < (NUM_CELL_IC); i++){
+        for(uint8_t j = 0; j < (NUM_CELL_IC); j++){
             // overtemp check
             if(bty->cell_temp[i*NUM_CELL_IC + j] > bty->max_temp_thresh){
                 bty->cell_temp_errors++;

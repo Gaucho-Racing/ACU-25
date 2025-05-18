@@ -533,7 +533,7 @@ bcc_status_t BCC_Reg_WriteTpl(bcc_drv_config_t* const drvConfig,
     }
 
     /* Check the echo frame. */
-    print_lpuart("from BCC_Reg_WriteTpl b4 BCC_CheckEchoFrame");
+    print_lpuart("from BCC_Reg_WriteTpl b4 BCC_CheckEchoFrame\n");
     return BCC_CheckEchoFrame(txBuf, drvConfig->drvData.rxBuf);
 }
 
