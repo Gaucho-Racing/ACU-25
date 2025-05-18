@@ -386,29 +386,29 @@ bool battery_check(Battery *bty, bool fullcheck){
 
     bcc_error = BCC_STATUS_SUCCESS;
     bool success = 1;
-    print_lpuart("battery_check 389\n");
-    if(fullcheck){ print_lpuart("battery_check 390\n");
+    // print_lpuart("battery_check 389\n");
+    if(fullcheck){ //print_lpuart("battery_check 390\n");
         bcc_error = read_device_measurements(bty, true, true);
         if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
     }
-    else if(cycle <= 7){ print_lpuart("battery_check 394\n");
+    else if(cycle <= 7){ //print_lpuart("battery_check 394\n");
         bcc_error = read_device_measurements(bty, false, true); // read temps only
         if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
     }
-    print_lpuart("battery_check 398\n");
-    // check temp ===> ISSUEE IS HERE< HANGING HERE
+    // print_lpuart("battery_check 398\n");
+    // check temp
     success = check_temp(bty);
     
-    print_lpuart("battery_check 402\n");
+    // print_lpuart("battery_check 402\n");
     // read volts
     bcc_error = read_device_measurements(bty, true, false); // read volts only
     // if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
 
-    print_lpuart("battery_check 407\n");
+    // print_lpuart("battery_check 407\n");
     // check volts
     success = check_volt(bty);
 
-    print_lpuart("battery_check 411\n");
+    // print_lpuart("battery_check 411\n");
     return success;
 }
 

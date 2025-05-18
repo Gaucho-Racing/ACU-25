@@ -362,9 +362,9 @@ bcc_status_t BCC_Reg_ReadTpl(bcc_drv_config_t* const drvConfig,
     /* Pointer to beginning of the received frame. */
     rxBuf = (uint8_t *)(drvConfig->drvData.rxBuf);
 
-    print_lpuart("bcc_comm 367\n");
+    // print_lpuart("bcc_comm 367\n");
     status = BCC_MCU_TransferTpl(drvConfig->drvInstance, txBuf, rxBuf, regCnt + 1);
-    print_lpuart("bcc_comm 369\n");
+    // print_lpuart("bcc_comm 369\n");
     if (status != BCC_STATUS_SUCCESS)
     {
         print_lpuart("LINE 370: bcc_communication.c\n");
@@ -401,7 +401,7 @@ bcc_status_t BCC_Reg_ReadTpl(bcc_drv_config_t* const drvConfig,
         /* Store data. */
         *regVal++ = BCC_GET_MSG_DATA(rxBuf);
     }
-    print_lpuart("bcc_comm 405\n");
+    // print_lpuart("bcc_comm 405\n");
     return BCC_STATUS_SUCCESS;
 }
 
@@ -525,7 +525,7 @@ bcc_status_t BCC_Reg_WriteTpl(bcc_drv_config_t* const drvConfig,
     BCC_PackFrame(regVal, regAddr, cid, BCC_CMD_WRITE, txBuf);
 
     status = BCC_MCU_TransferTpl(drvConfig->drvInstance, txBuf, drvConfig->drvData.rxBuf, 1);
-    print_lpuart("from BCC_Reg_WriteTpl line 528\n");
+    // print_lpuart("from BCC_Reg_WriteTpl line 528\n");
     if (status != BCC_STATUS_SUCCESS)
     {
         print_lpuart("status != BCC_STATUS_SUCCESS line 526\n");
@@ -533,7 +533,7 @@ bcc_status_t BCC_Reg_WriteTpl(bcc_drv_config_t* const drvConfig,
     }
 
     /* Check the echo frame. */
-    print_lpuart("from BCC_Reg_WriteTpl b4 BCC_CheckEchoFrame\n");
+    // print_lpuart("from BCC_Reg_WriteTpl b4 BCC_CheckEchoFrame\n");
     return BCC_CheckEchoFrame(txBuf, drvConfig->drvData.rxBuf);
 }
 

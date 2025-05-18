@@ -29,20 +29,22 @@ void acu_init(ACU * acu){
     acu->chg_ctrl = NO_CHARGE;
     acu->acuErrCount = 0;
     acu->acu_err_warns = 0;
+    update_adc_data(acu);
 
-    uint8_t count = 0;
-    while (fabsf(get_total_voltage(acu) - 1.235f) > ERRMG_ISNS_VREF) {
-        // HV current too far from zero. Check hardware.
-        if (count > 10) {
-            for (uint8_t i = 0; i < NUM_TOTAL_IC; i++){
-                acu->bty->stack_voltage[i] = 1.235f; 
-            }
-            break;
-        }
-        count++;
-        LL_mDelay(500);
-        update_adc_data(acu);
-    }
+    // fix later
+    // uint8_t count = 0;
+    // while (fabsf(get_total_voltage(acu) - 1.235f) > ERRMG_ISNS_VREF) {
+    //     // HV current too far from zero. Check hardware.
+    //     if (count > 10) {
+    //         for (uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+    //             acu->bty->stack_voltage[i] = 1.235f; 
+    //         }
+    //         break;
+    //     }
+    //     count++;
+    //     LL_mDelay(500);
+    //     update_adc_data(acu);
+    // }
 }
 
 /// @brief ACU check => current, glv voltage, shut down voltage, warnings
@@ -592,12 +594,12 @@ uint8_t fconstrain(float value){
 /// @brief updates adc_data[]
 /// @param acu 
 void update_adc_data(ACU* acu){
-    acu->ts_current = adc_data[0];
-    acu->ts_voltage = adc_data[1];
-    acu->sdc_volt_w = adc_data[2];
-    acu->sdc_volt_v = adc_data[3];
-    acu->voltage_12v = adc_data[4];
-    acu->water_sense = adc_data[5];
+    acu->ts_current = adc_data[0] * 0.0005f / 0.005f; // 5mV/A
+    acu->ts_voltage = adc_data[1] * 0.0005f * 400.0f; // 1:400 voltage divider
+    acu->sdc_volt_w = adc_data[2] * 0.0005f * 10.0f; // 1:10 voltage divider
+    acu->sdc_volt_v = adc_data[3] * 0.0005f * 10.0f; // 1:10 voltage divider
+    acu->voltage_12v = adc_data[4] * 0.0005f * 10.0f; // 1:10 voltage divider
+    acu->water_sense = adc_data[5] * 0.0005f;  // keep raw voltage
 }
 
 float calculate_acu_soc(ACU* acu){

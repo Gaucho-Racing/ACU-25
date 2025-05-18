@@ -55,7 +55,7 @@ bcc_status_t BCC_MCU_TransferTpl(const uint8_t drvInstance, uint8_t txBuf[], uin
         print_lpuart("failed bcc_send_string\n");
         return BCC_STATUS_SPI_FAIL;
     }
-    print_lpuart("done bcc_send_string, checking recieve\n");
+    // print_lpuart("done bcc_send_string, checking recieve\n");
     
     // receive
     for (uint16_t rxCount = 0; rxCount < recvTrCnt; rxCount++) {

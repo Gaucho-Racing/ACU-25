@@ -796,7 +796,7 @@ bcc_status_t BCC_Reg_Update(bcc_drv_config_t* const drvConfig,
     /* Update register value. */
     regValTemp = regValTemp & ~(regMask);
     regValTemp = regValTemp | (regVal & regMask);
-    print_lpuart("in regupdate\n");
+    // print_lpuart("in regupdate\n");
     return BCC_Reg_Write(drvConfig, cid, regAddr, regValTemp);
 }
 
@@ -1787,7 +1787,7 @@ bcc_status_t BCC_EEPROM_Read(bcc_drv_config_t* const drvConfig,
     regVal = MC33771C_EEPROM_CTRL_R_W(MC33771C_EEPROM_CTRL_R_W_READ_ENUM_VAL) |
              MC33771C_EEPROM_CTRL_EEPROM_ADD(addr);
     status = BCC_Reg_Write(drvConfig, cid, MC33771C_EEPROM_CTRL_OFFSET, regVal);
-    print_lpuart("eeprom read 1\n");
+    // print_lpuart("eeprom read 1\n");
     if (status != BCC_STATUS_SUCCESS)
     {
         return status;
