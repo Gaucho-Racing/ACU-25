@@ -35,7 +35,7 @@ void shitdown(){
     enqueue(ACU_Charger_Control, FDCAN3);
 
     //indicates to battery to stop charging
-    reset_discharge(&battery);
+    reset_discharge(&battery); // TODO: double check this
     
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
     uint16_t precharge_error = acu.acu_err_warns & ACU_PRECHARGE;

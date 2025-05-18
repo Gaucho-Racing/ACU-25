@@ -615,13 +615,11 @@ bcc_status_t BCC_SoftwareReset(bcc_drv_config_t* const drvConfig,
     if (cid == BCC_CID_UNASSIG)
     {
         /* TPL Global reset command. */
-        print_lpuart("cid == BCC_CID_UNASSIG\n");
         return BCC_Reg_WriteGlobal(drvConfig, MC33771C_SYS_CFG1_OFFSET,
                                    MC33771C_SYS_CFG1_SOFT_RST(MC33771C_SYS_CFG1_SOFT_RST_ACTIVE_ENUM_VAL));
     }
     else
     {
-        print_lpuart("cid != BCC_CID_UNASSIG\n");
         return BCC_Reg_Write(drvConfig, cid, MC33771C_SYS_CFG1_OFFSET,
                              MC33771C_SYS_CFG1_SOFT_RST(MC33771C_SYS_CFG1_SOFT_RST_ACTIVE_ENUM_VAL));
     }
@@ -796,7 +794,6 @@ bcc_status_t BCC_Reg_Update(bcc_drv_config_t* const drvConfig,
     /* Update register value. */
     regValTemp = regValTemp & ~(regMask);
     regValTemp = regValTemp | (regVal & regMask);
-    // print_lpuart("in regupdate\n");
     return BCC_Reg_Write(drvConfig, cid, regAddr, regValTemp);
 }
 
@@ -1404,7 +1401,6 @@ bcc_status_t BCC_Fault_ClearStatus(bcc_drv_config_t* const drvConfig,
     {
         return BCC_STATUS_PARAM_RANGE;
     }
-    print_lpuart("clearing faults\n");
     return BCC_Reg_Write(drvConfig, cid, regAddrMap[statSel], 0x0000U);
 }
 
@@ -1570,23 +1566,26 @@ bcc_status_t BCC_CB_SetIndividual(bcc_drv_config_t* const drvConfig,
     
     if ((cid == BCC_CID_UNASSIG) || (((uint8_t)cid) > drvConfig->devicesCnt))
     {
+        print_lpuart("(cid == BCC_CID_UNASSIG) or cid > drvConfig->devicesCnt\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 
     if (cellIndex >= BCC_MAX_CELLS_DEV(drvConfig->device[(uint8_t)cid - 1]))
     {
+        print_lpuart("cb: cellIndex issue\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 
     if (timer > MC33771C_CB1_CFG_CB_TIMER_MASK)
     {
+        print_lpuart("cb: timer issue\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 
     cbxCfgVal = enable ? MC33771C_CB1_CFG_CB_EN(MC33771C_CB1_CFG_CB_EN_ENABLED_ENUM_VAL) 
                        : MC33771C_CB1_CFG_CB_EN(MC33771C_CB1_CFG_CB_EN_DISABLED_ENUM_VAL);
     cbxCfgVal |= MC33771C_CB1_CFG_CB_TIMER(timer);
-    print_lpuart("cell balancing func\n");
+    print_lpuart("in BCC_CB_SetIndividual, calling BCC_Reg_Write\n");
     return BCC_Reg_Write(drvConfig, cid, MC33771C_CB1_CFG_OFFSET + cellIndex, cbxCfgVal);
 }
 

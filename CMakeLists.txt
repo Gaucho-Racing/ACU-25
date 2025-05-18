@@ -46,7 +46,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # get rid of unused-parameter
-target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wno-unused-parameter -Wno-pedantic -Wtrigraphs)
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wno-unused-parameter -Wno-pedantic -Wtrigraphs -Wno-dev)
 
 # Add source files from Application/Src
 file(GLOB_RECURSE APP_SOURCES Application/Src/*.c)

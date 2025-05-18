@@ -159,7 +159,7 @@ void print_lpuart(char* arr) {
 }
 
 /// @brief setup function
-/// @return 0 for success, 1 for FAILURE 🤦‍♂�???
+/// @return 0 for success, 1 for FAILURE 🤦‍♂�???
 int setup(){
 
   // setup ADC
@@ -192,7 +192,7 @@ int setup(){
   }
   if (counter == 0){
     state = SHITDOWN;
-    print_lpuart("╭∩�????( •�?_·́ )╭∩�???? [Failed BCC_Init...]\n");
+    print_lpuart("(¬_¬\") [Failed BCC_Init...]\n");
     return -1;
   }
   print_lpuart("💎 [Successful BCC_Init...]\n");
@@ -304,7 +304,7 @@ int main(void)
   print_lpuart("calling setup() after this statement\n");
   if(setup() != 0) state = SHITDOWN;
   
-  reset_discharge(&battery); /// TODO: UNCOMMENT THIS OUT LATER
+  reset_discharge(&battery);
   print_lpuart("finished resetting dicharge\n");
   
   // Configure TxHeader
@@ -340,7 +340,7 @@ int main(void)
   print_lpuart("calling state_system_check\n");
   if(!state_system_check(true, true)){
     state = SHITDOWN;
-    print_lpuart("(,,>�???<,,) [SysCheck failed. Shutting down]\n");
+    print_lpuart("(¬_¬\") [SysCheck failed. Shutting down]\n");
   }
   else state = STANDBY;
   print_lpuart("finished state_system_check\n");
@@ -359,11 +359,11 @@ int main(void)
       state = PRECHARGE;
     }
     else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
-      print_lpuart("(,,>�???<,,) [ts_active command, but state > STANDBY]\n");
+      print_lpuart("(¬_¬\") [ts_active command, but state > STANDBY]\n");
       state = PRECHARGE;
     }
     else if(!acu.ts_active){ // not sure if this is the correct move
-      print_lpuart("(,,>�???<,,) [ts_active = 0; SHUTDOWN]\n");
+      print_lpuart("(¬_¬\") [ts_active = 0; SHUTDOWN]\n");
       state = SHITDOWN;
     }
 

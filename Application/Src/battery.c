@@ -20,7 +20,7 @@ uint8_t bcc_read_string(uint8_t *buffer, uint16_t length){
         uint32_t counter = 0;
         while (TPL_RxBufferLevel == 0) {
             BCC_MCU_WaitUs(1);
-            if(counter++ > SPI_LOOP_TIMEOUT + 1000) { // TODO: uncomment this later
+            if(counter++ > SPI_LOOP_TIMEOUT + 1000) { // TODO: remove 1000
                 print_lpuart("spi timeout from loop\n");
                 return 1;
             }
@@ -112,6 +112,7 @@ void print_volt(const float * voltages, const uint8_t cid, uint8_t index){
 
 /// @brief turn off cell_balancing for all cells
 /// @param bty 
+// TODO: review this
 void reset_discharge(Battery * bty){
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
     {
@@ -196,7 +197,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
                 uint8_t readByte;
                 bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
-                    bty->cell_temp[i*NUM_CELL_IC + j] = (float)(readByte * 0.1f);
+                    bty->cell_temp[(i*NUM_CELL_IC)+j] = (float)(readByte * 0.1f);
                     bty->max_cell_temp = fmaxf(bty->max_cell_temp, bty->cell_temp[(i*NUM_CELL_IC)+j]);
                     bty->min_cell_temp = fminf(bty->min_cell_temp, bty->cell_temp[(i*NUM_CELL_IC)+j]);
                 }
@@ -219,13 +220,14 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 /// @brief checks which cells need to be discharged
 /// @param bty hopefully not a cooked battery
 /// @return True if success, False otherwise
+// TODO: review this
 bool do_cell_balancing(Battery * bty){
 
     float threshold = (bty->min_cell_volt + bty->max_cell_volt)/2;
     bcc_error = BCC_STATUS_SUCCESS;
     
     // turn off cell balancing
-    reset_discharge(bty);
+    reset_discharge(bty); // TODO: check this
 
     // cell balancing ~
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
@@ -258,6 +260,7 @@ bool do_cell_balancing(Battery * bty){
 /// @param all configure all?
 /// @param enable turn on or off?
 /// @return status from configuration
+// TODO: review this
 bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable)
 {
     bcc_error = BCC_STATUS_SUCCESS;
@@ -268,19 +271,18 @@ bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellInd
             for(uint8_t j = 0; j < NUM_CELL_IC; j++){
 
                 bcc_status_t errors;
-                bty->cell_balancing[i*NUM_CELL_IC+j] = 0;
+                bty->cell_balancing[(i*NUM_CELL_IC)+j] = 0;
                 if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)(i+1), j, true, 0)) != BCC_STATUS_SUCCESS){
-                    print_lpuart("failed BCC_CB_SetIndividual\n");
+                    print_lpuart("config_cell_balancing: line 273\n");
                     print_bcc_status(errors);
                     bcc_error = errors;
                 }
-                bty->cell_balancing[i*NUM_CELL_IC+j] = enable == true ? 255 : 0;
+                bty->cell_balancing[(i*NUM_CELL_IC)+j] = enable == true ? 255 : 0;
             }
         }
         return bcc_error;
     }
     else{
-
         // sanity check
         if(cellIndex >= NUM_CELL_IC){
             print_lpuart("Invalid cell index");
@@ -288,8 +290,8 @@ bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellInd
         }
 
         // set individuals
-        if((bcc_error = BCC_CB_SetIndividual(&(bty->drvConfig), cid, cellIndex, enable, 0)) != BCC_STATUS_SUCCESS) {
-            print_lpuart("Failed BCC_CB_SetIndividual\n");
+        if((bcc_error = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)(cid+1), cellIndex, enable, 0)) != BCC_STATUS_SUCCESS) {
+            print_lpuart("config_cell_balancing: line 292\n");
             return bcc_error;
         }
         bty->cell_balancing[(uint8_t)cid*cellIndex+cellIndex] = enable == true ? 255 : 0;
@@ -297,21 +299,26 @@ bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellInd
     return bcc_error;
 }
 
+/// @brief initialize cell balancing
+/// @param bty 
+/// @return 0 if failure, 1 if success
 bool init_cell_balancing(Battery * bty){
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
     {
-        if((BCC_CB_Enable(&(bty->drvConfig), (bcc_cid_t)(i+1),  true)) != BCC_STATUS_SUCCESS) {
+        bcc_error = BCC_CB_Enable(&(bty->drvConfig), (bcc_cid_t)(i+1),  true);
+        if(bcc_error != BCC_STATUS_SUCCESS) {
             for(uint8_t j = 0; j < NUM_CELL_IC; j++){
                 bty->cell_balancing[i*NUM_CELL_IC+j] = 100;
             }
-            print_lpuart("CELL BALANCING SETUP ISSUE\n");
+            print_lpuart("init_cell_balancing issue: ");
+            print_bcc_status(bcc_error);
             return 0;
         }
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
             bty->cell_balancing[i*NUM_CELL_IC+j] = 0;
         }
     }
-    print_lpuart("CELL BALANCING init ok\n");
+    print_lpuart("pass init_cell_balancing\n");
     return 1;
 }
 
@@ -386,29 +393,23 @@ bool battery_check(Battery *bty, bool fullcheck){
 
     bcc_error = BCC_STATUS_SUCCESS;
     bool success = 1;
-    // print_lpuart("battery_check 389\n");
-    if(fullcheck){ //print_lpuart("battery_check 390\n");
+    if(fullcheck){
         bcc_error = read_device_measurements(bty, true, true);
         if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
     }
-    else if(cycle <= 7){ //print_lpuart("battery_check 394\n");
+    else if(cycle <= 7){ 
         bcc_error = read_device_measurements(bty, false, true); // read temps only
         if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
     }
-    // print_lpuart("battery_check 398\n");
     // check temp
     success = check_temp(bty);
     
-    // print_lpuart("battery_check 402\n");
     // read volts
     bcc_error = read_device_measurements(bty, true, false); // read volts only
-    // if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
 
-    // print_lpuart("battery_check 407\n");
     // check volts
     success = check_volt(bty);
 
-    // print_lpuart("battery_check 411\n");
     return success;
 }
 

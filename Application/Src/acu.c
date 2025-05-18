@@ -572,9 +572,9 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
 /// @return total voltage as a float
 float get_total_voltage(ACU* acu){
     float total = 0.0;
-    for(int i = 0; i < NUM_TOTAL_IC; i++){
-        for(int j = 0; j < NUM_CELL_IC; j++){
-            total += acu->bty->cell_volt[i*NUM_CELL_IC+j];
+    for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+        for(uint8_t j = 0; j < NUM_CELL_IC; j++){
+            total += acu->bty->cell_volt[(i*NUM_CELL_IC)+j];
         }
     }
     return total;

@@ -292,16 +292,16 @@ void SPI2_IRQHandler(void)
 {
   /* USER CODE BEGIN SPI2_IRQn 0 */
   if (TPL_RxBufferLevel == 255U) return;
-  // if (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {
-  //   print_lpuart("This shouldn't happen...\n");
-  //   return;
-  // }
   /* USER CODE END SPI2_IRQn 0 */
   /* USER CODE BEGIN SPI2_IRQn 1 */
   if (LL_SPI_IsActiveFlag_RXNE(SPI2)){
     TPL_RxBuffer[TPL_RxBufferTop] = LL_SPI_ReceiveData8(SPI2);
     TPL_RxBufferLevel++;
     TPL_RxBufferTop++;
+  }
+  else{
+    print_lpuart("This shouldn't happen...\n");
+    return;
   }
   
   /* USER CODE END SPI2_IRQn 1 */

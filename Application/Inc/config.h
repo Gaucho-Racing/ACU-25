@@ -1,9 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define NUM_TOTAL_IC 1
-#define REAL_NUM_TOTAL_IC 10 // only used in defining struct so no mem leaks LOL
-#define NUM_CELL_IC 14
+#define NUM_TOTAL_IC 1U
+#define REAL_NUM_TOTAL_IC 10U // only used in defining struct so no mem leaks LOL
+#define NUM_CELL_IC 14U
 
 #define INIT_REG_CNT 45
 #define GPIO_CFG1 0.0f
