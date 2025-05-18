@@ -4,12 +4,12 @@ extern uint8_t cycle;
 extern uint8_t bcc_cooked_count;
 extern bcc_status_t bcc_error;
 extern void print_lpuart(char* arr);
+extern void write_LED(bool state);
 extern void print_bcc_status(bcc_status_t stat);
 
 extern volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data => Replace with struct holding CAN RxBuffer
 extern volatile uint8_t TPL_RxBufferLevel; // Number of bytes to be read
 extern volatile uint8_t TPL_RxBufferBottom; // Index of oldest data
-
 
 /// @brief for bcc spi read
 /// @param buffer 
@@ -17,16 +17,20 @@ extern volatile uint8_t TPL_RxBufferBottom; // Index of oldest data
 /// @return 0 for success, 1 for FAILURE 🤦‍♂️
 uint8_t bcc_read_string(uint8_t *buffer, uint16_t length){
     for (uint16_t i = 0; i < length; i++) {
-      uint32_t counter = 0;
-      while (TPL_RxBufferLevel == 0) {
-        if(counter++ > SPI_LOOP_TIMEOUT) {
-          return 1;
+        uint32_t counter = 0;
+        while (TPL_RxBufferLevel == 0) {
+            BCC_MCU_WaitUs(1);
+            if(counter++ > SPI_LOOP_TIMEOUT + 1000) { // TODO: uncomment this later
+                print_lpuart("spi timeout from loop\n");
+                return 1;
+            }
+            // BCC_MCU_WaitUs(1);
         }
-        BCC_MCU_WaitUs(1);
-      }
-      buffer[i] = TPL_RxBuffer[TPL_RxBufferBottom];
-      TPL_RxBufferBottom++;
-      TPL_RxBufferLevel--;
+        __disable_irq();
+        buffer[i] = TPL_RxBuffer[TPL_RxBufferBottom];
+        TPL_RxBufferBottom++;
+        TPL_RxBufferLevel--;
+        __enable_irq();
     }
     return 0;
   }
@@ -35,23 +39,24 @@ uint8_t bcc_read_string(uint8_t *buffer, uint16_t length){
   /// @param data 
   /// @param length 
   /// @return 0 for success, 1 for FAILURE 🤦‍♂️
-  uint8_t bcc_send_string(const uint8_t *data, uint16_t length) {
+uint8_t bcc_send_string(const uint8_t *data, uint16_t length) {
     uint32_t counter = 0;
     BCC_MCU_WriteCsbPin(0, 0); // CS LOW
     BCC_MCU_WaitUs(2); // delay required by MC33664
     while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {
-      if(counter++ > SPI_LOOP_TIMEOUT) return 1;
-      BCC_MCU_WaitUs(1);
+        if(counter++ > SPI_LOOP_TIMEOUT) return 1;
+        BCC_MCU_WaitUs(1);
     }
     for (uint16_t i = 0; i < length; i++) {
-      LL_SPI_TransmitData8(SPI1, data[i]);
-      BCC_MCU_WaitUs(3); // don't know why but seems we need this
+        while(!LL_SPI_IsActiveFlag_TXE(SPI1));
+        LL_SPI_TransmitData8(SPI1, data[i]);
     }
+    
     while (LL_SPI_IsActiveFlag_BSY(SPI1));
     BCC_MCU_WaitUs(1); // delay required by MC33664
     BCC_MCU_WriteCsbPin(0, 1); // CS HIGH
     return 0;
-  }
+}
   
 
 void clear_faults(bcc_drv_config_t * drvConfig)
@@ -159,17 +164,6 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             bzero(measurements, sizeof(measurements));
             bcc_error = BCC_Meas_GetStackVoltage(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
             bty->stack_voltage[i] = *measurements * 1e-6f; // theres ~ .3 difference from manual calcs
-
-            // RIP debugging
-            #ifdef DEBUGG
-            float manual_totaled = 0;
-            char buff_read[32], buff[32], buff_man[32];
-            for (uint8_t j = 0; j < NUM_CELL_IC; j++) manual_totaled += bty->cell_volt[(i*NUM_CELL_IC)+j];
-            sprintf(buff_man, "Manual Stack Volt: %.3f\n", manual_totaled);
-            sprintf(buff_read, "Read Stack Volt: %.3f\n", bty->stackVoltage[i]);
-            sprintf(buff, "read - manual: %.3f\n", (bty->stackVoltage[i] - manual_totaled));
-            print_lpuart(buff_man); print_lpuart(buff_read); print_lpuart(buff);
-            #endif
             
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
@@ -186,13 +180,6 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             bzero(temp_measures, sizeof(temp_measures));
             bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, temp_measures);
             bty->icTemp[i] = temp_measures[i] * 0.1f;
-
-            // // RIP debugging
-            #ifdef DEBUGG
-                char buffer[32];
-                sprintf(buffer, "Read IC Temp: %.3f\n", bty->icTemp[i]);
-                print_lpuart(buffer);
-            #endif
 
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
@@ -317,13 +304,14 @@ bool init_cell_balancing(Battery * bty){
             for(uint8_t j = 0; j < NUM_CELL_IC; j++){
                 bty->cell_balancing[i*NUM_CELL_IC+j] = 100;
             }
-            print_lpuart("CELL BALANCING SETUP ISSuE\n");
+            print_lpuart("CELL BALANCING SETUP ISSUE\n");
             return 0;
         }
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
             bty->cell_balancing[i*NUM_CELL_IC+j] = 0;
         }
     }
+    print_lpuart("CELL BALANCING init ok\n");
     return 1;
 }
 
@@ -398,26 +386,29 @@ bool battery_check(Battery *bty, bool fullcheck){
 
     bcc_error = BCC_STATUS_SUCCESS;
     bool success = 1;
-
-    if(fullcheck){
+    print_lpuart("battery_check 389\n");
+    if(fullcheck){ print_lpuart("battery_check 390\n");
+        bcc_error = read_device_measurements(bty, true, true);
+        if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
+    }
+    else if(cycle <= 7){ print_lpuart("battery_check 394\n");
         bcc_error = read_device_measurements(bty, false, true); // read temps only
         if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
     }
-    else if(cycle <= 7){
-        bcc_error = read_device_measurements(bty, false, true); // read temps only
-        if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
-    }
-
-    // check temp
+    print_lpuart("battery_check 398\n");
+    // check temp ===> ISSUEE IS HERE< HANGING HERE
     success = check_temp(bty);
-
+    
+    print_lpuart("battery_check 402\n");
     // read volts
     bcc_error = read_device_measurements(bty, true, false); // read volts only
-    if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
+    // if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
 
+    print_lpuart("battery_check 407\n");
     // check volts
     success = check_volt(bty);
 
+    print_lpuart("battery_check 411\n");
     return success;
 }
 

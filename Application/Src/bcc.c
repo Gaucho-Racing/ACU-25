@@ -9,6 +9,9 @@
  ******************************************************************************/
 
 #include "bcc_communication.h"
+extern void print_bcc_status(bcc_status_t stat);
+extern void print_lpuart(char* arr);
+extern void write_LED(bool state);
 
 /*******************************************************************************
  * Definitions
@@ -283,6 +286,7 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
     status = BCC_Reg_Read(drvConfig, BCC_CID_UNASSIG, MC33771C_INIT_OFFSET, 1U, &readVal);
     if ((status != BCC_STATUS_SUCCESS) && (status != BCC_STATUS_COM_NULL))
     {
+        print_lpuart("FAILED BCC_Reg_Read\n");
         return status;
     }
 
@@ -320,8 +324,7 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
             writeVal |= MC33772C_INIT_BUS_FW(MC33772C_INIT_BUS_FW_ENABLED_ENUM_VAL);
         }
     }
-
-    status = BCC_Reg_Write(drvConfig, BCC_CID_UNASSIG, MC33771C_INIT_OFFSET, writeVal);
+    status = BCC_Reg_Write(drvConfig, BCC_CID_UNASSIG, MC33771C_INIT_OFFSET, writeVal); 
     if (status == BCC_STATUS_SUCCESS)
     {
         /* Store the last received message counter value from device with CID=0
@@ -340,7 +343,6 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
             status = BCC_STATUS_SPI_FAIL;
         }
     }
-
     if (status != BCC_STATUS_SUCCESS)
     {
         /* Wait and try to assign CID once again. */
@@ -360,6 +362,7 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
             /* Check the written data. */
             if ((status == BCC_STATUS_SUCCESS) && (writeVal != readVal))
             {
+                print_lpuart("FAILED = BCC_STATUS_SPI_FAIL, line 367\n");
                 status = BCC_STATUS_SPI_FAIL;
             }
         }
@@ -391,7 +394,6 @@ static bcc_status_t BCC_InitDevices(bcc_drv_config_t* const drvConfig)
      * not performed as only INIT register of uninitialized devices can be
      * written by the pack controller. */
     (void)BCC_SoftwareReset(drvConfig, (drvConfig->commMode == BCC_MODE_TPL) ? BCC_CID_UNASSIG : BCC_CID_DEV1);
-
     /* Wait for 5 ms - for the IC to be ready for initialization. */
     BCC_MCU_WaitMs(BCC_T_VPWR_READY_MS);
 
@@ -400,6 +402,7 @@ static bcc_status_t BCC_InitDevices(bcc_drv_config_t* const drvConfig)
     status = BCC_AssignCid(drvConfig, BCC_CID_DEV1);
     if (status != BCC_STATUS_SUCCESS)
     {
+        print_lpuart("failed BCC_AssignCid\n");
         return status;
     }
 
@@ -418,10 +421,10 @@ static bcc_status_t BCC_InitDevices(bcc_drv_config_t* const drvConfig)
         status = BCC_AssignCid(drvConfig, (bcc_cid_t)cid);
         if (status != BCC_STATUS_SUCCESS)
         {
+            print_lpuart("BAD BCC_AssignCid for at least one CID\n");
             return status;
         }
     }
-
     return status;
 }
 
@@ -612,11 +615,13 @@ bcc_status_t BCC_SoftwareReset(bcc_drv_config_t* const drvConfig,
     if (cid == BCC_CID_UNASSIG)
     {
         /* TPL Global reset command. */
+        print_lpuart("cid == BCC_CID_UNASSIG\n");
         return BCC_Reg_WriteGlobal(drvConfig, MC33771C_SYS_CFG1_OFFSET,
                                    MC33771C_SYS_CFG1_SOFT_RST(MC33771C_SYS_CFG1_SOFT_RST_ACTIVE_ENUM_VAL));
     }
     else
     {
+        print_lpuart("cid != BCC_CID_UNASSIG\n");
         return BCC_Reg_Write(drvConfig, cid, MC33771C_SYS_CFG1_OFFSET,
                              MC33771C_SYS_CFG1_SOFT_RST(MC33771C_SYS_CFG1_SOFT_RST_ACTIVE_ENUM_VAL));
     }
@@ -758,7 +763,6 @@ bcc_status_t BCC_Reg_WriteGlobal(bcc_drv_config_t* const drvConfig,
 {
     BCC_MCU_Assert(drvConfig != NULL);
     BCC_MCU_Assert(drvConfig->commMode == BCC_MODE_TPL);
-
     return BCC_Reg_WriteGlobalTpl(drvConfig, regAddr, regVal);
 }
 
@@ -792,7 +796,7 @@ bcc_status_t BCC_Reg_Update(bcc_drv_config_t* const drvConfig,
     /* Update register value. */
     regValTemp = regValTemp & ~(regMask);
     regValTemp = regValTemp | (regVal & regMask);
-
+    print_lpuart("in regupdate\n");
     return BCC_Reg_Write(drvConfig, cid, regAddr, regValTemp);
 }
 
@@ -1400,7 +1404,7 @@ bcc_status_t BCC_Fault_ClearStatus(bcc_drv_config_t* const drvConfig,
     {
         return BCC_STATUS_PARAM_RANGE;
     }
-
+    print_lpuart("clearing faults\n");
     return BCC_Reg_Write(drvConfig, cid, regAddrMap[statSel], 0x0000U);
 }
 
@@ -1563,7 +1567,7 @@ bcc_status_t BCC_CB_SetIndividual(bcc_drv_config_t* const drvConfig,
     uint16_t cbxCfgVal;
 
     BCC_MCU_Assert(drvConfig != NULL);
-
+    
     if ((cid == BCC_CID_UNASSIG) || (((uint8_t)cid) > drvConfig->devicesCnt))
     {
         return BCC_STATUS_PARAM_RANGE;
@@ -1582,7 +1586,7 @@ bcc_status_t BCC_CB_SetIndividual(bcc_drv_config_t* const drvConfig,
     cbxCfgVal = enable ? MC33771C_CB1_CFG_CB_EN(MC33771C_CB1_CFG_CB_EN_ENABLED_ENUM_VAL) 
                        : MC33771C_CB1_CFG_CB_EN(MC33771C_CB1_CFG_CB_EN_DISABLED_ENUM_VAL);
     cbxCfgVal |= MC33771C_CB1_CFG_CB_TIMER(timer);
-
+    print_lpuart("cell balancing func\n");
     return BCC_Reg_Write(drvConfig, cid, MC33771C_CB1_CFG_OFFSET + cellIndex, cbxCfgVal);
 }
 
@@ -1596,7 +1600,6 @@ bcc_status_t BCC_CB_Pause(bcc_drv_config_t* const drvConfig,
     const bcc_cid_t cid, const bool pause)
 {
     BCC_MCU_Assert(drvConfig != NULL);
-
     if ((cid == BCC_CID_UNASSIG) || (((uint8_t)cid) > drvConfig->devicesCnt))
     {
         return BCC_STATUS_PARAM_RANGE;
@@ -1784,6 +1787,7 @@ bcc_status_t BCC_EEPROM_Read(bcc_drv_config_t* const drvConfig,
     regVal = MC33771C_EEPROM_CTRL_R_W(MC33771C_EEPROM_CTRL_R_W_READ_ENUM_VAL) |
              MC33771C_EEPROM_CTRL_EEPROM_ADD(addr);
     status = BCC_Reg_Write(drvConfig, cid, MC33771C_EEPROM_CTRL_OFFSET, regVal);
+    print_lpuart("eeprom read 1\n");
     if (status != BCC_STATUS_SUCCESS)
     {
         return status;
@@ -1869,6 +1873,7 @@ bcc_status_t BCC_EEPROM_Write(bcc_drv_config_t* const drvConfig,
              MC33771C_EEPROM_CTRL_EEPROM_ADD(addr) |
              MC33771C_EEPROM_CTRL_DATA_TO_WRITE(data);
     status = BCC_Reg_Write(drvConfig, cid, MC33771C_EEPROM_CTRL_OFFSET, regVal);
+    print_lpuart("eeprom write 1\n");
     if (status != BCC_STATUS_SUCCESS)
     {
         return status;

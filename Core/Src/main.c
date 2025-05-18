@@ -180,23 +180,22 @@ int setup(){
     battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
     battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
   }
-  
   // init bcc
   bcc_error = BCC_Init(&(battery.drvConfig));
   uint8_t counter = TRIES;
   while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
     print_bcc_status(bcc_error);
-    write_LED(1);
-    LL_mDelay(500);
     write_LED(0);
     LL_mDelay(500);
+    write_LED(1);
     bcc_error = BCC_Init(&(battery.drvConfig));
   }
   if (counter == 0){
     state = SHITDOWN;
-    print_lpuart("╭∩�??( •�?_·́ )╭∩�?? [Failed BCC_Init...]");
+    print_lpuart("╭∩�???( •�?_·́ )╭∩�??? [Failed BCC_Init...]\n");
     return -1;
   }
+  print_lpuart("💎 [Successful BCC_Init...]\n");
 
   battery.min_temp_thresh = CELL_MIN_TEMP;
   battery.max_temp_thresh = CELL_MAX_TEMP;
@@ -205,21 +204,27 @@ int setup(){
 
   bool succ = init_registers(&battery);
   if (!succ) {
-    print_lpuart("╭∩�??( •�?_·́ )╭∩�?? [Failed init_registers...]");
+    print_lpuart("[Failed init_registers...]\n");
     return -1;
   }
 
   clear_faults(&(battery.drvConfig));
-  print_lpuart("💎 [Successful BCC_Init...]\n");
+  print_lpuart("[Successful clear_faults...]\n");
+  
 
   // cb & first battery check
   state = init_cell_balancing(&battery) && battery_check(&battery, true) == 1 ? STANDBY : SHITDOWN;
+  // EVERYTHING BEFORE & INCLUDING init_cell_balancing IS OK 
+  print_lpuart("line 218 in main: state = ....\n");
   if (state == SHITDOWN) return 0;
+  print_lpuart("init cell balance ok, not shitting down\n");
 
   // setup acu
   update_adc_data(&acu);
+  print_lpuart("updated adc data\n");
   acu_init(&acu);
   acu.bty = &battery;
+  print_lpuart("succesful acu_init\n");
 
   return 0;
 }
@@ -296,10 +301,12 @@ int main(void)
   LL_TIM_EnableCounter(TIM5);
   write_LED(1);
   // DMA1_Channel1_IRQn enabled
-
+  print_lpuart("calling setup() after this statement\n");
   if(setup() != 0) state = SHITDOWN;
-  reset_discharge(&battery);
-
+  
+  reset_discharge(&battery); /// TODO: UNCOMMENT THIS OUT LATER
+  print_lpuart("finished resetting dicharge\n");
+  
   // Configure TxHeader
   TxHeader.IdType = FDCAN_EXTENDED_ID;
   TxHeader.TxFrameType = FDCAN_DATA_FRAME;
@@ -330,18 +337,23 @@ int main(void)
   RxHeader.BitRateSwitch = FDCAN_BRS_OFF;
   RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   RxHeader.RxTimestamp = 0;/* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
-
+  print_lpuart("calling state_system_check\n");
   if(!state_system_check(true, true)){
     state = SHITDOWN;
     print_lpuart("(,,>�??<,,) [SysCheck failed. Shutting down]\n");
   }
   else state = STANDBY;
+  print_lpuart("finished state_system_check\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    write_LED(1);
+    LL_mDelay(100);
+    write_LED(0);
+    LL_mDelay(100);
     // check ts_active status
     if(acu.ts_active && state == STANDBY){
       state = PRECHARGE;
@@ -366,11 +378,6 @@ int main(void)
       enqueue(ACU_Status_2, FDCAN1);
       state = SHITDOWN;
     }
-
-    write_LED(1);
-    LL_mDelay(500);
-    write_LED(0);
-    LL_mDelay(500);
 
     switch(state){
       case (STANDBY):
@@ -420,15 +427,14 @@ void SystemClock_Config(void)
   {
   }
   LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);
-  LL_RCC_HSE_EnableBypass();
-  LL_RCC_HSE_Enable();
-   /* Wait till HSE is ready */
-  while(LL_RCC_HSE_IsReady() != 1)
+  LL_RCC_HSI_Enable();
+   /* Wait till HSI is ready */
+  while(LL_RCC_HSI_IsReady() != 1)
   {
   }
 
-  LL_RCC_HSE_EnableCSS();
-  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_1, 32, LL_RCC_PLLR_DIV_2);
+  LL_RCC_HSI_SetCalibTrimming(64);
+  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSI, LL_RCC_PLLM_DIV_1, 16, LL_RCC_PLLR_DIV_2);
   LL_RCC_PLL_EnableDomain_SYS();
   LL_RCC_PLL_Enable();
    /* Wait till PLL is ready */
@@ -515,6 +521,23 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
         }
     }
 }
+
+// void SPI2_Lock(void) {
+//   __disable_irq();
+//   if (spi2_lock) {
+//       __enable_irq();
+//       return; // Or spin, or return error
+//   }
+//   spi2_lock = 1;
+//   __enable_irq();
+// }
+
+// void SPI2_Unlock(void) {
+//   __disable_irq();
+//   spi2_lock = 0;
+//   __enable_irq();
+// }
+
 /* USER CODE END 4 */
 
 /**

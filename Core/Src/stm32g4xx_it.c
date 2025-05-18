@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "config.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -291,15 +292,18 @@ void SPI2_IRQHandler(void)
 {
   /* USER CODE BEGIN SPI2_IRQn 0 */
   if (TPL_RxBufferLevel == 255U) return;
-  if (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {
-    print_lpuart("This shouldn't happen...");
-    return;
-  }
+  // if (!LL_SPI_IsActiveFlag_RXNE(SPI2)) {
+  //   print_lpuart("This shouldn't happen...\n");
+  //   return;
+  // }
   /* USER CODE END SPI2_IRQn 0 */
   /* USER CODE BEGIN SPI2_IRQn 1 */
-  TPL_RxBuffer[TPL_RxBufferTop] = LL_SPI_ReceiveData8(SPI2);
-  TPL_RxBufferLevel++;
-  TPL_RxBufferTop++;
+  if (LL_SPI_IsActiveFlag_RXNE(SPI2)){
+    TPL_RxBuffer[TPL_RxBufferTop] = LL_SPI_ReceiveData8(SPI2);
+    TPL_RxBufferLevel++;
+    TPL_RxBufferTop++;
+  }
+  
   /* USER CODE END SPI2_IRQn 1 */
 }
 

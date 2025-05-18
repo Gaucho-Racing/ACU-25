@@ -50,12 +50,18 @@ bcc_status_t BCC_MCU_TransferTpl(const uint8_t drvInstance, uint8_t txBuf[], uin
     memcpy(buffer, txBuf, 6);
 
     // send
-    if(bcc_send_string(txBuf, BCC_MSG_SIZE) != 0) return BCC_STATUS_SPI_FAIL;
+    
+    if(bcc_send_string(txBuf, BCC_MSG_SIZE) != 0) {
+        print_lpuart("failed bcc_send_string\n");
+        return BCC_STATUS_SPI_FAIL;
+    }
+    print_lpuart("done bcc_send_string, checking recieve\n");
+    
     // receive
     for (uint16_t rxCount = 0; rxCount < recvTrCnt; rxCount++) {
         memset(buffer, '\0', BCC_MSG_SIZE);
-
         if (bcc_read_string(buffer, BCC_MSG_SIZE) != 0){
+            print_lpuart("failed bcc_read_string\n");
             return BCC_STATUS_SPI_FAIL;
         }
         BCC_MCU_WaitUs(1);
