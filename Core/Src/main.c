@@ -53,6 +53,7 @@
 
 // trackers
 uint8_t cycle;
+uint32_t prev = 0;
 bcc_status_t bcc_error; 
 uint8_t bcc_cooked_count = 0;
 
@@ -159,7 +160,7 @@ void print_lpuart(char* arr) {
 }
 
 /// @brief setup function
-/// @return 0 for success, 1 for FAILURE 🤦‍♂�???
+/// @return 0 for success, 1 for FAILURE 🤦‍♂🥲
 int setup(){
 
   // setup ADC
@@ -204,27 +205,21 @@ int setup(){
 
   bool succ = init_registers(&battery);
   if (!succ) {
-    print_lpuart("[Failed init_registers...]\n");
+    print_lpuart("👹 [Failed init_registers...]\n");
     return -1;
   }
 
-  clear_faults(&(battery.drvConfig));
-  print_lpuart("[Successful clear_faults...]\n");
-  
+  clear_faults(&(battery.drvConfig));  
 
   // cb & first battery check
   state = init_cell_balancing(&battery) && battery_check(&battery, true) == 1 ? STANDBY : SHITDOWN;
-  // EVERYTHING BEFORE & INCLUDING init_cell_balancing IS OK 
-  print_lpuart("line 218 in main: state = ....\n");
   if (state == SHITDOWN) return 0;
-  print_lpuart("init cell balance ok, not shitting down\n");
 
   // setup acu
   update_adc_data(&acu);
-  print_lpuart("updated adc data\n");
   acu_init(&acu);
   acu.bty = &battery;
-  print_lpuart("succesful acu_init\n");
+  print_lpuart("🤖 completed setup()\n");
 
   return 0;
 }
@@ -301,11 +296,9 @@ int main(void)
   LL_TIM_EnableCounter(TIM5);
   write_LED(1);
   // DMA1_Channel1_IRQn enabled
-  print_lpuart("calling setup() after this statement\n");
   if(setup() != 0) state = SHITDOWN;
   
   reset_discharge(&battery);
-  print_lpuart("finished resetting dicharge\n");
   
   // Configure TxHeader
   TxHeader.IdType = FDCAN_EXTENDED_ID;
@@ -337,15 +330,17 @@ int main(void)
   RxHeader.BitRateSwitch = FDCAN_BRS_OFF;
   RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   RxHeader.RxTimestamp = 0; /* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
-  print_lpuart("calling state_system_check\n");
+
   if(!state_system_check(true, true)){
-    state = SHITDOWN;
-    print_lpuart("(¬_¬\") [SysCheck failed. Shutting down]\n");
+    #if DEBUGG == 0
+        state = SHITDOWN;
+        #endif
+    print_lpuart("(¬_¬\") [First state_system_check failed. SHIT]\n");
   }
   else {
     state = STANDBY;
   }
-  print_lpuart("finished state_system_check\n");
+  print_lpuart("👹 Passed non-loopty loop stuff\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -356,6 +351,11 @@ int main(void)
     LL_mDelay(100);
     write_LED(0);
     LL_mDelay(100);
+
+    #if DEBUGG == 1
+    print_lpuart("DEBUGG mode: currently in fake state machine");
+    #endif
+
     // check ts_active status
     if(acu.ts_active && state == STANDBY){
       state = PRECHARGE;
@@ -369,9 +369,11 @@ int main(void)
       state = SHITDOWN;
     }
 
+    #if DEBUGG == 1
     char twelve_v[30];
     sprintf(twelve_v, "12v: %.3f\n", acu.voltage_12v);
     print_lpuart(twelve_v);
+    #endif
 
     // READ: adc_data
     update_adc_data(&acu);
@@ -383,9 +385,10 @@ int main(void)
       enqueue(ACU_Status_1, FDCAN1);
       enqueue(ACU_Status_2, FDCAN1);
       enqueue(ACU_Status_2, FDCAN1);
+      #if DEBUGG == 0
       state = SHITDOWN;
+      #endif
     }
-
     switch(state){
       case (STANDBY):
         standby();
@@ -406,11 +409,13 @@ int main(void)
         state = SHITDOWN;
         break;
     }
-    // #ifdef DEBUGG
-    // if(curr - prev > 500){
-    //   debug();
-    // }
-    // #endif
+    #if SPAMPRINT == 1
+    uint32_t curr = HAL_GetTick();
+    if(curr - prev > 500){
+      prev = 
+      debug();
+    }
+    #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

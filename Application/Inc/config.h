@@ -1,7 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define DEBUGG 0
+#define DEBUGG 1
+#define SPAMPRINT 0
 
 #define NUM_TOTAL_IC 1U
 #define REAL_NUM_TOTAL_IC 10U // only used in defining struct so no mem leaks LOL

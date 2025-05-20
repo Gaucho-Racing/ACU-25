@@ -59,9 +59,10 @@ void standby(){
     update_adc_data(&acu);
     if(state_system_check(false, false) == false){
         print_lpuart("𝓕𝓾𝓬𝓴\n");
+        #if DEBUGG == 0
         state = SHITDOWN;
+        #endif
     }
-
     // update cycle
     cycle++;
     cycle = cycle % 8;
@@ -86,16 +87,20 @@ void precharge(){
     if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
         print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
         acu.acu_latch = 0;
+        #if DEBUGG == 0
         state = SHITDOWN;
         return;
+        #endif
     }
     else {acu.acu_latch = 1;}
     
     // system check
     if (!state_system_check(true, false)) {
         print_lpuart("¯\\_(ツ)_/¯ failed state_system_check\n");
+        #if DEBUGG == 0
         state = SHITDOWN;
         return;
+        #endif
     }
 
     // close AIR-
@@ -114,23 +119,29 @@ void precharge(){
 
         if (!state_system_check(false, false)) {
             print_lpuart("¯\\_(ツ)_/¯ PreCharge (ts_voltage) => Shutdown\n");
+            #if DEBUGG == 0
             state = SHITDOWN;
             return;
+            #endif
         }
 
         if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
             print_lpuart("¯\\_(ツ)_/¯ SDC voltage dropped while precharging!! Check connections\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2, FDCAN1);
+            #if DEBUGG == 0
             state = SHITDOWN;
             return;
+            #endif
         }
         if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
             print_lpuart("¯\\_(ツ)_/¯ Precharge timeout, error\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2,FDCAN1);
+            #if DEBUGG == 0
             state = SHITDOWN;
             return;
+            #endif
         }
 
         if(state != PRECHARGE){
@@ -146,8 +157,10 @@ void precharge(){
     // 3 seconds to check if we go to charge
     while (HAL_GetTick() - start_time < 3000) {
         if(!acu_check(&acu, false)){
+            #if DEBUGG == 0
             state = SHITDOWN;
             return;
+            #endif
         }
         // signal to go to charge!
         if(acu.chgr->chgr_status ^ CHARGER_COOMMMM){ // (if X ^ 1) => true
@@ -159,8 +172,10 @@ void precharge(){
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){
             print_lpuart("( ˶°ㅁ°) !! TS Voltage went down in Precharge\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
+            #if DEBUGG == 0
             state = SHITDOWN;
             return;
+            #endif
         }
         update_adc_data(&acu);
         LL_mDelay(50);
@@ -190,8 +205,10 @@ void charge(){
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
 
     if(!acu_check(&acu, false)){
+        #if DEBUGG == 0
         state = SHITDOWN;
         return;
+        #endif
     }
     
     if(HAL_GetTick() - last_charge_time >= 2000){
@@ -199,9 +216,11 @@ void charge(){
 
         last_charge_time = HAL_GetTick();
         if(!state_system_check(true, false)){
-            state = SHITDOWN;
             print_lpuart("( ˶°ㅁ°) !! Failed system check inside of charge\n");
+            #if DEBUGG == 0
+            state = SHITDOWN;
             return;
+            #endif
         }
         // do cell balancing
         do_cell_balancing(&battery); 
@@ -223,8 +242,10 @@ void charge(){
     //if no CAN data for 5 seconds, shut down
     if(HAL_GetTick() - acu.lastChrgRecieveTime > 5000){
         print_lpuart("( ˶°ㅁ°) !! CHARGE: Charger CAN timeout, shutting down");
+        #if DEBUGG == 0
         state = SHITDOWN;
         return;
+        #endif
     }
 
     // re-measure current sensor ref every 5 minutes
@@ -251,8 +272,10 @@ void normal(){
     print_lpuart("State: 💃");
     if(!state_system_check(false, false)){
         print_lpuart("( ˶°ㅁ°) !! SystemCheck failed in NORMAL state\n");
+        #if DEBUGG == 0
         state = SHITDOWN;
         return;
+        #endif
     }
 
     update_adc_data(&acu);
