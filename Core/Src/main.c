@@ -88,22 +88,22 @@ FDCAN_RxHeaderTypeDef RxHeader_Data;
 FDCAN_TxHeaderTypeDef TxHeader_Charger;
 FDCAN_RxHeaderTypeDef RxHeader_Charger;
 
-// communication queues - FDCAN
+// communication queues - FDCAN (ensure mods are atomic)
 volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 volatile uint8_t p_top = 0, p_bottom = 0, p_level = 0;
 volatile uint8_t d_top = 0, d_bottom = 0, d_level = 0;
 volatile uint8_t c_top = 0, c_bottom = 0, c_level = 0;
 
-// communication flags - FDCAN
+// communication flags - FDCAN (ensure mods are atomic)
 volatile uint8_t CAN_1_flag = 0;
 volatile uint8_t CAN_2_flag = 0;
 volatile uint8_t CAN_3_flag = 0;
 
-// SHARED BUFFER: all data enter in through this buffer
+// SHARED BUFFER: all data enter in through this buffer (ensure mods are atomic)
 uint8_t CAN_TxData[64];
 uint8_t CAN_RxData[64];
 
-// SHARED BUFFER: ACCESSIBLE BY INTERRUPT HANDLER AND DEV (ME!)
+// SHARED BUFFER: ACCESSIBLE BY INTERRUPT HANDLER AND DEV (ME!) (ensure mods are atomic)
 volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
 volatile uint8_t CAN_RxBufferLevel = 0; // tells you level = abs(top - bottom)
 volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data
@@ -281,7 +281,7 @@ int main(void)
   if (  (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
       || (HAL_FDCAN_Start(&hfdcan2) != HAL_OK)
       || ( HAL_FDCAN_Start(&hfdcan3) != HAL_OK)) {
-    print_lpuart("failed to HAL_FDCAN_Start");
+    print_lpuart("failed to HAL_FDCAN_Start\n");
   }
 
   // Activate interrupting capabilities
@@ -336,13 +336,15 @@ int main(void)
   RxHeader.DataLength = FDCAN_DLC_BYTES_8;
   RxHeader.BitRateSwitch = FDCAN_BRS_OFF;
   RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
-  RxHeader.RxTimestamp = 0;/* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
+  RxHeader.RxTimestamp = 0; /* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
   print_lpuart("calling state_system_check\n");
   if(!state_system_check(true, true)){
     state = SHITDOWN;
     print_lpuart("(¬_¬\") [SysCheck failed. Shutting down]\n");
   }
-  else state = STANDBY;
+  else {
+    state = STANDBY;
+  }
   print_lpuart("finished state_system_check\n");
   /* USER CODE END 2 */
 
@@ -367,12 +369,17 @@ int main(void)
       state = SHITDOWN;
     }
 
+    char twelve_v[30];
+    sprintf(twelve_v, "12v: %.3f\n", acu.voltage_12v);
+    print_lpuart(twelve_v);
+
     // READ: adc_data
     update_adc_data(&acu);
 
     // SYSTEM CHECK
     bool b_check = battery_check(&battery, true);
     if(b_check == false){
+      print_lpuart("b_check is false, failed battery_check\n");
       enqueue(ACU_Status_1, FDCAN1);
       enqueue(ACU_Status_2, FDCAN1);
       enqueue(ACU_Status_2, FDCAN1);
@@ -399,11 +406,11 @@ int main(void)
         state = SHITDOWN;
         break;
     }
-    #ifdef DEBUGG
-    if(curr - prev > 500){
-      debug();
-    }
-    #endif
+    // #ifdef DEBUGG
+    // if(curr - prev > 500){
+    //   debug();
+    // }
+    // #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -486,32 +493,28 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
     {
         // if buffer full, then skip
         if(CAN_RxBufferLevel == 255U) return;
+
         // Retrieve the message from FIFO 0
         if (HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, CAN_RxData) == HAL_OK)
         {
-            // Process received data
-            #ifdef DEBUGG
-              print_lpuart("Recieved CAN message!\n");
-            #endif
-            
             CAN_RxBuffer[CAN_RxBufferTop].identifier = RxHeader.Identifier;
             CAN_RxBuffer[CAN_RxBufferTop].length = RxHeader.DataLength;
             CAN_RxBuffer[CAN_RxBufferTop].instance = hfdcan->Instance;
 
-            #ifdef DEBUGG
-              // do the printing
-              uint8_t headerBuff[64], dataBuff[8];
-              sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
-              print_lpuart(headerBuff);
-              for (uint32_t i = 0; i < RxHeader.DataLength; i++)
-              {
-                  sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
-                  print_lpuart(dataBuff);
-                  bzero((void *)dataBuff, 8);
-              }
-              sprintf(dataBuff, "\n");
-              print_lpuart(dataBuff);
-            #endif
+            // #if DEBUGG = 1
+            //   // do the printing
+            //   uint8_t headerBuff[64], dataBuff[8];
+            //   sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
+            //   print_lpuart(headerBuff);
+            //   for (uint32_t i = 0; i < RxHeader.DataLength; i++)
+            //   {
+            //       sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
+            //       print_lpuart(dataBuff);
+            //       bzero((void *)dataBuff, 8);
+            //   }
+            //   sprintf(dataBuff, "\n");
+            //   print_lpuart(dataBuff);
+            // #endif
 
             // copy the data
             bzero((void *)CAN_RxBuffer[CAN_RxBufferTop].data, 64);
@@ -521,22 +524,6 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
         }
     }
 }
-
-// void SPI2_Lock(void) {
-//   __disable_irq();
-//   if (spi2_lock) {
-//       __enable_irq();
-//       return; // Or spin, or return error
-//   }
-//   spi2_lock = 1;
-//   __enable_irq();
-// }
-
-// void SPI2_Unlock(void) {
-//   __disable_irq();
-//   spi2_lock = 0;
-//   __enable_irq();
-// }
 
 /* USER CODE END 4 */
 

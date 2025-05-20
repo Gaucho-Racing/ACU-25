@@ -1566,7 +1566,7 @@ bcc_status_t BCC_CB_SetIndividual(bcc_drv_config_t* const drvConfig,
     
     if ((cid == BCC_CID_UNASSIG) || (((uint8_t)cid) > drvConfig->devicesCnt))
     {
-        print_lpuart("(cid == BCC_CID_UNASSIG) or cid > drvConfig->devicesCnt\n");
+        print_lpuart("cb: (cid == BCC_CID_UNASSIG) or cid > drvConfig->devicesCnt\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 
@@ -1585,7 +1585,6 @@ bcc_status_t BCC_CB_SetIndividual(bcc_drv_config_t* const drvConfig,
     cbxCfgVal = enable ? MC33771C_CB1_CFG_CB_EN(MC33771C_CB1_CFG_CB_EN_ENABLED_ENUM_VAL) 
                        : MC33771C_CB1_CFG_CB_EN(MC33771C_CB1_CFG_CB_EN_DISABLED_ENUM_VAL);
     cbxCfgVal |= MC33771C_CB1_CFG_CB_TIMER(timer);
-    print_lpuart("in BCC_CB_SetIndividual, calling BCC_Reg_Write\n");
     return BCC_Reg_Write(drvConfig, cid, MC33771C_CB1_CFG_OFFSET + cellIndex, cbxCfgVal);
 }
 

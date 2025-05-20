@@ -403,12 +403,15 @@ bool battery_check(Battery *bty, bool fullcheck){
     }
     // check temp
     success = check_temp(bty);
+    if(!success) print_lpuart("check_temp not successful\n");
     
     // read volts
     bcc_error = read_device_measurements(bty, true, false); // read volts only
+    if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
 
     // check volts
     success = check_volt(bty);
+    if(!success) print_lpuart("check_volt not successful\n");
 
     return success;
 }

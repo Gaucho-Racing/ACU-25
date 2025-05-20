@@ -322,6 +322,6 @@ bool state_system_check(bool full_check, bool startup){
     if(b_check == false){
         // print all current errors
     }
-    
+    print_errors_warning(&acu);
     return !a_check & !b_check;
 }

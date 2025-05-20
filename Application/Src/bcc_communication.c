@@ -516,9 +516,6 @@ bcc_status_t BCC_Reg_WriteTpl(bcc_drv_config_t* const drvConfig,
 
     if (((uint8_t)cid > drvConfig->devicesCnt) || (regAddr > BCC_MAX_REG_ADDR))
     {
-        #if DEBUGG
-        print_lpuart("BCC_Reg_WriteTpl line 516\n");
-        #endif
         return BCC_STATUS_PARAM_RANGE;
     }
 
@@ -528,9 +525,6 @@ bcc_status_t BCC_Reg_WriteTpl(bcc_drv_config_t* const drvConfig,
     status = BCC_MCU_TransferTpl(drvConfig->drvInstance, txBuf, drvConfig->drvData.rxBuf, 1);
     if (status != BCC_STATUS_SUCCESS)
     {
-        #if DEBUGG
-        print_lpuart("BCC_Reg_WriteTpl line 526\n");
-        #endif
         return status;
     }
 
@@ -600,9 +594,6 @@ bcc_status_t BCC_Reg_WriteSpi(bcc_drv_config_t* const drvConfig,
 bcc_status_t BCC_Reg_WriteGlobalTpl(bcc_drv_config_t* const drvConfig,
     const uint8_t regAddr, const uint16_t regVal)
 {
-    #if DEBUGG
-    print_lpuart("BCC_Reg_WriteGlobalTpl start\n");
-    #endif
     uint8_t txBuf[BCC_MSG_SIZE]; /* Transmission buffer. */
     bcc_status_t status;
 

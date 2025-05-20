@@ -66,9 +66,6 @@ bool acu_check(ACU * acu, bool startup){
 
     // check overcurrent
     if(acu->ts_current > MAX_HV_CURRENT){
-        #if DEBUGG
-            print_lpuart("Overcurrent detected\n");
-        #endif
         hasErrors = true;
         acu->acuErrCount++;
         if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -85,9 +82,6 @@ bool acu_check(ACU * acu, bool startup){
     //glv voltage
     if(acu->voltage_12v < MIN_GLV_VOLT){
         if (acu->voltage_12v > 3) {
-            #if DEBUGG
-            print_lpuart("GLV Undervolt detected\n");
-            #endif
         }
         acu->acuErrCount++;
         hasErrors = true;
@@ -110,12 +104,6 @@ bool acu_check(ACU * acu, bool startup){
     if(fabsf(acu->sdc_volt_w - acu->voltage_12v) > GLV_SDC_LOW && !startup && get_state() == 3){
         print_lpuart("Shutdown volt not close enough of GLV\n");
 
-        #if DEBUGG
-        char buff[32];
-        sprintf(buff, "%.3f\n", fabsf(acu->sdc_volt_w - acu->voltage_12v));
-        print_lpuart(buff);
-        #endif
-
         if(acu->sdc_volt_w < acu->voltage_12v) {
             acu->acuErrCount++;
             hasErrors = true;
@@ -136,9 +124,9 @@ bool acu_check(ACU * acu, bool startup){
     acu->acuErrCount = (lastAcuErrCount == acu->acuErrCount && !hasErrors)? 0 : acu->acuErrCount;
 
     // ACU: check acu_volt_warnings
-    if(acu->ts_voltage < UNDER_VOLTAGE_20V){
-        acu->acu_err_warns |= ACU_ERR_UV_20_V;
-    }
+    // if(acu->ts_voltage < UNDER_VOLTAGE_20V){ ==> sunset this
+    //     acu->acu_err_warns |= ACU_ERR_UV_20_V;
+    // }
     if(acu->voltage_12v < UNDER_VOLTAGE_GLV){
         acu->acu_err_warns |= ACU_ERR_UV_12_V;
     }
@@ -287,7 +275,11 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
 /// @brief Takes top message request off buffer and sends over corresponding CAN
 /// @param acu 
 void dequeue(ACU* acu){
-    if(CAN_1_flag == 0 && CAN_2_flag == 0 && CAN_3_flag == 0) return;
+    // __disable_irq();
+    if(CAN_1_flag == 0 && CAN_2_flag == 0 && CAN_3_flag == 0){
+        // __enable_irq();
+        return;
+    }
     // priority 1: CAN_Primary
     switch(CAN_1_flag){ 
         case 1: // ACU_Debug_2_Debug
@@ -476,88 +468,150 @@ void dequeue(ACU* acu){
 /// @param id 
 /// @param which_can 
 void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
+    // __disable_irq();
     uint8_t primary_full = (p_level == 64U);
     uint8_t data_full = (d_level == 64U);
-    uint8_t charger_full = (c_level == 64U);    
+    uint8_t charger_full = (c_level == 64U); 
+     // __enable_irq();   
     switch (id){
         case ACU_Debug_2_Debug:
-            if(primary_full) return;
+            if(primary_full) {
+                return;
+            }
+            // __disable_irq();
             prim_q[p_top] = 1;
             p_top++; p_level++;
+            // __enable_irq();   
             break;       
         case ACU_Ping_Debug:
             if(which_can == FDCAN1){
-                if(primary_full) return;
+                if(primary_full) {
+                    return;
+                }
+                // __disable_irq();
                 prim_q[p_top] = 2;
                 p_top++; p_level++;
+                // __enable_irq();   
             }
             else if (which_can == FDCAN2){
-                if(data_full) return;
+                if(data_full) {
+                    return;
+                }
+                // __disable_irq();
                 data_q[d_top] = 1;
                 d_top++; d_level++;
+                // __enable_irq();  
             }
             break;     
         case ACU_Ping_ECU:
             if(which_can == FDCAN1){
-                if(primary_full) return;
+                if(primary_full) {
+                    return;
+                }
+                // __disable_irq();
                 prim_q[p_top] = 3;
                 p_top++; p_level++;
+                // __enable_irq();  
             }
             else if(which_can == FDCAN2){
-                if(data_full) return;
+                if(data_full) {
+                    return;
+                }
+                // __disable_irq();
                 data_q[d_top] = 2;
                 d_top++; d_level++;
+                // __enable_irq();  
             }
             break;    
         case ACU_Debug_FD:
-            if(data_full) return;
+            if(data_full) {
+                return;
+            }
+            // __disable_irq();
             data_q[d_top] = 3;
             d_top++; d_level++;
+            // __enable_irq();  
             break;       
         case ACU_Status_1:
-            if(primary_full) return;
+            if(primary_full)  {
+                return;
+            }
+            // __disable_irq();
             prim_q[p_top] = 5;
             p_top++; p_level++;
+            // __enable_irq();  
             break;       
         case ACU_Status_2:
-            if(primary_full) return;
+            if(primary_full)  {
+                return;
+            }
+            // __disable_irq();
             prim_q[p_top] = 6;
             p_top++; p_level++;
+            // __enable_irq();  
             break;       
         case ACU_Status_3:
-            if(primary_full) return;
+            if(primary_full) {
+                return;
+            }
+            // __disable_irq();
             prim_q[p_top] = 7;
             p_top++; p_level++;
+            // __enable_irq();  
             break;       
         case ACU_Cell_Data_1:
-            if(data_full) return;
+            if(data_full)  {
+                return;
+            }
+            // __disable_irq();
             data_q[d_top] = 4;
             d_top++; d_level++;
+            // __enable_irq();  
             break;    
         case ACU_Cell_Data_2:
-            if(data_full) return;
+            if(data_full) {
+                return;
+            }
+            // __disable_irq();
             data_q[d_top] = 5;
             d_top++; d_level++;
+            // __enable_irq();  
             break;    
         case ACU_Cell_Data_3:
-            if(data_full) return;
+            if(data_full) {
+                return;
+            }
+            // __disable_irq();
             data_q[d_top] = 6;
             d_top++; d_level++;
+            // __enable_irq();  
             break;    
         case ACU_Cell_Data_4:
-            if(data_full) return;
+            if(data_full) {
+                return;
+            }
+            // __disable_irq();
             data_q[d_top] = 6;
             d_top++; d_level++;
+            // __enable_irq();  
             break;    
         case ACU_Cell_Data_5:
-            if(data_full) return;
+            if(data_full) {
+                return;
+            }
+            // __disable_irq();
             data_q[d_top] = 7;
             d_top++; d_level++;
+            // __enable_irq();  
             break;     
         case ACU_Charger_Control:
-            if(charger_full) return;
+            if(charger_full)  {
+                return;
+            }
+            // __disable_irq();
             charger_q[c_top] = 1;
             c_top++; c_level++;
+            // __enable_irq();  
             break;
         // case ACU_DC_DC_Status:
             // deprecated for now
