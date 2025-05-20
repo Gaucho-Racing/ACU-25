@@ -174,8 +174,8 @@ int setup(){
 
   // setup battery configuring
   battery.drvConfig.commMode = BCC_MODE_TPL;
-  battery.drvConfig.drvInstance = 0U;
   battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
+  battery.drvConfig.drvInstance = 0U;
   battery.drvConfig.loopBack = false;
   for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
     battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
@@ -183,8 +183,9 @@ int setup(){
   }
   // init bcc
   bcc_error = BCC_Init(&(battery.drvConfig));
-  uint8_t counter = TRIES;
-  while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){
+
+  uint8_t counter = TRIES; // continues to try until counter met
+  while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){ 
     print_bcc_status(bcc_error);
     write_LED(0);
     LL_mDelay(500);
@@ -295,8 +296,11 @@ int main(void)
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
   write_LED(1);
-  // DMA1_Channel1_IRQn enabled
-  if(setup() != 0) state = SHITDOWN;
+  if(setup() != 0) {
+    #if DEBUGG == 0
+    state = SHITDOWN;
+    #endif
+  }
   
   reset_discharge(&battery);
   
@@ -333,9 +337,9 @@ int main(void)
 
   if(!state_system_check(true, true)){
     #if DEBUGG == 0
-        state = SHITDOWN;
-        #endif
-    print_lpuart("(¬_¬\") [First state_system_check failed. SHIT]\n");
+    state = SHITDOWN;
+    #endif
+    print_lpuart("1st state_system_check failed. SHIT\n");
   }
   else {
     state = STANDBY;
@@ -353,7 +357,10 @@ int main(void)
     LL_mDelay(100);
 
     #if DEBUGG == 1
-    print_lpuart("DEBUGG mode: currently in fake state machine");
+    print_lpuart("DEBUGG mode: ON\n");
+    char state_buff[30];
+    sprintf(state_buff, "State: %d\n", get_state());
+    print_lpuart(state_buff);
     #endif
 
     // check ts_active status
@@ -361,12 +368,14 @@ int main(void)
       state = PRECHARGE;
     }
     else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
-      print_lpuart("(¬_¬\") [ts_active command, but state > STANDBY]\n");
+      print_lpuart("(¬_¬\") [ts_active=1, but state > STANDBY]\n");
       state = PRECHARGE;
     }
-    else if(!acu.ts_active){ // not sure if this is the correct move
-      print_lpuart("(¬_¬\") [ts_active = 0; SHUTDOWN]\n");
+    else if(!acu.ts_active){ 
+      print_lpuart("(¬_¬\") [ts_active=0; SHUTDOWN]\n");
+      #if DEBUGG == 0
       state = SHITDOWN;
+      #endif
     }
 
     #if DEBUGG == 1
@@ -381,7 +390,7 @@ int main(void)
     // SYSTEM CHECK
     bool b_check = battery_check(&battery, true);
     if(b_check == false){
-      print_lpuart("b_check is false, failed battery_check\n");
+      print_lpuart("error: main.c (391)\n");
       enqueue(ACU_Status_1, FDCAN1);
       enqueue(ACU_Status_2, FDCAN1);
       enqueue(ACU_Status_2, FDCAN1);

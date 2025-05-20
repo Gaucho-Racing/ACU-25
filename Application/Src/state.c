@@ -32,6 +32,7 @@ void shitdown(){
     // Open all
     acu.relay_state = 0;
     acu.chg_ctrl = (uint8_t)NO_CHARGE;
+    write_prechg(state);
     enqueue(ACU_Charger_Control, FDCAN3);
 
     //indicates to battery to stop charging
@@ -60,6 +61,7 @@ void standby(){
     if(state_system_check(false, false) == false){
         print_lpuart("𝓕𝓾𝓬𝓴\n");
         #if DEBUGG == 0
+        print_lpuart("STANDBY => SHITDOWN");
         state = SHITDOWN;
         #endif
     }
@@ -87,6 +89,7 @@ void precharge(){
     if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
         print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
         acu.acu_latch = 0;
+        print_lpuart("PRECHARGE => SHITDOWN");
         #if DEBUGG == 0
         state = SHITDOWN;
         return;
@@ -96,7 +99,8 @@ void precharge(){
     
     // system check
     if (!state_system_check(true, false)) {
-        print_lpuart("¯\\_(ツ)_/¯ failed state_system_check\n");
+        print_lpuart("¯\\_(ツ)_/¯ bad state_sys_check\n");
+        print_lpuart("PRECHARGE => SHITDOWN");
         #if DEBUGG == 0
         state = SHITDOWN;
         return;
@@ -105,11 +109,10 @@ void precharge(){
 
     // close AIR-
     acu.relay_state |= AIR_MINUS;
-    // hopefully data will send itself
+    // write_IRneg(state);
 
     // Close precharge relay
     acu.relay_state |= RELAY_PRE;
-    // hopefully data will send itself
 
     uint32_t start_time = HAL_GetTick();
     update_adc_data(&acu);
@@ -118,7 +121,7 @@ void precharge(){
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
 
         if (!state_system_check(false, false)) {
-            print_lpuart("¯\\_(ツ)_/¯ PreCharge (ts_voltage) => Shutdown\n");
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge (123) => Shutdown\n");
             #if DEBUGG == 0
             state = SHITDOWN;
             return;
@@ -126,7 +129,7 @@ void precharge(){
         }
 
         if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
-            print_lpuart("¯\\_(ツ)_/¯ SDC voltage dropped while precharging!! Check connections\n");
+            print_lpuart("¯\\_(ツ)_/¯ SDC volt dropped in precharge!!\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2, FDCAN1);
             #if DEBUGG == 0
@@ -157,6 +160,7 @@ void precharge(){
     // 3 seconds to check if we go to charge
     while (HAL_GetTick() - start_time < 3000) {
         if(!acu_check(&acu, false)){
+            print_lpuart("PRECHARGE (162) => SHITDOWN");
             #if DEBUGG == 0
             state = SHITDOWN;
             return;
@@ -182,14 +186,18 @@ void precharge(){
     }
 
     acu.relay_state |= AIR_PLUS;
+    // write_IRpos(state);
+
     enqueue(ACU_Status_3,FDCAN3);
 
     if(goToCharge){
         acu.chg_ctrl = PLS_CHARGE;
+        // write_prechg(state);
         state = CHARGE;
     }
     else{
         acu.chg_ctrl = NO_CHARGE;
+        // write_prechg(state);
         state = NORMAL;
     }
     return;
@@ -200,11 +208,13 @@ uint32_t last_discharge_time = 0;
 uint32_t last_send_time = 0;
 uint32_t last_call_time = 0;
 
+/// charge state
 void charge(){
     print_lpuart("State: 🛌");
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
 
     if(!acu_check(&acu, false)){
+        print_lpuart("CHARGE (216) => SHITDOWN");
         #if DEBUGG == 0
         state = SHITDOWN;
         return;
@@ -285,7 +295,11 @@ void normal(){
         tsVoltErrCount++;
         if (tsVoltErrCount >= ERRMG_ACU_ERR) {
             tsVoltErrCount = ERRMG_ACU_ERR;
+            print_lpuart("NORMAL (297) => SHITDOWN");
+            #if DEBUGG == 0
             state = SHITDOWN;
+            return;
+            #endif
             if (acu.ts_voltage < totalV) {
                 acu.acu_err_warns |= ACU_ERR_UNDER_VOLT;
             }
@@ -346,5 +360,8 @@ bool state_system_check(bool full_check, bool startup){
         // print all current errors
     }
     print_errors_warning(&acu);
-    return !a_check & !b_check;
+    if (a_check && b_check){
+        write_bms_ok(state);
+    }
+    return !a_check && !b_check;
 }

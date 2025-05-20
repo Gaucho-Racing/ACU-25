@@ -123,7 +123,7 @@ bool acu_check(ACU * acu, bool startup){
     }
     acu->acuErrCount = (lastAcuErrCount == acu->acuErrCount && !hasErrors)? 0 : acu->acuErrCount;
 
-    // ACU: check acu_volt_warnings
+    // ACU: check acu_volt_warnings => deprecated
     // if(acu->ts_voltage < UNDER_VOLTAGE_20V){ ==> sunset this
     //     acu->acu_err_warns |= ACU_ERR_UV_20_V;
     // }
@@ -139,14 +139,13 @@ bool acu_check(ACU * acu, bool startup){
 /// @brief Checks CAN_RxBuffer and parses everything that's incoming
 /// @param acu 
 void can_read_handler(ACU* acu){
-    while(CAN_RxBufferTop > CAN_RxBufferBottom){
-
-        FDCAN_GlobalTypeDef * type = CAN_RxBuffer[CAN_RxBufferBottom].instance;
-        uint32_t id = CAN_RxBuffer[CAN_RxBufferBottom].identifier;
-
-        can_read(acu, type, id, (uint8_t *)(&CAN_RxBuffer[CAN_RxBufferBottom].data));
-        bzero((void*)CAN_RxBuffer[CAN_RxBufferBottom].data, sizeof(CAN_RxBuffer[CAN_RxBufferBottom].data));
-
+    bool can_read_it = CAN_RxBufferTop > CAN_RxBufferBottom;
+    uint8_t butt = CAN_RxBufferBottom;
+    while(can_read_it){
+        FDCAN_GlobalTypeDef * type = CAN_RxBuffer[butt].instance;
+        uint32_t id = CAN_RxBuffer[butt].identifier;
+        can_read(acu, type, id, (uint8_t *)(&CAN_RxBuffer[butt].data));
+        bzero((void*)CAN_RxBuffer[butt].data, sizeof(CAN_RxBuffer[butt].data));
         CAN_RxBufferBottom++;
         CAN_RxBufferLevel--;
     }
@@ -160,7 +159,7 @@ void can_read_handler(ACU* acu){
 /// @param data 
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data){
     float values = 0.0f;
-    uint32_t millis = HAL_GetTick();
+    uint32_t curr = HAL_GetTick(); // this could be a problem, bc this func is called indirectly from an interrupt handler
     switch (id){
         case Debug_2_ACU:
             enqueue(ACU_Debug_2_Debug, which_can);
@@ -178,7 +177,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             acu->ts_active = data[0] & 1; // determines whether we go to precharge
             break;  
         case Charger_Data_ACU:
-            acu->lastChrgRecieveTime = millis;
+            acu->lastChrgRecieveTime = curr;
             values = 0.0f;
             values += data[0] << 8;
             values += data[1];
@@ -275,9 +274,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
 /// @brief Takes top message request off buffer and sends over corresponding CAN
 /// @param acu 
 void dequeue(ACU* acu){
-    // __disable_irq();
     if(CAN_1_flag == 0 && CAN_2_flag == 0 && CAN_3_flag == 0){
-        // __enable_irq();
         return;
     }
     // priority 1: CAN_Primary
@@ -468,39 +465,39 @@ void dequeue(ACU* acu){
 /// @param id 
 /// @param which_can 
 void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
-    // __disable_irq();
+    __disable_irq();
     uint8_t primary_full = (p_level == 64U);
     uint8_t data_full = (d_level == 64U);
     uint8_t charger_full = (c_level == 64U); 
-     // __enable_irq();   
+     __enable_irq();   
     switch (id){
         case ACU_Debug_2_Debug:
             if(primary_full) {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             prim_q[p_top] = 1;
             p_top++; p_level++;
-            // __enable_irq();   
+            __enable_irq();   
             break;       
         case ACU_Ping_Debug:
             if(which_can == FDCAN1){
                 if(primary_full) {
                     return;
                 }
-                // __disable_irq();
+                __disable_irq();
                 prim_q[p_top] = 2;
                 p_top++; p_level++;
-                // __enable_irq();   
+                __enable_irq();   
             }
             else if (which_can == FDCAN2){
                 if(data_full) {
                     return;
                 }
-                // __disable_irq();
+                __disable_irq();
                 data_q[d_top] = 1;
                 d_top++; d_level++;
-                // __enable_irq();  
+                __enable_irq();  
             }
             break;     
         case ACU_Ping_ECU:
@@ -508,110 +505,110 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
                 if(primary_full) {
                     return;
                 }
-                // __disable_irq();
+                __disable_irq();
                 prim_q[p_top] = 3;
                 p_top++; p_level++;
-                // __enable_irq();  
+                __enable_irq();  
             }
             else if(which_can == FDCAN2){
                 if(data_full) {
                     return;
                 }
-                // __disable_irq();
+                __disable_irq();
                 data_q[d_top] = 2;
                 d_top++; d_level++;
-                // __enable_irq();  
+                __enable_irq();  
             }
             break;    
         case ACU_Debug_FD:
             if(data_full) {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             data_q[d_top] = 3;
             d_top++; d_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;       
         case ACU_Status_1:
             if(primary_full)  {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             prim_q[p_top] = 5;
             p_top++; p_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;       
         case ACU_Status_2:
             if(primary_full)  {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             prim_q[p_top] = 6;
             p_top++; p_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;       
         case ACU_Status_3:
             if(primary_full) {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             prim_q[p_top] = 7;
             p_top++; p_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;       
         case ACU_Cell_Data_1:
             if(data_full)  {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             data_q[d_top] = 4;
             d_top++; d_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;    
         case ACU_Cell_Data_2:
             if(data_full) {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             data_q[d_top] = 5;
             d_top++; d_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;    
         case ACU_Cell_Data_3:
             if(data_full) {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             data_q[d_top] = 6;
             d_top++; d_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;    
         case ACU_Cell_Data_4:
             if(data_full) {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             data_q[d_top] = 6;
             d_top++; d_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;    
         case ACU_Cell_Data_5:
             if(data_full) {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             data_q[d_top] = 7;
             d_top++; d_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;     
         case ACU_Charger_Control:
             if(charger_full)  {
                 return;
             }
-            // __disable_irq();
+            __disable_irq();
             charger_q[c_top] = 1;
             c_top++; c_level++;
-            // __enable_irq();  
+            __enable_irq();  
             break;
         // case ACU_DC_DC_Status:
             // deprecated for now
