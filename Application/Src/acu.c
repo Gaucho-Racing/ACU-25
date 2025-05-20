@@ -646,10 +646,10 @@ uint8_t fconstrain(float value){
 /// @param acu 
 void update_adc_data(ACU* acu){
     acu->ts_current = adc_data[0] * 0.0005f / 0.005f; // 5mV/A
-    acu->ts_voltage = adc_data[1] * 0.0005f * 400.0f; // 1:400 voltage divider
+    acu->ts_voltage = (adc_data[1] * 0.0005f - 1.235f) * -400.0f; // 1:400 voltage divider
     acu->sdc_volt_w = adc_data[2] * 0.0005f * 10.0f; // 1:10 voltage divider
-    acu->sdc_volt_v = adc_data[3] * 0.0005f * 10.0f; // 1:10 voltage divider
-    acu->voltage_12v = adc_data[4] * 0.0005f * 10.0f; // 1:10 voltage divider
+    acu->sdc_volt_v = adc_data[3] * 0.0005f * 10.0f; // 1:10 voltage dividerx
+    acu->voltage_12v = adc_data[4] * 0.0005f * 10.0f + 0.3f; // 1:10 voltage divider, 0.3V offset idk why
     acu->water_sense = adc_data[5] * 0.0005f;  // keep raw voltage
 }
 

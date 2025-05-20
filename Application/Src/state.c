@@ -99,8 +99,8 @@ void precharge(){
     
     // system check
     if (!state_system_check(true, false)) {
-        print_lpuart("¯\\_(ツ)_/¯ bad state_sys_check\n");
-        print_lpuart("PRECHARGE => SHITDOWN");
+        print_lpuart("𝓕𝓾𝓬𝓴\n");
+        print_lpuart("¯\\_(ツ)_/¯ precharge: bad state_sys_check\n");
         #if DEBUGG == 0
         state = SHITDOWN;
         return;
@@ -362,6 +362,7 @@ bool state_system_check(bool full_check, bool startup){
     print_errors_warning(&acu);
     if (a_check && b_check){
         write_bms_ok(state);
+        print_lpuart("bmds ok 🫰\n");
     }
     return !a_check && !b_check;
 }
