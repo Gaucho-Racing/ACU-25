@@ -9,8 +9,6 @@
  ******************************************************************************/
 
 #include "bcc_communication.h"
-extern void print_bcc_status(bcc_status_t stat);
-extern void print_lpuart(char* arr);
 extern void write_LED(bool state);
 
 /*******************************************************************************
@@ -286,7 +284,6 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
     status = BCC_Reg_Read(drvConfig, BCC_CID_UNASSIG, MC33771C_INIT_OFFSET, 1U, &readVal);
     if ((status != BCC_STATUS_SUCCESS) && (status != BCC_STATUS_COM_NULL))
     {
-        print_lpuart("FAILED BCC_Reg_Read\n");
         return status;
     }
 
@@ -362,7 +359,6 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
             /* Check the written data. */
             if ((status == BCC_STATUS_SUCCESS) && (writeVal != readVal))
             {
-                print_lpuart("FAILED = BCC_STATUS_SPI_FAIL, line 367\n");
                 status = BCC_STATUS_SPI_FAIL;
             }
         }
@@ -402,7 +398,6 @@ static bcc_status_t BCC_InitDevices(bcc_drv_config_t* const drvConfig)
     status = BCC_AssignCid(drvConfig, BCC_CID_DEV1);
     if (status != BCC_STATUS_SUCCESS)
     {
-        print_lpuart("failed BCC_AssignCid\n");
         return status;
     }
 
@@ -421,7 +416,6 @@ static bcc_status_t BCC_InitDevices(bcc_drv_config_t* const drvConfig)
         status = BCC_AssignCid(drvConfig, (bcc_cid_t)cid);
         if (status != BCC_STATUS_SUCCESS)
         {
-            print_lpuart("BAD BCC_AssignCid for at least one CID\n");
             return status;
         }
     }
@@ -1566,19 +1560,16 @@ bcc_status_t BCC_CB_SetIndividual(bcc_drv_config_t* const drvConfig,
     
     if ((cid == BCC_CID_UNASSIG) || (((uint8_t)cid) > drvConfig->devicesCnt))
     {
-        print_lpuart("cb: (cid == BCC_CID_UNASSIG) or cid > drvConfig->devicesCnt\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 
     if (cellIndex >= BCC_MAX_CELLS_DEV(drvConfig->device[(uint8_t)cid - 1]))
     {
-        print_lpuart("cb: cellIndex issue\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 
     if (timer > MC33771C_CB1_CFG_CB_TIMER_MASK)
     {
-        print_lpuart("cb: timer issue\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 
@@ -1785,7 +1776,6 @@ bcc_status_t BCC_EEPROM_Read(bcc_drv_config_t* const drvConfig,
     regVal = MC33771C_EEPROM_CTRL_R_W(MC33771C_EEPROM_CTRL_R_W_READ_ENUM_VAL) |
              MC33771C_EEPROM_CTRL_EEPROM_ADD(addr);
     status = BCC_Reg_Write(drvConfig, cid, MC33771C_EEPROM_CTRL_OFFSET, regVal);
-    // print_lpuart("eeprom read 1\n");
     if (status != BCC_STATUS_SUCCESS)
     {
         return status;
@@ -1871,7 +1861,6 @@ bcc_status_t BCC_EEPROM_Write(bcc_drv_config_t* const drvConfig,
              MC33771C_EEPROM_CTRL_EEPROM_ADD(addr) |
              MC33771C_EEPROM_CTRL_DATA_TO_WRITE(data);
     status = BCC_Reg_Write(drvConfig, cid, MC33771C_EEPROM_CTRL_OFFSET, regVal);
-    print_lpuart("eeprom write 1\n");
     if (status != BCC_STATUS_SUCCESS)
     {
         return status;

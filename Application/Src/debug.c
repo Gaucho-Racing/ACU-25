@@ -1,5 +1,6 @@
 #include "debug.h"
 #include "state.h"
+#include "acu.h"
 
 extern ACU acu;
 extern State state;
@@ -17,10 +18,11 @@ extern void print_errors_warning(ACU * acu);
 /// @brief Print BCC Status messages
 /// @param stat (bcc_status_t)
 void print_bcc_status(bcc_status_t stat){
+    return;
   switch (stat)
   {
   case BCC_STATUS_SUCCESS:
-      print_lpuart("Success\n");
+      print_lpuart("Success Status\n");
       break;
   case BCC_STATUS_PARAM_RANGE:
       print_lpuart("Parameter out of range\n");
@@ -62,6 +64,11 @@ void print_bcc_status(bcc_status_t stat){
       print_lpuart("Unknown status\n");
       break;
   }
+}
+
+/// @brief: precharge testing
+void test1(){
+    state = PRECHARGE;
 }
 
 void debug(){

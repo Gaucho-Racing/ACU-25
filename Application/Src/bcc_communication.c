@@ -11,7 +11,6 @@
 
 #include "bcc_communication.h"
 #include <stdio.h>
-extern void print_lpuart(char* arr);
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -362,12 +361,9 @@ bcc_status_t BCC_Reg_ReadTpl(bcc_drv_config_t* const drvConfig,
     /* Pointer to beginning of the received frame. */
     rxBuf = (uint8_t *)(drvConfig->drvData.rxBuf);
 
-    // print_lpuart("bcc_comm 367\n");
     status = BCC_MCU_TransferTpl(drvConfig->drvInstance, txBuf, rxBuf, regCnt + 1);
-    // print_lpuart("bcc_comm 369\n");
     if (status != BCC_STATUS_SUCCESS)
     {
-        print_lpuart("LINE 370: bcc_communication.c\n");
         return status;
     }
 
@@ -375,7 +371,6 @@ bcc_status_t BCC_Reg_ReadTpl(bcc_drv_config_t* const drvConfig,
     status = BCC_CheckEchoFrame(txBuf, rxBuf);
     if (status != BCC_STATUS_SUCCESS)
     {
-        print_lpuart("LINE 378: bcc_communication.c\n");
         return status;
     }
 
@@ -387,14 +382,12 @@ bcc_status_t BCC_Reg_ReadTpl(bcc_drv_config_t* const drvConfig,
         /* Check CRC. */
         if ((status = BCC_CheckCRC(rxBuf)) != BCC_STATUS_SUCCESS)
         {
-            print_lpuart("LINE 390: bcc_communication.c\n");
             return status;
         }
 
         /* Check the Message counter value. */
         if ((status = BCC_CheckMsgCntr(drvConfig, cid, rxBuf)) != BCC_STATUS_SUCCESS)
         {
-            print_lpuart("LINE 397: bcc_communication.c\n");
             return status;
         }
 
@@ -611,7 +604,6 @@ bcc_status_t BCC_Reg_WriteGlobalTpl(bcc_drv_config_t* const drvConfig,
     status = BCC_MCU_TransferTpl(drvConfig->drvInstance, txBuf, drvConfig->drvData.rxBuf, 1);
     if (status != BCC_STATUS_SUCCESS)
     {
-        print_lpuart("BCC_MCU_TransferTpl: line 620\n");
         return status;
     }
 

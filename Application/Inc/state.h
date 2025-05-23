@@ -1,10 +1,9 @@
 #ifndef STATE_H
 #define STATE_H
 
-#include "acu.h"
-
 // Typedef
 typedef enum {
+    INIT,       // 🙏
     STANDBY,    // 🏠
     PRECHARGE,  // 🙏
     CHARGE,     // 🛌
@@ -13,18 +12,19 @@ typedef enum {
 } State;
 
 // State Functions
+void init();
 void shitdown();
 void standby();
 void precharge();
 void charge();
 void normal();
 
+// State main function
 bool state_system_check(bool full_check, bool startup);
 float constrain(float value, float lowerBound, float upperBound);
-uint8_t get_state();
 
-// Externs
-extern ACU acu;
-extern Battery battery;
-extern State state;
+// State Mods & Accs
+void print_state();
+uint8_t get_state();
+void set_state(uint8_t value);
 #endif

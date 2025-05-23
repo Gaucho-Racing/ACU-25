@@ -33,7 +33,6 @@ typedef struct {
 
 typedef struct {
     uint8_t id;
-
     float hv_system_voltage;
 
     uint8_t r_iso_status;

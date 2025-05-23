@@ -1,9 +1,19 @@
+#include "acu.h"
 #include "state.h"
 
+extern ACU acu;
+extern Battery battery;
+extern State state;
+
 extern uint8_t cycle;
+extern bool first_init;
 extern uint16_t adc_data[6];
+extern bcc_status_t bcc_error; 
+extern uint8_t bcc_cooked_count;
 extern FDCAN_RxHeaderTypeDef RxHeader_Charger;
+
 extern void print_lpuart(char* arr);
+extern void print_bcc_status(bcc_status_t stat);
 
 /// @brief constrains float vlaues
 /// @param value 
@@ -26,9 +36,39 @@ uint8_t get_state(){
     return (uint8_t)(state);
 }
 
+void set_state(uint8_t value){
+    state = value;
+}
+
+/// @ brief: just prints the state
+void print_state(){
+    switch(state){
+        case INIT:
+            print_lpuart("State: INIT\n");
+            break;
+        case STANDBY:
+            print_lpuart("State: STANDBY\n");
+            break;
+        case PRECHARGE:
+            print_lpuart("State: PRECHARGE\n");
+            break;
+        case CHARGE:
+            print_lpuart("State: CHARGE\n");
+            break;
+        case NORMAL:
+            print_lpuart("State: NORMAL\n");
+            break;
+        case SHITDOWN:
+            print_lpuart("State: SHITDOWN\n");
+            break;
+        default:
+            print_lpuart("State: Error\n");
+            break;
+    }
+}
+
 /// @brief self explanatory
 void shitdown(){
-    print_lpuart("State: 🪦");
     // Open all
     acu.relay_state = 0;
     acu.chg_ctrl = (uint8_t)NO_CHARGE;
@@ -53,16 +93,90 @@ void shitdown(){
     }
 }
 
+/// @brief either mega-cooked or in init
+void init(){
+    if(first_init == true){
+        // setup battery configuring
+        battery.drvConfig.commMode = BCC_MODE_TPL;
+        battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
+        battery.drvConfig.drvInstance = 0U;
+        battery.drvConfig.loopBack = false;
+        for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+            battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
+            battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
+        }
+    }
+
+    // initialize BCC first
+    bcc_error = BCC_Init(&(battery.drvConfig));
+
+    // start the cooked counter
+    uint8_t counter = TRIES;
+    while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){ 
+        print_bcc_status(bcc_error);
+        bcc_error = BCC_Init(&(battery.drvConfig));
+        print_lpuart("trying agin BCC_Init\n");
+        counter--;
+    }
+    if (counter == 0){
+        state = SHITDOWN;
+        print_lpuart("(¬_¬\") [BCC_Init = MEGA-COOKED]\n");
+        return;
+    }
+    
+    print_lpuart("PASSED from BCC_Init\n");
+    battery.min_temp_thresh = CELL_MIN_TEMP;
+    battery.max_temp_thresh = CELL_MAX_TEMP;
+    battery.min_volt_thresh = CELL_MIN_VOLT;
+    battery.max_volt_thresh = CELL_MAX_VOLT;
+
+    // initialize registers
+    bool succ = init_registers(&battery);
+    if (!succ) {
+        print_lpuart("(*_*) [Failed init_registers...]\n");
+        return;
+    }
+
+    clear_faults(&(battery.drvConfig));  
+
+    // cb & first battery check
+    state = init_cell_balancing(&battery) && battery_check(&battery, true) == 1 ? STANDBY : SHITDOWN;
+    if (state == SHITDOWN) {
+        print_lpuart("error occured in cell_balancing init, and battery_check\n");
+        return;
+    }
+
+    if(first_init == true){
+        update_adc_data(&acu);
+        acu_init(&acu);
+        acu.bty = &battery;
+        print_lpuart("🤖 completed acu_init()\n");
+    }
+
+    reset_discharge(&battery);
+    if(!state_system_check(true, true)){
+        #if DEBUGG == 0
+        state = SHITDOWN;
+        #endif
+        print_lpuart("Failed 1st state_system_check. SHIT\n");
+    }
+    else {
+        state = STANDBY;
+    }
+    if(first_init == true){
+        first_init = false;
+    }
+    bcc_cooked_count = 0;
+}
+
 /// @brief do nothing, in initial state wait for VDM to send start command, maybe poll CAN
 void standby(){
-    print_lpuart("State: 🏠");
-    // get ts_current
-    update_adc_data(&acu);
+    
+    update_adc_data(&acu); // get ts_currents
     if(state_system_check(false, false) == false){
         print_lpuart("𝓕𝓾𝓬𝓴\n");
         #if DEBUGG == 0
-        print_lpuart("STANDBY => SHITDOWN");
-        state = SHITDOWN;
+        state = state == INIT ? INIT : SHITDOWN;
         #endif
     }
     // update cycle
@@ -72,7 +186,6 @@ void standby(){
 
 /// @brief State: PRECHARGE
 void precharge(){
-    print_lpuart("State: 🙏");
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
     acu.acu_err_warns &= ~(ACU_PRECHARGE);
 
@@ -89,7 +202,6 @@ void precharge(){
     if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
         print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
         acu.acu_latch = 0;
-        print_lpuart("PRECHARGE => SHITDOWN");
         #if DEBUGG == 0
         state = SHITDOWN;
         return;
@@ -102,7 +214,7 @@ void precharge(){
         print_lpuart("𝓕𝓾𝓬𝓴\n");
         print_lpuart("¯\\_(ツ)_/¯ precharge: bad state_sys_check\n");
         #if DEBUGG == 0
-        state = SHITDOWN;
+        state = state == INIT ? INIT : SHITDOWN;
         return;
         #endif
     }
@@ -121,15 +233,15 @@ void precharge(){
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
 
         if (!state_system_check(false, false)) {
-            print_lpuart("¯\\_(ツ)_/¯ PreCharge (123) => Shutdown\n");
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge (235) => Shutdown\n");
             #if DEBUGG == 0
-            state = SHITDOWN;
+            state = state == INIT ? INIT : SHITDOWN;
             return;
             #endif
         }
 
         if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
-            print_lpuart("¯\\_(ツ)_/¯ SDC volt dropped in precharge!!\n");
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge (243) SDC volt dropped\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2, FDCAN1);
             #if DEBUGG == 0
@@ -138,7 +250,7 @@ void precharge(){
             #endif
         }
         if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
-            print_lpuart("¯\\_(ツ)_/¯ Precharge timeout, error\n");
+            print_lpuart("¯\\_(ツ)_/¯ (252) Precharge timeoutn");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2,FDCAN1);
             #if DEBUGG == 0
@@ -160,7 +272,7 @@ void precharge(){
     // 3 seconds to check if we go to charge
     while (HAL_GetTick() - start_time < 3000) {
         if(!acu_check(&acu, false)){
-            print_lpuart("PRECHARGE (162) => SHITDOWN");
+            print_lpuart("PRECHARGE (274) => SHITDOWN");
             #if DEBUGG == 0
             state = SHITDOWN;
             return;
@@ -192,12 +304,12 @@ void precharge(){
 
     if(goToCharge){
         acu.chg_ctrl = PLS_CHARGE;
-        // write_prechg(state);
+        write_prechg(true);
         state = CHARGE;
     }
     else{
         acu.chg_ctrl = NO_CHARGE;
-        // write_prechg(state);
+        write_prechg(false);
         state = NORMAL;
     }
     return;
@@ -210,11 +322,10 @@ uint32_t last_call_time = 0;
 
 /// charge state
 void charge(){
-    print_lpuart("State: 🛌");
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
 
     if(!acu_check(&acu, false)){
-        print_lpuart("CHARGE (216) => SHITDOWN");
+        print_lpuart("CHARGE (328) => SHITDOWN");
         #if DEBUGG == 0
         state = SHITDOWN;
         return;
@@ -222,13 +333,13 @@ void charge(){
     }
     
     if(HAL_GetTick() - last_charge_time >= 2000){
-        reset_discharge(&battery); // TODO: config cell balancing
+        reset_discharge(&battery); 
 
         last_charge_time = HAL_GetTick();
         if(!state_system_check(true, false)){
             print_lpuart("( ˶°ㅁ°) !! Failed system check inside of charge\n");
             #if DEBUGG == 0
-            state = SHITDOWN;
+            state = state == INIT ? INIT : SHITDOWN;
             return;
             #endif
         }
@@ -246,12 +357,12 @@ void charge(){
         // TODO: figure this line out
         battery.max_chg_current = acu.target_current; 
         //every 0.99 seconds send charger "ping"
-        enqueue(ACU_Charger_Control,FDCAN3);
+        enqueue(ACU_Charger_Control, FDCAN3);
     }
 
     //if no CAN data for 5 seconds, shut down
-    if(HAL_GetTick() - acu.lastChrgRecieveTime > 5000){
-        print_lpuart("( ˶°ㅁ°) !! CHARGE: Charger CAN timeout, shutting down");
+    if(HAL_GetTick() - acu.lastChrgRecieveTime > 5000U){
+        print_lpuart("( ˶°ㅁ°) !! CHARGE: Charger CAN timeout, shutting down\n");
         #if DEBUGG == 0
         state = SHITDOWN;
         return;
@@ -259,7 +370,7 @@ void charge(){
     }
 
     // re-measure current sensor ref every 5 minutes
-    if (HAL_GetTick() - last_call_time > 300000) {
+    if (HAL_GetTick() - last_call_time > 300000U) {
 
         last_call_time = HAL_GetTick();
         state = NORMAL; // turn charger off
@@ -279,23 +390,22 @@ void charge(){
 
 uint8_t tsVoltErrCount = 0;
 void normal(){
-    print_lpuart("State: 💃");
     if(!state_system_check(false, false)){
         print_lpuart("( ˶°ㅁ°) !! SystemCheck failed in NORMAL state\n");
         #if DEBUGG == 0
-        state = SHITDOWN;
+        state = state == INIT ? INIT : SHITDOWN;
         return;
         #endif
     }
 
     update_adc_data(&acu);
     float totalV = get_total_voltage(&acu);
-    if (fabsf(acu.ts_voltage - totalV) > 80) {
+    if (fabsf(acu.ts_voltage - totalV) > 80U) {
         print_lpuart("∘ ∘ ∘ ( °ヮ° ) ? TS voltage mismatch");
         tsVoltErrCount++;
         if (tsVoltErrCount >= ERRMG_ACU_ERR) {
             tsVoltErrCount = ERRMG_ACU_ERR;
-            print_lpuart("NORMAL (297) => SHITDOWN");
+            print_lpuart("NORMAL (409) => SHITDOWN");
             #if DEBUGG == 0
             state = SHITDOWN;
             return;
@@ -328,7 +438,6 @@ void normal(){
 /// @param startup 
 /// @return returns True if passes, False otherwise
 bool state_system_check(bool full_check, bool startup){
-
     bool a_check = acu_check(&acu, startup);
 
     if(a_check == false){
@@ -362,7 +471,7 @@ bool state_system_check(bool full_check, bool startup){
     print_errors_warning(&acu);
     if (a_check && b_check){
         write_bms_ok(state);
-        print_lpuart("bmds ok 🫰\n");
+        print_lpuart("ACU & BMS ok 🫰\n");
     }
     return !a_check && !b_check;
 }

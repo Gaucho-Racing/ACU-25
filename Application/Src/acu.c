@@ -22,6 +22,11 @@ extern volatile uint8_t p_top, p_bottom, p_level, d_top, d_bottom, d_level, c_to
 extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 extern volatile uint8_t CAN_1_flag, CAN_2_flag, CAN_3_flag;
 
+union {
+    float float_val;
+    uint8_t non_flat_val[2];
+} data_union;
+
 /// @brief initialize acu variables, reads data, updates adc
 /// @param acu 
 void acu_init(ACU * acu){
@@ -77,8 +82,6 @@ bool acu_check(ACU * acu, bool startup){
         print_lpuart("High Current Warning\n"); // JUST A PRINT STATEMENT
     }
 
-    // skip dcdc current checks?  bc they are handled elsewhere?
-
     //glv voltage
     if(acu->voltage_12v < MIN_GLV_VOLT){
         if (acu->voltage_12v > 3) {
@@ -102,7 +105,7 @@ bool acu_check(ACU * acu, bool startup){
 
     //sdc_volt_w should be close to voltage_12v (glv_voltage)
     if(fabsf(acu->sdc_volt_w - acu->voltage_12v) > GLV_SDC_LOW && !startup && get_state() == 3){
-        print_lpuart("Shutdown volt not close enough of GLV\n");
+        print_lpuart("SD Volt not close enough to GLV\n");
 
         if(acu->sdc_volt_w < acu->voltage_12v) {
             acu->acuErrCount++;
@@ -318,15 +321,17 @@ void dequeue(ACU* acu){
         case 5: // ACU_Status_1
             TxHeader.Identifier = ACU_Status_1;
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
-            float total_volt = get_total_voltage(acu);
-            CAN_TxData[0] = ((uint16_t)(total_volt * 100.0f)) >> 8;
-            CAN_TxData[1] = (uint16_t)(total_volt * 100.0f);
-            CAN_TxData[2] = ((uint16_t)(acu->ts_voltage * 100.0f)) >> 8;
-            CAN_TxData[3] = (uint16_t)(acu->ts_voltage * 100.0f);
-            CAN_TxData[4] = ((uint16_t)((acu->ts_current + 327.68f) * 100.0f)) >> 8;
-            CAN_TxData[5] = (uint16_t)((acu->ts_current + 327.68f) * 100.0f);
-            CAN_TxData[6] = calculate_acu_soc(acu) * 51 * 0.2f;
-            CAN_TxData[7] = calculate_glv_soc(acu) * 51 * 0.2f;
+            data_union.float_val = get_total_voltage(acu) * 100.0f;
+            CAN_TxData[0] = data_union.non_flat_val[0];
+            CAN_TxData[1] = data_union.non_flat_val[1];
+            data_union.float_val = acu->ts_voltage * 100.0f;
+            CAN_TxData[2] = data_union.non_flat_val[0];
+            CAN_TxData[3] = data_union.non_flat_val[1];
+            data_union.float_val = (acu->ts_current + 327.68f) * 100.0f;
+            CAN_TxData[4] = data_union.non_flat_val[0];
+            CAN_TxData[5] = data_union.non_flat_val[1];
+            CAN_TxData[6] = ((uint8_t)calculate_acu_soc(acu)) * 51 * 0.2f;
+            CAN_TxData[7] = ((uint8_t)calculate_glv_soc(acu)) * 51 * 0.2f;
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
                 print_lpuart("ACU_Status_1 failed...\n");
             }
@@ -446,10 +451,12 @@ void dequeue(ACU* acu){
         case 1:
             TxHeader_Charger.Identifier = ACU_Charger_Control;
             TxHeader_Charger.DataLength = FDCAN_DLC_BYTES_5;
-            CAN_TxData[0] = (((uint16_t)acu->target_voltage) * 10) >> 8;
-            CAN_TxData[1] = ((uint16_t)acu->target_voltage) * 10;
-            CAN_TxData[2] = (((uint16_t)acu->target_current) * 10) >> 8;
-            CAN_TxData[3] = ((uint16_t)acu->target_current) * 10;
+            data_union.float_val = acu->target_voltage * 10;
+            CAN_TxData[0] = data_union.non_flat_val[0];
+            CAN_TxData[1] = data_union.non_flat_val[1];
+            data_union.float_val = acu->target_current * 10;
+            CAN_TxData[2] = data_union.non_flat_val[0];
+            CAN_TxData[3] = data_union.non_flat_val[1];
             CAN_TxData[4] = acu->chg_ctrl;
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan3, &TxHeader_Charger, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Charger_Control failed...\n");
@@ -645,18 +652,20 @@ uint8_t fconstrain(float value){
 /// @brief updates adc_data[]
 /// @param acu 
 void update_adc_data(ACU* acu){
-    acu->ts_current = adc_data[0] * 0.0005f / 0.005f; // 5mV/A
-    acu->ts_voltage = (adc_data[1] * 0.0005f - 1.235f) * -400.0f; // 1:400 voltage divider
+    acu->ts_current = (adc_data[0] * 0.0005f - 1.235f) / 0.005f; // 5mV/A
+    acu->ts_voltage = adc_data[1] * 0.0005f * -400.0f; // 1:400 voltage divider
     acu->sdc_volt_w = adc_data[2] * 0.0005f * 10.0f; // 1:10 voltage divider
     acu->sdc_volt_v = adc_data[3] * 0.0005f * 10.0f; // 1:10 voltage dividerx
-    acu->voltage_12v = adc_data[4] * 0.0005f * 10.0f + 0.3f; // 1:10 voltage divider, 0.3V offset idk why
+    acu->voltage_12v += (adc_data[4] * 0.0005f * 10.07475f + 0.3f - acu->voltage_12v) * 0.1f; // 1:10 voltage divider, 0.3V offset idk why
     acu->water_sense = adc_data[5] * 0.0005f;  // keep raw voltage
 }
 
+/// @brief idk if this is right
 float calculate_acu_soc(ACU* acu){
     return acu->bty->min_cell_volt / acu->target_voltage;
 }
 
+/// @brief idk if this is right
 float calculate_glv_soc(ACU* acu){
     return (1.0f * acu->voltage_12v) / acu->target_voltage;
 }

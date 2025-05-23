@@ -55,6 +55,7 @@
 uint8_t cycle;
 uint32_t prev = 0;
 bcc_status_t bcc_error; 
+bool first_init = true;
 uint8_t bcc_cooked_count = 0;
 
 // BMS/ACU
@@ -159,7 +160,8 @@ void print_lpuart(char* arr) {
   }
 }
 
-/// @brief setup function
+// TODO: get rid of ==> Deprecate
+/// @brief setup function 
 /// @return 0 for success, 1 for FAILURE 🤦‍♂🥲
 int setup(){
 
@@ -171,57 +173,8 @@ int setup(){
   LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_1, 6);
   LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_1);
   LL_ADC_REG_StartConversion(ADC1);
-
-  // setup battery configuring
-  battery.drvConfig.commMode = BCC_MODE_TPL;
-  battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
-  battery.drvConfig.drvInstance = 0U;
-  battery.drvConfig.loopBack = false;
-  for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
-    battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
-    battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
-  }
-  // init bcc
-  bcc_error = BCC_Init(&(battery.drvConfig));
-
-  uint8_t counter = TRIES; // continues to try until counter met
-  while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){ 
-    print_bcc_status(bcc_error);
-    write_LED(0);
-    LL_mDelay(500);
-    write_LED(1);
-    bcc_error = BCC_Init(&(battery.drvConfig));
-  }
-  if (counter == 0){
-    state = SHITDOWN;
-    print_lpuart("(¬_¬\") [Failed BCC_Init...]\n");
-    return -1;
-  }
-  print_lpuart("💎 [Successful BCC_Init...]\n");
-
-  battery.min_temp_thresh = CELL_MIN_TEMP;
-  battery.max_temp_thresh = CELL_MAX_TEMP;
-  battery.min_volt_thresh = CELL_MIN_VOLT;
-  battery.max_volt_thresh = CELL_MAX_VOLT;
-
-  bool succ = init_registers(&battery);
-  if (!succ) {
-    print_lpuart("👹 [Failed init_registers...]\n");
-    return -1;
-  }
-
-  clear_faults(&(battery.drvConfig));  
-
-  // cb & first battery check
-  state = init_cell_balancing(&battery) && battery_check(&battery, true) == 1 ? STANDBY : SHITDOWN;
-  if (state == SHITDOWN) return 0;
-
-  // setup acu
-  update_adc_data(&acu);
-  acu_init(&acu);
-  acu.bty = &battery;
-  print_lpuart("🤖 completed setup()\n");
-
+  
+  state = INIT;
   return 0;
 }
 /* USER CODE END 0 */
@@ -296,13 +249,7 @@ int main(void)
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
   write_LED(1);
-  if(setup() != 0) {
-    #if DEBUGG == 0
-    state = SHITDOWN;
-    #endif
-  }
-  
-  reset_discharge(&battery);
+  setup();
   
   // Configure TxHeader
   TxHeader.IdType = FDCAN_EXTENDED_ID;
@@ -335,16 +282,6 @@ int main(void)
   RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   RxHeader.RxTimestamp = 0; /* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
 
-  if(!state_system_check(true, true)){
-    #if DEBUGG == 0
-    state = SHITDOWN;
-    #endif
-    print_lpuart("1st state_system_check failed. SHIT\n");
-  }
-  else {
-    state = STANDBY;
-  }
-  print_lpuart("👹 Passed non-loopty loop stuff\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -357,48 +294,56 @@ int main(void)
     LL_mDelay(100);
 
     #if DEBUGG == 1
-    print_lpuart("DEBUGG mode: ON\n");
-    char state_buff[30];
-    sprintf(state_buff, "State: %d\n", get_state());
-    print_lpuart(state_buff);
+    print_state();
     #endif
 
-    // check ts_active status
-    if(acu.ts_active && state == STANDBY){
-      state = PRECHARGE;
-    }
-    else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
-      print_lpuart("(¬_¬\") [ts_active=1, but state > STANDBY]\n");
-      state = PRECHARGE;
-    }
-    else if(!acu.ts_active){ 
-      print_lpuart("(¬_¬\") [ts_active=0; SHUTDOWN]\n");
-      #if DEBUGG == 0
-      state = SHITDOWN;
+    // proceed unless it's 🔥
+    if(state != INIT){
+      
+      // check ts_active status
+      if(acu.ts_active && state == STANDBY){
+        print_lpuart("(¬_¬\") [ts_active=1]\n");
+        state = PRECHARGE;
+      }
+      else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
+        print_lpuart("(¬_¬\") [ts_active=1]\n");
+        state = PRECHARGE;
+      }
+      else if(!acu.ts_active){ 
+        print_lpuart("(¬_¬\") [ts_active=0; SHUTDOWN]\n");
+        #if DEBUGG == 0
+        state = SHITDOWN;
+        #endif
+      }
+
+      #if DEBUGG == 1
+      print_adc_data(&acu);
+      // char twelve_v[30];
+      // sprintf(twelve_v, "12v: %.3f\n", acu.voltage_12v);
+      // print_lpuart(twelve_v);
+      // print_errors_warning(&acu);
       #endif
+
+      // READ: adc_data
+      update_adc_data(&acu);
+
+      // SYSTEM CHECK
+      bool b_check = battery_check(&battery, true);
+      if(b_check == false){
+        print_lpuart("battery_check @ main.c (331)\n");
+        enqueue(ACU_Status_1, FDCAN1);
+        enqueue(ACU_Status_2, FDCAN1);
+        enqueue(ACU_Status_2, FDCAN1);
+        #if DEBUGG == 0
+        state = state == INIT ? INIT : SHITDOWN;
+        #endif
+      }
     }
 
-    #if DEBUGG == 1
-    char twelve_v[30];
-    sprintf(twelve_v, "12v: %.3f\n", acu.voltage_12v);
-    print_lpuart(twelve_v);
-    #endif
-
-    // READ: adc_data
-    update_adc_data(&acu);
-
-    // SYSTEM CHECK
-    bool b_check = battery_check(&battery, true);
-    if(b_check == false){
-      print_lpuart("error: main.c (391)\n");
-      enqueue(ACU_Status_1, FDCAN1);
-      enqueue(ACU_Status_2, FDCAN1);
-      enqueue(ACU_Status_2, FDCAN1);
-      #if DEBUGG == 0
-      state = SHITDOWN;
-      #endif
-    }
     switch(state){
+      case (INIT):
+        init(first_init);
+        break;
       case (STANDBY):
         standby();
         break;
@@ -515,26 +460,24 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
             CAN_RxBuffer[CAN_RxBufferTop].length = RxHeader.DataLength;
             CAN_RxBuffer[CAN_RxBufferTop].instance = hfdcan->Instance;
 
-            // #if DEBUGG = 1
-            //   // do the printing
-            //   uint8_t headerBuff[64], dataBuff[8];
-            //   sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
-            //   print_lpuart(headerBuff);
-            //   for (uint32_t i = 0; i < RxHeader.DataLength; i++)
-            //   {
-            //       sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
-            //       print_lpuart(dataBuff);
-            //       bzero((void *)dataBuff, 8);
-            //   }
-            //   sprintf(dataBuff, "\n");
-            //   print_lpuart(dataBuff);
-            // #endif
+            #if DEBUGG == 2
+            uint8_t headerBuff[64], dataBuff[8];
+            sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
+            print_lpuart(headerBuff);
+            for (uint32_t i = 0; i < RxHeader.DataLength; i++)
+            {
+                sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
+                print_lpuart(dataBuff);
+                bzero((void *)dataBuff, 8);
+            }
+            sprintf(dataBuff, "\n");
+            print_lpuart(dataBuff);
+            #endif
 
             // copy the data
             bzero((void *)CAN_RxBuffer[CAN_RxBufferTop].data, 64);
             memcpy((void * restrict)CAN_RxBuffer[CAN_RxBufferTop].data, CAN_RxData, RxHeader.DataLength);
             CAN_RxBufferTop++; // increment and mod the pointers in the buffer
-            
         }
     }
 }
