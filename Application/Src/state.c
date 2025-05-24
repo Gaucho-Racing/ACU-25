@@ -433,9 +433,9 @@ void normal(){
     }
 }
 
-/// @brief System Check for everything
-/// @param full_check 
-/// @param startup 
+/// @brief system check on acu, battery, errors/warnings
+/// @param full_check check everything
+/// @param startup true if this is the 1st system check
 /// @return returns True if passes, False otherwise
 bool state_system_check(bool full_check, bool startup){
     bool a_check = acu_check(&acu, startup);

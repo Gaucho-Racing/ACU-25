@@ -318,10 +318,6 @@ int main(void)
 
       #if DEBUGG == 1
       print_adc_data(&acu);
-      // char twelve_v[30];
-      // sprintf(twelve_v, "12v: %.3f\n", acu.voltage_12v);
-      // print_lpuart(twelve_v);
-      // print_errors_warning(&acu);
       #endif
 
       // READ: adc_data

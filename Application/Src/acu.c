@@ -1,4 +1,5 @@
 #include "acu.h"
+
 extern uint8_t get_state();
 extern void print_lpuart(char* arr);
  
@@ -22,9 +23,11 @@ extern volatile uint8_t p_top, p_bottom, p_level, d_top, d_bottom, d_level, c_to
 extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 extern volatile uint8_t CAN_1_flag, CAN_2_flag, CAN_3_flag;
 
+/// @brief good for parsing CAN messages
 union {
-    float float_val;
-    uint8_t non_flat_val[2];
+    uint16_t u16; 
+    float flt;
+    uint8_t byts[4];
 } data_union;
 
 /// @brief initialize acu variables, reads data, updates adc
@@ -139,30 +142,61 @@ bool acu_check(ACU * acu, bool startup){
     return !hasErrors;
 }
 
-/// @brief Checks CAN_RxBuffer and parses everything that's incoming
+/// @brief convert byte arrays to float
+/// @param data array of bytes
+/// @param size size of array
+/// @return 
+float magical_union_float(uint8_t data[], uint8_t size){
+    memset(&data_union, 0, sizeof(data_union));
+    for(size_t i = 0; i < size; i++){
+        data_union.byts[i] = data[i];
+    }
+    return data_union.flt;
+}
+
+/// @brief convert byte arrays to uint16_t
+/// @param data array of bytes
+/// @return 
+uint16_t magical_union_u16(uint8_t data[]){
+    memset(&data_union, 0, sizeof(data_union));
+    data_union.byts[0] = data[0];
+    data_union.byts[1] = data[1];
+    return data_union.u16;
+}
+
+/// @brief converts float to byte array & sticks into CAN buffer
+/// @param buffer CAN_TxBuffer theoretically
+/// @param data float value we wanna stick in
+/// @param size size of the array (expected)
+void magical_union_flt_byts(uint8_t * buffer, float data, uint8_t size){
+    data_union.flt = data;
+    for(size_t i = 0; i < size; i++){
+        buffer[i] = data_union.byts[i];
+    }
+}
+
+/// @brief Checks CAN_RxBuffer & parses messages in FIFO order
+/// @attention Case: too many messages to parse, maybe we have some MAX_PARSE val?
 /// @param acu 
 void can_read_handler(ACU* acu){
-    bool can_read_it = CAN_RxBufferTop > CAN_RxBufferBottom;
-    uint8_t butt = CAN_RxBufferBottom;
-    while(can_read_it){
-        FDCAN_GlobalTypeDef * type = CAN_RxBuffer[butt].instance;
-        uint32_t id = CAN_RxBuffer[butt].identifier;
-        can_read(acu, type, id, (uint8_t *)(&CAN_RxBuffer[butt].data));
-        bzero((void*)CAN_RxBuffer[butt].data, sizeof(CAN_RxBuffer[butt].data));
+    while(CAN_RxBufferLevel > 0){
+        FDCAN_GlobalTypeDef * type = CAN_RxBuffer[CAN_RxBufferBottom].instance;
+        uint32_t id = CAN_RxBuffer[CAN_RxBufferBottom].identifier;
+        can_read(acu, type, id, (uint8_t *)(&CAN_RxBuffer[CAN_RxBufferBottom].data));
+        bzero((void*)CAN_RxBuffer[CAN_RxBufferBottom].data, sizeof(CAN_RxBuffer[CAN_RxBufferBottom].data));
         CAN_RxBufferBottom++;
         CAN_RxBufferLevel--;
     }
 }
 
-/// @brief Parses single CAN message
-/// @param acu 
-/// @param which_can 
-/// @param id 
-/// @param size 
-/// @param data 
+/// @brief Parses a single CAN message
+/// @param acu avu in question
+/// @param which_can between FDCAN_1, FDCAN_2, FDCAN_3
+/// @param id CAN Message ID
+/// @param size number of bytes
+/// @param data data in question
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data){
-    float values = 0.0f;
-    uint32_t curr = HAL_GetTick(); // this could be a problem, bc this func is called indirectly from an interrupt handler
+    uint32_t curr = HAL_GetTick();
     switch (id){
         case Debug_2_ACU:
             enqueue(ACU_Debug_2_Debug, which_can);
@@ -177,44 +211,25 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             enqueue(ACU_Ping_ECU, which_can);
             break;
         case Precharge_ACU:
-            acu->ts_active = data[0] & 1; // determines whether we go to precharge
+            acu->ts_active = data[0] & 1; // @details: command to precharge
             break;  
         case Charger_Data_ACU:
-            acu->lastChrgRecieveTime = curr;
-            values = 0.0f;
-            values += data[0] << 8;
-            values += data[1];
-            acu->chgr->charger_output_voltage = values * 0.1f; // this should be sent to somewhere
-
-            values = 0.0f;
-            values += data[2] << 8;
-            values += data[3];
-            acu->chgr->charger_output_current = values * 0.1f; // this should be sent to somewhere
-            acu->chgr->chgr_status = data[4]; // need to check for this when checking acu
+            acu->lastChrgRecieveTime = curr; // @remark: check this
+            acu->chgr->charger_output_voltage = magical_union_float(data, 2) * 0.1f;   // @remark: why is this? what is this for?
+            acu->chgr->charger_output_current = magical_union_float(data+2, 2) * 0.1f; // @remark: why is this? what is this for?
+            acu->chgr->chgr_status = data[4]; // @remark: need to check for this when checking acu
             break;  
         case Config_Charge_ACU:
-            values = 0.0f;
-            values += data[0] << 8;
-            values += data[1];
-            acu->target_voltage = values * 0.1f;
-            values = 0.0f;
-            values = data[2] << 8;
-            values += data[3];
-            acu->target_current = values* 0.1f;
+            acu->target_voltage = magical_union_float(data, 2) * 0.1f;
+            acu->target_current = magical_union_float(data+2, 2) * 0.1f;
             break;  
         case Config_Ops_ACU:
-            values = 0.0f;
-            values += data[0] << 8;
-            values += data[1];
-            acu->bty->min_volt_thresh = values * 0.1f;
-            values = 0.0f;
-            values = data[2] << 8;
-            values += data[3];
-            acu->bty->max_temp_thresh = values * 0.1f;
+            acu->bty->min_volt_thresh = magical_union_float(data, 2) * 0.1f;
+            acu->bty->max_temp_thresh = magical_union_float(data+2, 2) * 0.1f;
             break;  
-        case EM_Measurements_ACU: // i think
-            acu->em->em_current = (float)((unsigned long)(data[3]<<24)|(unsigned long)(data[2])<<16|data[1]<<8|data[0]);
-            acu->em->em_voltage = (float)((unsigned long)(data[7]<<24)|(unsigned long)(data[6])<<16|data[5]<<8|data[4]);
+        case EM_Measurements_ACU: // @remark: double check this
+            acu->em->em_current = magical_union_float(data, 4);
+            acu->em->em_voltage = magical_union_float(data+4, 4);
             break;  
         case EM_Data_1_ACU:
             // ???
@@ -224,7 +239,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             break;  
         case EM_Status_ACU:
             acu->em->status = data[0];
-            memcpy(&(acu->em->energy), (data+1), sizeof(float));
+            memcpy(&(acu->em->energy), (data+1), sizeof(float)); // @remark: double check this
             break;  
         case EM_Temperature_ACU:
             uint8_t mux_signal = data[0] & 0b11;
@@ -243,17 +258,14 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             acu->imd->id = data[0];
             break;  
         case IMD_Isolation_ACU: 
-            acu->imd->r_iso_negative = (uint16_t)(data[0] << 8);
-            acu->imd->r_iso_negative |= (uint16_t)(data[1]);
-            acu->imd->r_iso_positive = (uint16_t)(data[2] << 8);
-            acu->imd->r_iso_positive |= (uint16_t)(data[3]);
-            acu->imd->r_iso_original = (uint16_t)(data[4] << 8);
-            acu->imd->r_iso_original |= (uint16_t)(data[5]);
+            acu->imd->r_iso_negative = magical_union_u16(data);
+            acu->imd->r_iso_positive = magical_union_u16(data+2);
+            acu->imd->r_iso_original = magical_union_u16(data+4);
             acu->imd->iso_meas_count = data[6];
             acu->imd->isolation_quality = data[7];
             break;  
         case IMD_Voltage_ACU:
-            acu->imd->hv_system_voltage = (((uint16_t)(data[1]) << 8) + data[0] - 32128) * 0.05f;
+            acu->imd->hv_system_voltage = (magical_union_u16(data) - 32128) * 0.05f;
             break;  
         case IMD_IT_System_ACU: 
             break;
@@ -261,12 +273,10 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             acu->imd->id = data[0];
             break;  
         case IMD_General_ACU:
-            acu->imd->r_iso_corrected = (uint16_t)(data[0] << 8);
-            acu->imd->r_iso_corrected |= (uint16_t)data[1];
+            acu->imd->r_iso_corrected = magical_union_u16(data);
             acu->imd->r_iso_status = data[2];
             acu->imd->r_iso_meas_count = data[3];
-            acu->imd->status_warnings_alarms = (uint16_t)(data[5] << 8);
-            acu->imd->status_warnings_alarms |= (uint16_t)(data[4]);
+            acu->imd->status_warnings_alarms = magical_union_u16(data+4);
             acu->imd->status_device_activity = data[6];
             break;
         default:
@@ -274,7 +284,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
     }
 }
 
-/// @brief Takes top message request off buffer and sends over corresponding CAN
+/// @brief FIFO transfer of CAN messages
 /// @param acu 
 void dequeue(ACU* acu){
     if(CAN_1_flag == 0 && CAN_2_flag == 0 && CAN_3_flag == 0){
@@ -283,7 +293,7 @@ void dequeue(ACU* acu){
     // priority 1: CAN_Primary
     switch(CAN_1_flag){ 
         case 1: // ACU_Debug_2_Debug
-            memcpy(CAN_TxData, CAN_RxData, 4*sizeof(uint8_t));
+            memcpy(CAN_TxData, CAN_RxData, 8*sizeof(uint8_t));
             TxHeader.Identifier = ACU_Debug_2_Debug;
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
@@ -321,15 +331,10 @@ void dequeue(ACU* acu){
         case 5: // ACU_Status_1
             TxHeader.Identifier = ACU_Status_1;
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
-            data_union.float_val = get_total_voltage(acu) * 100.0f;
-            CAN_TxData[0] = data_union.non_flat_val[0];
-            CAN_TxData[1] = data_union.non_flat_val[1];
-            data_union.float_val = acu->ts_voltage * 100.0f;
-            CAN_TxData[2] = data_union.non_flat_val[0];
-            CAN_TxData[3] = data_union.non_flat_val[1];
-            data_union.float_val = (acu->ts_current + 327.68f) * 100.0f;
-            CAN_TxData[4] = data_union.non_flat_val[0];
-            CAN_TxData[5] = data_union.non_flat_val[1];
+            magical_union_flt_byts(CAN_TxData, (get_total_voltage(acu) * 100.0f), 2);
+            magical_union_flt_byts(CAN_TxData+2, ((acu->ts_current + 327.68f) * 100.0f), 2);
+            CAN_TxData[4] = data_union.byts[0];
+            CAN_TxData[5] = data_union.byts[1];
             CAN_TxData[6] = ((uint8_t)calculate_acu_soc(acu)) * 51 * 0.2f;
             CAN_TxData[7] = ((uint8_t)calculate_glv_soc(acu)) * 51 * 0.2f;
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
@@ -375,7 +380,7 @@ void dequeue(ACU* acu){
             break;
         case 2: // ACU_Ping_ECU
             memcpy(CAN_TxData, CAN_RxData, 4*sizeof(uint8_t));
-            TxHeader.Identifier = ACU_Ping_ECU;
+            TxHeader.Identifier = ACU_Ping_ECU; // @attention check if it's sent through CAN1 or CAN2
             TxHeader.DataLength = FDCAN_DLC_BYTES_4;
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Ping_ECU > hfdcan2 failed...\n");
@@ -451,12 +456,8 @@ void dequeue(ACU* acu){
         case 1:
             TxHeader_Charger.Identifier = ACU_Charger_Control;
             TxHeader_Charger.DataLength = FDCAN_DLC_BYTES_5;
-            data_union.float_val = acu->target_voltage * 10;
-            CAN_TxData[0] = data_union.non_flat_val[0];
-            CAN_TxData[1] = data_union.non_flat_val[1];
-            data_union.float_val = acu->target_current * 10;
-            CAN_TxData[2] = data_union.non_flat_val[0];
-            CAN_TxData[3] = data_union.non_flat_val[1];
+            magical_union_flt_byts(CAN_TxData, (acu->target_voltage * 10.0f), 2);
+            magical_union_flt_byts(CAN_TxData+2, (acu->target_current * 10.0f), 2);
             CAN_TxData[4] = acu->chg_ctrl;
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan3, &TxHeader_Charger, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Charger_Control failed...\n");
@@ -660,12 +661,12 @@ void update_adc_data(ACU* acu){
     acu->water_sense = adc_data[5] * 0.0005f;  // keep raw voltage
 }
 
-/// @brief idk if this is right
+/// @attention idk if this is right
 float calculate_acu_soc(ACU* acu){
     return acu->bty->min_cell_volt / acu->target_voltage;
 }
 
-/// @brief idk if this is right
+/// @attention idk if this is right
 float calculate_glv_soc(ACU* acu){
     return (1.0f * acu->voltage_12v) / acu->target_voltage;
 }

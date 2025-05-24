@@ -184,7 +184,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             }
         }
 
-        // CELL TEMPS
+        
         if(read_temp){
             bzero(temp_measures, sizeof(temp_measures));
             bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, temp_measures);
@@ -203,6 +203,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             }
         }
 
+        // CELL TEMPS
         if(true && read_temp){
             for(uint8_t j = 0; j < 32; j++) { // TODO: fix this loop
                 uint8_t readByte;
@@ -228,8 +229,11 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 
         bcc_error = BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), false); // resume after read
         if (bcc_error != BCC_STATUS_SUCCESS) {
-            print_lpuart("returned from BCC_CB_Pause: ");
+            print_lpuart("failed BCC_CB_Pause: ");
             print_bcc_status(bcc_error);
+            #if DEBUGG == 0
+            return bcc_error;
+            #endif
         }
     }
     return BCC_STATUS_SUCCESS;
@@ -241,7 +245,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 // TODO: review this
 bool do_cell_balancing(Battery * bty){
 
-    float threshold = (bty->min_cell_volt + bty->max_cell_volt)/2;
+    float threshold = (bty->min_cell_volt + bty->max_cell_volt) * 0.5f;
     bcc_error = BCC_STATUS_SUCCESS;
     
     // turn off cell balancing
@@ -402,7 +406,7 @@ bool check_volt(Battery *bty) {
     return success;
 }
 
-/// @brief 
+/// @brief reads cell volts & cell temps, updates neccessary struct data
 /// @param bty 
 /// @param fullcheck 
 /// @return 1 if passes, 0 otherwise

@@ -108,20 +108,22 @@ typedef struct {
 } ACU;
 
 // Basic blocks
-
 void acu_init(ACU * acu);
 bool acu_check(ACU * acu, bool startup);
 
 // Send CAN Messages
-
 void dequeue(ACU* acu);
 void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 
 // Receive CAN Messages
-
 void can_read_handler(ACU* acu);
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data);
 
+void magical_union_flt_byts(uint8_t * buffer, float data, uint8_t size);
+float magical_union_float(uint8_t data[], uint8_t size);
+uint16_t magical_union_u16(uint8_t data[]);
+
+// Print functions
 void print_targets(ACU * acu);
 void print_imd_data(ACU* acu);
 void print_adc_data(ACU *acu);
