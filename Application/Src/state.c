@@ -201,6 +201,10 @@ void precharge(){
     write_IRneg(false);
     write_IRpos(false);
 
+    // reset SDC latch and wait for voltage to stablize
+    sdc_reset();
+    LL_mDelay(100);
+
     // if (not successful) {
     //     state = SHUTDOWN;
     // }

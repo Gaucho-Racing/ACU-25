@@ -296,17 +296,19 @@ int main(void)
   RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   RxHeader.RxTimestamp = 0; /* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
 
+  sdc_reset(); // remove this in production
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    write_LED(0);
-    write_prechg(0);
-    LL_mDelay(1000);
     write_LED(1);
     write_prechg(1);
+    LL_mDelay(100);
+    write_LED(0);
+    write_prechg(0);
+    LL_mDelay(900);
 
     #if DEBUGG == 1
     print_state();

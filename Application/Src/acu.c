@@ -925,3 +925,11 @@ void write_LED(bool state){
         LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_15);
     }
 }
+
+
+/// @brief resets (switch on) the ACU SDC latch (connect SDC_W to SDC_V)
+void sdc_reset(){
+    LL_GPIO_SetOutputPin(GPIOA, LL_GPIO_PIN_6);
+    LL_mDelay(1);
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_6);
+}

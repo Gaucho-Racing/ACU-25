@@ -151,5 +151,6 @@ void write_IRneg(bool state);
 void write_IRpos(bool state);
 void write_prechg(bool state);
 void write_LED(bool state);
+void sdc_reset();
 
 #endif
