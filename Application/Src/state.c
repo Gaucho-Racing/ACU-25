@@ -72,7 +72,9 @@ void shitdown(){
     // Open all
     acu.relay_state = 0;
     acu.chg_ctrl = (uint8_t)NO_CHARGE;
-    write_prechg(state);
+    write_prechg(false);
+    write_IRneg(false);
+    write_IRpos(false);
     enqueue(ACU_Charger_Control, FDCAN3);
 
     //indicates to battery to stop charging
@@ -95,6 +97,9 @@ void shitdown(){
 
 /// @brief either mega-cooked or in init
 void init(){
+    write_prechg(false);
+    write_IRneg(false);
+    write_IRpos(false);
     if(first_init == true){
         // setup battery configuring
         battery.drvConfig.commMode = BCC_MODE_TPL;
@@ -171,8 +176,9 @@ void init(){
 
 /// @brief do nothing, in initial state wait for VDM to send start command, maybe poll CAN
 void standby(){
-    
-    update_adc_data(&acu); // get ts_currents
+    write_prechg(false);
+    write_IRneg(false);
+    write_IRpos(false);
     if(state_system_check(false, false) == false){
         print_lpuart("𝓕𝓾𝓬𝓴\n");
         #if DEBUGG == 0
@@ -191,6 +197,9 @@ void precharge(){
 
     // all to zero
     acu.relay_state = 0;
+    write_prechg(false);
+    write_IRneg(false);
+    write_IRpos(false);
 
     // if (not successful) {
     //     state = SHUTDOWN;
@@ -221,13 +230,13 @@ void precharge(){
 
     // close AIR-
     acu.relay_state |= AIR_MINUS;
-    // write_IRneg(state);
+    write_IRneg(true);
 
     // Close precharge relay
     acu.relay_state |= RELAY_PRE;
+    write_prechg(true);
 
     uint32_t start_time = HAL_GetTick();
-    update_adc_data(&acu);
 
     // keep looping until ts_voltage reaches 0.95 of total cell voltage
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
@@ -262,12 +271,10 @@ void precharge(){
         if(state != PRECHARGE){
             print_lpuart("🦍💨 NOT IN PRECHARGE??????\n");
         }
-        update_adc_data(&acu);
     }
 
     start_time = HAL_GetTick();
     uint8_t goToCharge = 0; // change this to false on final build
-    update_adc_data(&acu);
 
     // 3 seconds to check if we go to charge
     while (HAL_GetTick() - start_time < 3000) {
@@ -298,18 +305,16 @@ void precharge(){
     }
 
     acu.relay_state |= AIR_PLUS;
-    // write_IRpos(state);
+    write_IRpos(true);
 
     enqueue(ACU_Status_3,FDCAN3);
 
     if(goToCharge){
         acu.chg_ctrl = PLS_CHARGE;
-        write_prechg(true);
         state = CHARGE;
     }
     else{
         acu.chg_ctrl = NO_CHARGE;
-        write_prechg(false);
         state = NORMAL;
     }
     return;

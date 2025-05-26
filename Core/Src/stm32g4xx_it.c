@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "config.h"
 #include <stdio.h>
+#include "acu.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -73,6 +74,7 @@ extern volatile uint8_t prim_q[64], data_q[64], charger_q[64];
 extern volatile uint8_t CAN_1_flag;
 extern volatile uint8_t CAN_2_flag;
 extern volatile uint8_t CAN_3_flag;
+extern ACU acu; // global ACU variable
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -247,6 +249,8 @@ void SysTick_Handler(void)
     c_level--;
     c_bottom++;
   }
+
+  update_adc_data(&acu);
   /* USER CODE END SysTick_IRQn 1 */
 }
 

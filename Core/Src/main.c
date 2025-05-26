@@ -165,14 +165,28 @@ void print_lpuart(char* arr) {
 /// @return 0 for success, 1 for FAILURE 🤦‍♂🥲
 int setup(){
 
-  // setup ADC
-  LL_ADC_Enable(ADC1);
-  while (!LL_ADC_IsActiveFlag_ADRDY(ADC1));
-  LL_DMA_SetPeriphAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)&ADC1->DR);
-  LL_DMA_SetMemoryAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)adc_data);
-  LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_1, 6);
-  LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_1);
-  LL_ADC_REG_StartConversion(ADC1);
+  if (LL_ADC_IsEnabled(ADC1) == 0){
+    // setup ADC
+    LL_ADC_DisableDeepPowerDown(ADC1);
+    LL_ADC_EnableInternalRegulator(ADC1);
+    uint32_t wait_loop_index = ((LL_ADC_DELAY_INTERNAL_REGUL_STAB_US * (SystemCoreClock / (100000 * 2))) / 10);
+    while(wait_loop_index != 0)
+    {
+      wait_loop_index--;
+    }
+    LL_ADC_StartCalibration(ADC1, LL_ADC_SINGLE_ENDED);
+    while (LL_ADC_IsCalibrationOnGoing(ADC1) != 0)
+    {
+      ;
+    }
+    LL_ADC_Enable(ADC1);
+    while (!LL_ADC_IsActiveFlag_ADRDY(ADC1));
+    LL_DMA_SetPeriphAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)&ADC1->DR);
+    LL_DMA_SetMemoryAddress(DMA1, LL_DMA_CHANNEL_1, (uint32_t)adc_data);
+    LL_DMA_SetDataLength(DMA1, LL_DMA_CHANNEL_1, 6);
+    LL_DMA_EnableChannel(DMA1, LL_DMA_CHANNEL_1);
+    LL_ADC_REG_StartConversion(ADC1);
+  }
   
   state = INIT;
   return 0;
@@ -288,10 +302,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    write_LED(1);
-    LL_mDelay(100);
     write_LED(0);
-    LL_mDelay(100);
+    write_prechg(0);
+    LL_mDelay(1000);
+    write_LED(1);
+    write_prechg(1);
 
     #if DEBUGG == 1
     print_state();
@@ -319,9 +334,6 @@ int main(void)
       #if DEBUGG == 1
       print_adc_data(&acu);
       #endif
-
-      // READ: adc_data
-      update_adc_data(&acu);
 
       // SYSTEM CHECK
       bool b_check = battery_check(&battery, true);
@@ -389,14 +401,15 @@ void SystemClock_Config(void)
   {
   }
   LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);
-  LL_RCC_HSI_Enable();
-   /* Wait till HSI is ready */
-  while(LL_RCC_HSI_IsReady() != 1)
+  LL_RCC_HSE_EnableBypass();
+  LL_RCC_HSE_Enable();
+   /* Wait till HSE is ready */
+  while(LL_RCC_HSE_IsReady() != 1)
   {
   }
 
-  LL_RCC_HSI_SetCalibTrimming(64);
-  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSI, LL_RCC_PLLM_DIV_1, 16, LL_RCC_PLLR_DIV_2);
+  LL_RCC_HSE_EnableCSS();
+  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_1, 32, LL_RCC_PLLR_DIV_2);
   LL_RCC_PLL_EnableDomain_SYS();
   LL_RCC_PLL_Enable();
    /* Wait till PLL is ready */

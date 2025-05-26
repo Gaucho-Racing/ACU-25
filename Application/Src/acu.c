@@ -653,12 +653,12 @@ uint8_t fconstrain(float value){
 /// @brief updates adc_data[]
 /// @param acu 
 void update_adc_data(ACU* acu){
-    acu->ts_current = (adc_data[0] * 0.0005f - 1.235f) / 0.005f; // 5mV/A
-    acu->ts_voltage = adc_data[1] * 0.0005f * -400.0f; // 1:400 voltage divider
-    acu->sdc_volt_w = adc_data[2] * 0.0005f * 10.0f; // 1:10 voltage divider
-    acu->sdc_volt_v = adc_data[3] * 0.0005f * 10.0f; // 1:10 voltage dividerx
-    acu->voltage_12v += (adc_data[4] * 0.0005f * 10.07475f + 0.3f - acu->voltage_12v) * 0.1f; // 1:10 voltage divider, 0.3V offset idk why
-    acu->water_sense = adc_data[5] * 0.0005f;  // keep raw voltage
+    acu->ts_current += ((adc_data[0] * 0.0005f - 1.235f) / 0.005f - acu->ts_current) * 0.02f; // 5mV/A
+    acu->ts_voltage += (adc_data[1] * 0.0005f * 400.0f - acu->ts_voltage) * 0.1f; // 1:400 voltage divider
+    acu->sdc_volt_w += (adc_data[2] * 0.0005f * 10.0f - acu->sdc_volt_w) * 0.1f; // 1:10 voltage divider
+    acu->sdc_volt_v += (adc_data[3] * 0.0005f * 10.0f - acu->sdc_volt_v) * 0.1f; // 1:10 voltage divider
+    acu->voltage_12v += (adc_data[4] * 0.0005f * 10.07475f - acu->voltage_12v) * 0.1f; // 1:10 voltage divider
+    acu->water_sense += (adc_data[5] * 0.0005f - acu->water_sense) * 0.1f;  // keep raw voltage
 }
 
 /// @attention idk if this is right
@@ -675,9 +675,9 @@ float calculate_glv_soc(ACU* acu){
 /// @param acu
 void print_adc_data(ACU *acu){
     print_lpuart("ADC Data: -------------------------------\n");
-    char buff[100];
+    char buff[256];
     bzero(buff, sizeof(buff));
-    sprintf(buff, "ts_curr: %.3f | ts_volt: %.3f\nsdc_w: %.3f | sdc_v: %.3f\n12v: %.3f | water_sense: %3f\n", 
+    sprintf(buff, "ts_curr: %.3f | ts_volt: %.3f\nsdc_w: %.3f | sdc_v: %.3f\n12v: %.3f | water_sense: %.3f\n", 
         acu->ts_current, acu->ts_voltage, acu->sdc_volt_w,  acu->sdc_volt_v, acu->voltage_12v, acu->water_sense);
     print_lpuart(buff);
     print_lpuart("-----------------------------------------\n");

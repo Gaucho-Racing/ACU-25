@@ -78,12 +78,12 @@ typedef struct {
 
     // ADC Stuff
     // 0:ts_current, 1:ts_voltage, 2:sdc_volt_w, 3:sdc_volt_v, 4:voltage_12v,5:water_sense
-    float ts_voltage;  // ts_v
-    float ts_current;  // uc_ts_i
-    float sdc_volt_w;  // sdcw_w => BEFORE ACU latch
-    float sdc_volt_v;  // sdcv_v => AFTER ACU latch
-    float voltage_12v; // glv voltage
-    float water_sense; // uc_water
+    volatile float ts_voltage;  // ts_v
+    volatile float ts_current;  // uc_ts_i
+    volatile float sdc_volt_w;  // sdcw_w => BEFORE ACU latch
+    volatile float sdc_volt_v;  // sdcv_v => AFTER ACU latch
+    volatile float voltage_12v; // glv voltage
+    volatile float water_sense; // uc_water
     
     // ACU-Status 3
     float hv_input_voltage;  // 600v input voltage => Apparantly not needed anymore
