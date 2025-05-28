@@ -70,7 +70,6 @@ void print_state(){
 /// @brief self explanatory
 void shitdown(){
     // Open all
-    acu.relay_state = 0;
     acu.chg_ctrl = (uint8_t)NO_CHARGE;
     write_prechg(false);
     write_IRneg(false);
@@ -87,7 +86,6 @@ void shitdown(){
     if (precharge_error) acu.acu_err_warns |= ACU_PRECHARGE;
 
     uint8_t pass = state_system_check(true, false);
-    update_adc_data(&acu);
     
     if (acu.ts_voltage < SAFE_V_TO_TURN_OFF && pass) { // safe to turn off if TS voltage < 60V
         print_lpuart("Shutdown (Safe) => Standby");
@@ -152,7 +150,6 @@ void init(){
     }
 
     if(first_init == true){
-        update_adc_data(&acu);
         acu_init(&acu);
         acu.bty = &battery;
         print_lpuart("🤖 completed acu_init()\n");
@@ -196,7 +193,6 @@ void precharge(){
     acu.acu_err_warns &= ~(ACU_PRECHARGE);
 
     // all to zero
-    acu.relay_state = 0;
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);
@@ -210,7 +206,6 @@ void precharge(){
     // }
 
     LL_mDelay(100);
-    update_adc_data(&acu);
 
     if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
         print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
@@ -233,11 +228,9 @@ void precharge(){
     }
 
     // close AIR-
-    acu.relay_state |= AIR_MINUS;
     write_IRneg(true);
 
     // Close precharge relay
-    acu.relay_state |= RELAY_PRE;
     write_prechg(true);
 
     uint32_t start_time = HAL_GetTick();
@@ -304,11 +297,9 @@ void precharge(){
             return;
             #endif
         }
-        update_adc_data(&acu);
         LL_mDelay(50);
     }
 
-    acu.relay_state |= AIR_PLUS;
     write_IRpos(true);
 
     enqueue(ACU_Status_3,FDCAN3);
@@ -407,7 +398,6 @@ void normal(){
         #endif
     }
 
-    update_adc_data(&acu);
     float totalV = get_total_voltage(&acu);
     if (fabsf(acu.ts_voltage - totalV) > 80U) {
         print_lpuart("∘ ∘ ∘ ( °ヮ° ) ? TS voltage mismatch");
@@ -435,11 +425,10 @@ void normal(){
     cycle++;
     cycle = cycle % 8;
 
-    update_adc_data(&acu);
     if (acu.ts_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
-    if (HAL_GetTick() - acu.cur_LastHighTime > 10000) {
-        update_adc_data(&acu);
-    }
+    // if (HAL_GetTick() - acu.cur_LastHighTime > 10000) {
+    //     update_adc_data(&acu);
+    // }
 }
 
 /// @brief system check on acu, battery, errors/warnings

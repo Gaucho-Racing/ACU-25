@@ -251,6 +251,8 @@ void SysTick_Handler(void)
   }
 
   update_adc_data(&acu);
+  update_relay_state(&acu);
+
   /* USER CODE END SysTick_IRQn 1 */
 }
 

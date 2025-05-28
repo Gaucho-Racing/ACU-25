@@ -37,7 +37,6 @@ void acu_init(ACU * acu){
     acu->chg_ctrl = NO_CHARGE;
     acu->acuErrCount = 0;
     acu->acu_err_warns = 0;
-    update_adc_data(acu);
 
     // fix later
     // uint8_t count = 0;
@@ -61,9 +60,6 @@ void acu_init(ACU * acu){
 /// @param startup 
 /// @return True if passes, False otherwise
 bool acu_check(ACU * acu, bool startup){
-
-    update_adc_data(acu);
-    acu->relay_state = 0; // DOUBLE CHECK THIS
 
     // clean the slate
     acu->acu_err_warns &= ~(ACU_CLEAR_ERRR);
@@ -937,7 +933,7 @@ void sdc_reset(){
 /// @brief updates acu.relay_state based on relay control pins levels
 /// @param acu
 void update_relay_state(ACU* acu){
-    acu->relay_state = 0;
+
     if(LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_4)){
         acu->relay_state |= AIR_PLUS;
     }
