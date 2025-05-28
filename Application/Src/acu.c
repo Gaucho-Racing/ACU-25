@@ -933,3 +933,18 @@ void sdc_reset(){
     LL_mDelay(1);
     LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_6);
 }
+
+/// @brief updates acu.relay_state based on relay control pins levels
+/// @param acu
+void update_relay_state(ACU* acu){
+    acu->relay_state = 0;
+    if(LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_4)){
+        acu->relay_state |= AIR_PLUS;
+    }
+    if(LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_5)){
+        acu->relay_state |= AIR_MINUS;
+    }
+    if(LL_GPIO_IsInputPinSet(GPIOB, LL_GPIO_PIN_0)){
+        acu->relay_state |= RELAY_PRE;
+    }
+}
