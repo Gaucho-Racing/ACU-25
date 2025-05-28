@@ -2,7 +2,7 @@
 #define CONFIG_H
 
 #define DEBUGG 1
-#define SPAMPRINT 0
+#define SPAMPRINT 1
 
 #define NUM_TOTAL_IC 1U
 #define REAL_NUM_TOTAL_IC 10U // only used in defining struct so no mem leaks LOL
@@ -47,6 +47,7 @@
 #define ACU_CLEAR_WARN      0b0000111000000000
 
 // battery fault masks
+#define BCC_FS_MAX 11
 #define BATTERY_FAULT_CELL_OV 0b10000000
 #define BATTERY_FAULT_CELL_UV 0b01000000
 #define BATTERY_FAULT_CB_OPEN 0b00100000
@@ -64,6 +65,10 @@
 #define CHARGER_IN_VOLT     0b00100
 #define CHARGER_CONNECT     0b00010
 #define CHARGER_COOMMMM     0b00001
+
+// energy measurement status
+#define EM_VIOLATION        0b1000
+#define EM_LOGGING          0b0100
 
 // precharge cmd
 #define PLS_CHARGE 0b01000000

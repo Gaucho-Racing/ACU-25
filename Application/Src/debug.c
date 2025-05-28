@@ -16,7 +16,7 @@ extern void print_temperature(Battery * bty);
 extern void print_errors_warning(ACU * acu);
 
 /// @brief Print BCC Status messages
-/// @param stat (bcc_status_t)
+/// @param stat bcc_status_t
 void print_bcc_status(bcc_status_t stat){
     return;
   switch (stat)

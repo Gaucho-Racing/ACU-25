@@ -310,7 +310,7 @@ int main(void)
     write_prechg(0);
     LL_mDelay(900);
 
-    #if DEBUGG == 1
+    #if SPAMPRINT == 1
     print_state();
     #endif
 
@@ -333,7 +333,7 @@ int main(void)
         #endif
       }
 
-      #if DEBUGG == 1
+      #if SPAMPRINT == 1
       print_adc_data(&acu);
       #endif
 
@@ -370,13 +370,14 @@ int main(void)
         shitdown();
         break;
       default:
+        print_lpuart("ur cooked if you end up here...\n");
         state = SHITDOWN;
         break;
     }
-    #if SPAMPRINT == 1
+    #if DEBUG_MODE == 1
     uint32_t curr = HAL_GetTick();
     if(curr - prev > 500){
-      prev = 
+      prev = curr;
       debug();
     }
     #endif
@@ -471,7 +472,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
             CAN_RxBuffer[CAN_RxBufferTop].length = RxHeader.DataLength;
             CAN_RxBuffer[CAN_RxBufferTop].instance = hfdcan->Instance;
 
-            #if DEBUGG == 2
+            #if SPAMPRINT == 1
             uint8_t headerBuff[64], dataBuff[8];
             sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
             print_lpuart(headerBuff);

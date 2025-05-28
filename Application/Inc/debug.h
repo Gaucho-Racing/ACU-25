@@ -18,13 +18,13 @@
     typedef unsigned long long uint64_t; // maybe not needed?
 #endif
 
-#define DEBUG_MODE 0 // will determine if we print debug statements
+#define DEBUG_MODE 0 
 
 #define DUMP_TARGETS 0
 #define DUMP_ADC_DATA 0
 
 #define DUMP_TEMPS 0
-#define DUMP_VOLTS 0
+#define DUMP_VOLTS 1
 
 #define CHARG_CTL 0
 #define DUMP_ERR_WARN 0
@@ -32,7 +32,7 @@
 #define DUMP_IMD_DATA 0
 #define DUMP_CHARGER_DATA 0
 
-// #define DUMP_ENERGY_MEASURE_DATA 0
+#define DUMP_ENERGY_MEASURE_DATA 0
 
 void debug();
 #endif

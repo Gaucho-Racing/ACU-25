@@ -59,6 +59,17 @@ uint8_t bcc_send_string(const uint8_t *data, uint16_t length) {
     return 0;
 }
   
+void get_faults(Battery * bty){
+    for (uint8_t ic = 1; ic <= NUM_CELL_IC; ic++)
+    {   
+        bcc_cid_t cid = (bcc_cid_t)ic;
+        uint16_t fault_status[BCC_FS_MAX];
+        bcc_error = BCC_Fault_GetStatus(&(bty->drvConfig), cid, fault_status);
+
+        if(bcc_error != BCC_STATUS_SUCCESS) return;
+        memcpy(bty->faults+((ic-1)*(NUM_CELL_IC)), fault_status, (BCC_FS_MAX*sizeof(uint16_t)));
+    }
+}
 
 void clear_faults(bcc_drv_config_t * drvConfig)
 {
@@ -355,13 +366,13 @@ bool check_temp(Battery *bty){
             // overtemp check
             if(bty->cell_temp[i*NUM_CELL_IC + j] > bty->max_temp_thresh){
                 bty->cell_temp_errors++;
-                bty->faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
+                bty->battery_check_faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
                 success = 0;
             }
             // undertemp check
             if(bty->cell_temp[i*NUM_CELL_IC + j] < bty->min_temp_thresh){
                 bty->cell_temp_errors++;
-                bty->faults |= BATTERY_FAULT_CELL_UT; // probably not the correct one
+                bty->battery_check_faults |= BATTERY_FAULT_CELL_UT; // probably not the correct one
                 success = 0;
             }
         }
@@ -382,14 +393,14 @@ bool check_volt(Battery *bty) {
             // max_volt check
             if(bty->cell_volt[i*NUM_CELL_IC + j] > bty->max_volt_thresh){
                 bty->cell_volt_errors++;
-                bty->faults |= BATTERY_FAULT_CELL_OV;
+                bty->battery_check_faults |= BATTERY_FAULT_CELL_OV;
                 success = 0;
             }
 
             // min_volt check
             if(bty->cell_volt[i*NUM_CELL_IC + j] < bty->min_volt_thresh){
                 bty->cell_volt_errors++;
-                bty->faults |= BATTERY_FAULT_CELL_UV;
+                bty->battery_check_faults |= BATTERY_FAULT_CELL_UV;
                 success = 0;
             }
         }
@@ -411,8 +422,12 @@ bool check_volt(Battery *bty) {
 /// @param fullcheck 
 /// @return 1 if passes, 0 otherwise
 bool battery_check(Battery *bty, bool fullcheck){
-
+    // note, reading temp may or may not be different bc Vamsi changed thermisters, now data is 12 bit resolution instead of 10
     bcc_error = BCC_STATUS_SUCCESS;
+
+    // clear all faults before reading again
+    clear_faults(&(bty->drvConfig)); 
+
     bool success = 1;
     if(fullcheck){
         bcc_error = read_device_measurements(bty, true, true);
@@ -422,17 +437,93 @@ bool battery_check(Battery *bty, bool fullcheck){
         bcc_error = read_device_measurements(bty, false, true); // read temps only
         if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
     }
-    // check temp
-    success = check_temp(bty);
-    if(!success) print_lpuart("check_temp not successful\n");
-    
+
     // read volts
     bcc_error = read_device_measurements(bty, true, false); // read volts only
     if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
 
+    get_faults(bty);
+
+
+    // check temp
+    success = check_temp(bty);
+    if(!success) {
+        char num_t[32];
+        print_lpuart("check_temp not successful\n");
+        sprintf(num_t, "%d errors from check_temp()\n", bty->cell_temp_errors);
+        print_lpuart(num_t);
+    }
+
     // check volts
     success = check_volt(bty);
-    if(!success) print_lpuart("check_volt not successful\n");
+    if(!success) {
+        char num_e[30];
+        print_lpuart("check_volt not successful\n");
+        sprintf(num_e, "%d errors from check_volt()\n", bty->cell_volt_errors);
+        print_lpuart(num_e);
+    }
+
+    // print all the faults there
+    #if SPAMPRINT == 0
+    char buff[40];
+    for(uint8_t it = 0; it < NUM_TOTAL_IC; it++){
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_CELL_OV]){
+            sprintf(buff, "BCC_FS_CELL_OV for cid: %u\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_CELL_UV]){
+            sprintf(buff, "BCC_FS_CELL_UV for cid: %u\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_CB_OPEN]){
+            sprintf(buff, "BCC_FS_CB_OPEN for cid: %u\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_CB_SHORT]){
+            sprintf(buff, "BCC_FS_CB_SHORT for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_GPIO_STATUS]){
+            sprintf(buff, "BCC_FS_GPIO_STATUS for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_AN_OT_UT]){
+            sprintf(buff, "BCC_FS_AN_OT_UT for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_GPIO_SHORT]){
+            sprintf(buff, "BCC_FS_GPIO_SHORT for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_COMM]){
+            sprintf(buff, "BCC_FS_COMM for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_FAULT1]){
+            sprintf(buff, "BCC_FS_FAULT1 for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_FAULT1]){
+            sprintf(buff, "BCC_FS_FAULT1 for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+       if(bty->faults[(it*NUM_CELL_IC)+BCC_FS_FAULT3]){
+            sprintf(buff, "BCC_FS_FAULT3 for cid: %d\n", (it+1));
+            print_lpuart(buff);
+            memset(buff, 0, sizeof(buff));
+       }
+    }
+    #endif
     return success;
 }
 

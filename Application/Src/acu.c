@@ -23,12 +23,7 @@ extern volatile uint8_t p_top, p_bottom, p_level, d_top, d_bottom, d_level, c_to
 extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
 extern volatile uint8_t CAN_1_flag, CAN_2_flag, CAN_3_flag;
 
-/// @brief good for parsing CAN messages
-union {
-    uint16_t u16; 
-    float flt;
-    uint8_t byts[4];
-} data_union;
+union data_union unicorn;
 
 /// @brief initialize acu variables, reads data, updates adc
 /// @param acu 
@@ -50,7 +45,6 @@ void acu_init(ACU * acu){
     //     }
     //     count++;
     //     LL_mDelay(500);
-    //     update_adc_data(acu);
     // }
 }
 
@@ -66,9 +60,10 @@ bool acu_check(ACU * acu, bool startup){
     acu->acu_err_warns &= ~(ACU_CLEAR_WARN);
     
     uint8_t lastAcuErrCount = acu->acuErrCount;
+    
     bool hasErrors = false;
 
-    // check overcurrent
+    // (2) check overcurrent
     if(acu->ts_current > MAX_HV_CURRENT){
         hasErrors = true;
         acu->acuErrCount++;
@@ -102,7 +97,7 @@ bool acu_check(ACU * acu, bool startup){
         }
     }
 
-    //sdc_volt_w should be close to voltage_12v (glv_voltage)
+    // sdc_volt_w should be close to voltage_12v (glv_voltage)
     if(fabsf(acu->sdc_volt_w - acu->voltage_12v) > GLV_SDC_LOW && !startup && get_state() == 3){
         print_lpuart("SD Volt not close enough to GLV\n");
 
@@ -123,17 +118,36 @@ bool acu_check(ACU * acu, bool startup){
             }
         }
     }
+
+    if(acu->water_sense < 1.5f){
+        // turn off pump & high voltage
+        acu->acuErrCount++;
+        print_lpuart("Error in water sense! Ur cooked!\n");
+        hasErrors = true;
+    }
+
     acu->acuErrCount = (lastAcuErrCount == acu->acuErrCount && !hasErrors)? 0 : acu->acuErrCount;
 
-    // ACU: check acu_volt_warnings => deprecated
+    // ACU: check acu_volt_warnings => deprecated (make sure about this)
     // if(acu->ts_voltage < UNDER_VOLTAGE_20V){ ==> sunset this
     //     acu->acu_err_warns |= ACU_ERR_UV_20_V;
     // }
+
     if(acu->voltage_12v < UNDER_VOLTAGE_GLV){
         acu->acu_err_warns |= ACU_ERR_UV_12_V;
     }
     if(acu->sdc_volt_w < UNDER_VOLTAGE_SDCV){
         acu->acu_err_warns |= ACU_ERR_UV_SDC;
+    }
+
+    // IMD iso failure
+    if (acu->imd->status_warnings_alarms > 0){
+        hasErrors = true;
+        print_lpuart("IMD failures exist!\n");
+        
+        #if SPAMPRINT == 1
+        print_imd_err_warn(acu);
+        #endif
     }
     return !hasErrors;
 }
@@ -142,22 +156,46 @@ bool acu_check(ACU * acu, bool startup){
 /// @param data array of bytes
 /// @param size size of array
 /// @return 
-float magical_union_float(uint8_t data[], uint8_t size){
-    memset(&data_union, 0, sizeof(data_union));
-    for(size_t i = 0; i < size; i++){
-        data_union.byts[i] = data[i];
+float magical_union_flt(uint8_t data[], uint8_t size, bool big_endian){
+    memset(&unicorn, 0, sizeof(unicorn));
+    if (big_endian == false){
+        for(size_t i = 0; i < size; i++){
+            unicorn.byts[i] = data[i];
+        }
     }
-    return data_union.flt;
+    else{
+        for(size_t i = 0; i < size; i++){
+            unicorn.byts[size-i-i] = data[i];
+        }
+    }
+    return unicorn.flt;
 }
 
 /// @brief convert byte arrays to uint16_t
 /// @param data array of bytes
 /// @return 
 uint16_t magical_union_u16(uint8_t data[]){
-    memset(&data_union, 0, sizeof(data_union));
-    data_union.byts[0] = data[0];
-    data_union.byts[1] = data[1];
-    return data_union.u16;
+    memset(&unicorn, 0, sizeof(unicorn));
+    unicorn.byts[0] = data[0];
+    unicorn.byts[1] = data[1];
+    return unicorn.u16;
+}
+
+int32_t magical_union_i32(uint8_t data[], bool big_endian){
+    memset(&unicorn, 0, sizeof(unicorn));
+    if(big_endian == false){
+        unicorn.byts[0] = data[0];
+        unicorn.byts[1] = data[1];
+        unicorn.byts[2] = data[2];
+        unicorn.byts[3] = data[3];
+    }
+    else{
+        unicorn.byts[0] = data[3];
+        unicorn.byts[1] = data[2];
+        unicorn.byts[2] = data[1];
+        unicorn.byts[3] = data[0];
+    }
+    return unicorn.i32;
 }
 
 /// @brief converts float to byte array & sticks into CAN buffer
@@ -165,9 +203,9 @@ uint16_t magical_union_u16(uint8_t data[]){
 /// @param data float value we wanna stick in
 /// @param size size of the array (expected)
 void magical_union_flt_byts(uint8_t * buffer, float data, uint8_t size){
-    data_union.flt = data;
+    unicorn.flt = data;
     for(size_t i = 0; i < size; i++){
-        buffer[i] = data_union.byts[i];
+        buffer[i] = unicorn.byts[i];
     }
 }
 
@@ -211,44 +249,49 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             break;  
         case Charger_Data_ACU:
             acu->lastChrgRecieveTime = curr; // @remark: check this
-            acu->chgr->charger_output_voltage = magical_union_float(data, 2) * 0.1f;   // @remark: why is this? what is this for?
-            acu->chgr->charger_output_current = magical_union_float(data+2, 2) * 0.1f; // @remark: why is this? what is this for?
+            acu->chgr->charger_output_voltage = magical_union_flt(data, 2, false) * 0.1f;   // @remark: why is this? what is this for?
+            acu->chgr->charger_output_current = magical_union_flt(data+2, 2, false) * 0.1f; // @remark: why is this? what is this for?
             acu->chgr->chgr_status = data[4]; // @remark: need to check for this when checking acu
             break;  
         case Config_Charge_ACU:
-            acu->target_voltage = magical_union_float(data, 2) * 0.1f;
-            acu->target_current = magical_union_float(data+2, 2) * 0.1f;
+            acu->target_voltage = magical_union_flt(data, 2, false) * 0.1f;
+            acu->target_current = magical_union_flt(data+2, 2, false) * 0.1f;
             break;  
         case Config_Ops_ACU:
-            acu->bty->min_volt_thresh = magical_union_float(data, 2) * 0.1f;
-            acu->bty->max_temp_thresh = magical_union_float(data+2, 2) * 0.1f;
+            acu->bty->min_volt_thresh = magical_union_flt(data, 2, false) * 0.1f;
+            acu->bty->max_temp_thresh = magical_union_flt(data+2, 2, false) * 0.1f;
             break;  
         case EM_Measurements_ACU: // @remark: double check this
-            acu->em->em_current = magical_union_float(data, 4);
-            acu->em->em_voltage = magical_union_float(data+4, 4);
+            acu->em->em_current = magical_union_flt(data, 4, true);
+            acu->em->em_voltage = magical_union_flt(data+4, 4, true);
             break;  
         case EM_Data_1_ACU:
-            // ???
+            acu->em->team_data[0] = magical_union_i32(data, true);
+            acu->em->team_data[1] = magical_union_i32(data+4, true);
             break;  
         case EM_Data_2_ACU:
-            // ???
+            acu->em->team_data[2] = magical_union_i32(data, true);
+            acu->em->team_data[3] = magical_union_i32(data+4, true);
             break;  
         case EM_Status_ACU:
             acu->em->status = data[0];
-            memcpy(&(acu->em->energy), (data+1), sizeof(float)); // @remark: double check this
+            acu->em->energy = magical_union_flt(data+1, 4, true);
             break;  
         case EM_Temperature_ACU:
-            uint8_t mux_signal = data[0] & 0b11;
+            uint8_t mux_signal = data[0] & 0b11100000;
+            acu->em->num_sensors = (data[0] & 0b00011111) << 3;
+
             acu->em->min_temp = (uint8_t)(data[1] * 0.5f);
             acu->em->max_temp = (uint8_t)(data[2] * 0.5f);
 
-            acu->em->num_sensors = (uint8_t)((data[0] & 0b001111)<<2);
-            acu->em->temps[mux_signal*5] = (uint8_t)(data[3] * 0.5f);
-            acu->em->temps[mux_signal*5+1] = (uint8_t)(data[4] * 0.5f);
-            acu->em->temps[mux_signal*5+2] = (uint8_t)(data[5] * 0.5f);
-            acu->em->temps[mux_signal*5+3] = (uint8_t)(data[6] * 0.5f);
-            acu->em->temps[mux_signal*5+4] = (uint8_t)(data[7] * 0.5f);
-
+            acu->em->temps[mux_signal*5] = (float)(data[3] * 0.5f);
+            acu->em->temps[mux_signal*5+1] = (float)(data[4] * 0.5f);
+            
+            if(mux_signal != 6){
+                acu->em->temps[mux_signal*5+2] = (float)(data[5] * 0.5f);
+                acu->em->temps[mux_signal*5+3] = (float)(data[6] * 0.5f);
+                acu->em->temps[mux_signal*5+4] = (float)(data[7] * 0.5f);
+            }
             break;  
         case IMD_Response_ACU:
             acu->imd->id = data[0];
@@ -329,8 +372,8 @@ void dequeue(ACU* acu){
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
             magical_union_flt_byts(CAN_TxData, (get_total_voltage(acu) * 100.0f), 2);
             magical_union_flt_byts(CAN_TxData+2, ((acu->ts_current + 327.68f) * 100.0f), 2);
-            CAN_TxData[4] = data_union.byts[0];
-            CAN_TxData[5] = data_union.byts[1];
+            CAN_TxData[4] = unicorn.byts[0];
+            CAN_TxData[5] = unicorn.byts[1];
             CAN_TxData[6] = ((uint8_t)calculate_acu_soc(acu)) * 51 * 0.2f;
             CAN_TxData[7] = ((uint8_t)calculate_glv_soc(acu)) * 51 * 0.2f;
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
@@ -909,6 +952,10 @@ void write_prechg(bool state){
     else{
         LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_0);
     }
+}
+
+void turn_of_hv_pump(bool state){
+    // deal wiht this later
 }
 
 /// @brief writes the debug LED signal to PA15

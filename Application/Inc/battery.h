@@ -42,7 +42,9 @@ typedef struct
     uint16_t min_temp_thresh;
     uint8_t cell_temp_errors;
     uint8_t cell_volt_errors;
-    uint8_t faults; // 11
+    uint16_t faults[BCC_FS_MAX*NUM_TOTAL_IC];
+    uint8_t battery_check_faults;
+
 
     // config
     bcc_drv_config_t drvConfig;
@@ -109,6 +111,7 @@ bool check_temp(Battery *bty);
 bool do_cell_balancing(Battery * bty);
 bool battery_check(Battery *bty, bool full_check);
 
+void get_faults(Battery * bty);
 void clear_faults(bcc_drv_config_t * drvConfig);
 
 // print individuals

@@ -201,12 +201,6 @@ void precharge(){
     sdc_reset();
     LL_mDelay(100);
 
-    // if (not successful) {
-    //     state = SHUTDOWN;
-    // }
-
-    LL_mDelay(100);
-
     if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
         print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
         acu.acu_latch = 0;
@@ -230,6 +224,8 @@ void precharge(){
     // close AIR-
     write_IRneg(true);
 
+    LL_mDelay(100);
+
     // Close precharge relay
     write_prechg(true);
 
@@ -239,7 +235,7 @@ void precharge(){
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
 
         if (!state_system_check(false, false)) {
-            print_lpuart("¯\\_(ツ)_/¯ PreCharge (235) => Shutdown\n");
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge state_system_check() => Shutdown\n");
             #if DEBUGG == 0
             state = state == INIT ? INIT : SHITDOWN;
             return;
@@ -256,7 +252,7 @@ void precharge(){
             #endif
         }
         if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
-            print_lpuart("¯\\_(ツ)_/¯ (252) Precharge timeoutn");
+            print_lpuart("¯\\_(ツ)_/¯ (252) Precharge timeout\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             enqueue(ACU_Status_2,FDCAN1);
             #if DEBUGG == 0
@@ -324,7 +320,13 @@ uint32_t last_call_time = 0;
 void charge(){
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
 
+    // monitor accumulator
     if(!acu_check(&acu, false)){
+
+        // if fault detected, open charging shutdown circuits
+        // all current flow to accumulator MUST stop
+        // voltage in tractive system must be low voltage in 5 seconds or less
+        // turn off charger, disabled until manually reset
         print_lpuart("CHARGE (328) => SHITDOWN");
         #if DEBUGG == 0
         state = SHITDOWN;
@@ -442,21 +444,21 @@ bool state_system_check(bool full_check, bool startup){
         print_lpuart("(¬_¬\") Failed acu_check\n");
     }
 
-
     bool b_check = battery_check(&battery, full_check);
 
     if(b_check == false){
         print_lpuart("(¬_¬\") Failed battery_check\n");
     }
 
-    // update errors
-    if(battery.faults & BATTERY_FAULT_CELL_OV){
+    // voltage values vs allowable range EV.7.4.2
+    if(battery.battery_check_faults & BATTERY_FAULT_CELL_OV){
         acu.acu_err_warns |= ACU_ERR_OVER_VOLT;
     }
-    if(battery.faults & BATTERY_FAULT_CELL_UV){
+    if(battery.battery_check_faults & BATTERY_FAULT_CELL_UV){
         acu.acu_err_warns |= ACU_ERR_UNDER_VOLT;
     }
-    if(battery.faults & BATTERY_FAULT_CELL_OT){
+    // (3) temp values outside the allowable range EV.7.5.2
+    if(battery.battery_check_faults & BATTERY_FAULT_CELL_OT){
         acu.acu_err_warns |= ACU_ERR_OVER_TEMP;
     }
 

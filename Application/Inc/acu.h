@@ -27,7 +27,8 @@ typedef struct {
     uint8_t num_sensors;
 
     uint8_t status; /* Map: 0: violation, 1: logging*/
-    float temps[32];
+    float temps[32]; // degree: celcius, all temps sent as unsigned bytes
+    int32_t team_data[4]; // team data messages, probably not needed
 
 } EM;
 
@@ -97,15 +98,23 @@ typedef struct {
 
     // 0: AIR+ | 1: AIR- | 2: Precharge
     uint8_t relay_state; 
-    uint8_t acu_latch;
+    uint8_t acu_latch; // 1: CLosed | 0: Open
 
     // ACU errors/warnings
-    uint8_t acuErrCount;
+    uint8_t acuErrCount; // cummulative error counts
     uint16_t acu_err_warns; // [ 0:OT, OV, UV, OC, UC, UV_20v, UV_GLV, 7:UV_SDC, 8:Precharge, 0, 0, 0, 0, 0, 0, 0]        
 
     // ACU PRECHARGE via TX
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
 } ACU;
+
+/// @brief good for parsing CAN messages
+ union data_union {
+    uint16_t u16; 
+    int32_t i32; 
+    float flt;
+    uint8_t byts[4];
+};
 
 // Basic blocks
 void acu_init(ACU * acu);
@@ -120,8 +129,10 @@ void can_read_handler(ACU* acu);
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data);
 
 void magical_union_flt_byts(uint8_t * buffer, float data, uint8_t size);
-float magical_union_float(uint8_t data[], uint8_t size);
+float magical_union_flt(uint8_t data[], uint8_t size, bool big_endian);
+int32_t magical_union_i32(uint8_t data[], bool big_endian);
 uint16_t magical_union_u16(uint8_t data[]);
+
 
 // Print functions
 void print_targets(ACU * acu);
@@ -150,6 +161,8 @@ void write_bms_ok(bool state);
 void write_IRneg(bool state);
 void write_IRpos(bool state);
 void write_prechg(bool state);
+
+void turn_of_hv_pump(bool state);
 void write_LED(bool state);
 void sdc_reset();
 void update_relay_state(ACU* acu);
