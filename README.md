@@ -46,8 +46,10 @@ Transferring from Teensy to STM32
     - if it still doesn't work, try removing the 'build' folder and configuring and rebuilding, sometimes cache stuff can screw u over
 
 ## Tree
-
+---
 #### Application/
+---
+```
 - Inc/
     - acu.h       -> struct defs & function protos for ACU, CAN functions too
     - battery.h   -> struct defs & function protos for BCC-related things (Battery)
@@ -64,9 +66,15 @@ Transferring from Teensy to STM32
     - state.c     -> see state.h
     - others      -> from BCC SDK
 - Test/...
+```
 
 #### Core/
+---
+```
 - Inc/ 
     - main.h      -> self explanatory
+    - ...
 - Src/
-    - main.c      -> where everything starts 
+    - main.c      -> where everything starts
+    - ...
+```
