@@ -5,8 +5,10 @@ extern ACU acu;
 extern Battery battery;
 extern State state;
 
-extern uint8_t cycle;
 extern bool first_init;
+extern bool check_ts_active;
+
+extern uint8_t cycle;
 extern uint16_t adc_data[6];
 extern bcc_status_t bcc_error; 
 extern uint8_t bcc_cooked_count;
@@ -109,11 +111,10 @@ void init(){
     bcc_error = BCC_Init(&(battery.drvConfig));
     
     // start the cooked counter
-    uint8_t counter = (uint8_t)TRIES;
+    uint8_t counter = TRIES;
     while (bcc_error != BCC_STATUS_SUCCESS /*&& counter > 0*/){ 
         BCC_MCU_WaitMs(10);
-        // print_bcc_status(bcc_error);
-        print_lpuart("trying agin BCC_Init\n");
+        print_lpuart("(¬_¬\") Trying BCC_Init again\n");
         bcc_error = BCC_Init(&(battery.drvConfig)); 
         counter--;
     }
@@ -158,6 +159,7 @@ void init(){
         first_init = false;
     }
     bcc_cooked_count = 0;
+    check_ts_active = false;
 }
 
 /// @brief do nothing, in initial state wait for VDM to send start command, maybe poll CAN
@@ -171,6 +173,20 @@ void standby(){
         state = state == INIT ? INIT : SHITDOWN;
         #endif
     }
+
+    // check ts_active status
+    if(acu.ts_active && check_ts_active){
+    print_lpuart("(¬_¬\") [STANDBY => PRECHARGE]\n");
+        state = PRECHARGE;
+        check_ts_active = false;
+    }
+    else if(!acu.ts_active && check_ts_active)
+    {
+    print_lpuart("(¬_¬\") [STANDBY => SHITDOWN]\n");
+        state = SHITDOWN;
+        check_ts_active = false;
+    }
+    else {}
     // update cycle
     cycle++;
     cycle = cycle % 8;

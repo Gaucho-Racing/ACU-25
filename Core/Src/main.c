@@ -51,20 +51,13 @@
 
 /* USER CODE BEGIN PV */
 
-/***
- * 
- * OWEN IF UR READING THIS, ACU IS SOMEWHAT OK SOMEWHAT COOKED
- * I FIXED SOME MEMORY BUFFER ISSUES, BUT RN PRINTING VOLTAGES MAY BE A BIT HARD BC
- * SPI KEEPS FAILING WHEN THE STATE IS != INIT. IN INIT THE VOLTAGES ARE READ FINE.
- * ALSO WE CAN GET TO STANDBY RN, AND STAY IN IT. VOLTAGE READINGS SEEM FINE, I THINK
- * WE DO GET GLV_UNDERVOLT, BUT IT MAY JUST BE A PARAMETER ADJUSTMENT ISSUE.
- */
 // trackers
 uint8_t cycle;
-char print_buffer[1000];
 uint32_t prev = 0;
 bcc_status_t bcc_error; 
 bool first_init = true;
+char print_buffer[1000];
+bool check_ts_active = false;
 uint8_t bcc_cooked_count = 0;
 
 // BMS/ACU
@@ -326,22 +319,6 @@ int main(void)
 
     // proceed unless it's 🔥
     if(state != INIT){
-      
-      // check ts_active status
-      if(acu.ts_active && state == STANDBY){
-        print_lpuart("(¬_¬\") [state => PRECHARGE]\n");
-        state = PRECHARGE;
-      }
-      else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
-        print_lpuart("(¬_¬\") [state => PRECHARGE]\n");
-        state = PRECHARGE;
-      }
-      // else if(!acu.ts_active){ 
-      //   #if DEBUGG == 0
-      //   print_lpuart("(¬_¬\") [ts_active=0; SHUTDOWN]\n");
-      //   state = SHITDOWN;
-      //   #endif
-      // }
 
       // SYSTEM CHECK
       read_device_measurements(&battery, true, true);

@@ -3,6 +3,7 @@
 extern uint8_t get_state();
 extern void print_lpuart(char* arr);
  
+extern bool check_ts_active;
 extern char print_buffer[1000];
 extern volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
 extern volatile uint8_t CAN_RxBufferBottom; // Index of oldest data ==> increment this whenever the data is processed
@@ -247,6 +248,10 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             break;
         case Precharge_ACU:
             acu->ts_active = data[0] & 1; // @details: command to precharge
+            check_ts_active  = true;
+            if(get_state() != 1){
+                print_lpuart("[WARNING]: Precharge msg when != PRECHARGE???\n");
+            }
             break;  
         case Charger_Data_ACU:
             acu->lastChrgRecieveTime = curr; // @remark: check this

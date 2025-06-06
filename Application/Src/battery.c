@@ -133,7 +133,7 @@ void reset_discharge(Battery * bty, bool on){
 bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t read_temp) 
 {
     uint32_t measurements[NUM_CELL_IC];
-    int16_t temp_measures[NUM_CELL_IC];
+    int16_t temp_measures;
 
     bty->max_cell_volt = 0.0f;
     bty->max_cell_temp = 0.0f;
@@ -191,9 +191,9 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 
         
         if(read_temp){
-            bzero(temp_measures, sizeof(temp_measures));
-            bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, temp_measures);
-            bty->icTemp[i] = V2T(temp_measures[i] * 0.1f, 4000);
+            temp_measures = 0;
+            bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, &temp_measures);
+            bty->icTemp[i] = V2T((temp_measures * 0.1f), 4000);
 
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
@@ -214,7 +214,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
                 uint8_t readByte;
                 bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
-                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T((float)(readByte * 0.1f), 4000U);
+                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T(readByte * 0.1f, 4000U);
                     bty->max_cell_temp = fmaxf(bty->max_cell_temp, bty->cell_temp[GET_INDEX(i, j)]);
                     bty->min_cell_temp = fminf(bty->min_cell_temp, bty->cell_temp[GET_INDEX(i, j)]);
                 }
