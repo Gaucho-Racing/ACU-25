@@ -193,7 +193,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
         if(read_temp){
             bzero(temp_measures, sizeof(temp_measures));
             bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, temp_measures);
-            bty->icTemp[i] = temp_measures[i] * 0.1f;
+            bty->icTemp[i] = V2T(temp_measures[i] * 0.1f, 4000);
 
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
@@ -214,7 +214,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
                 uint8_t readByte;
                 bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
-                    bty->cell_temp[GET_INDEX(i*2, j)] = (float)(readByte * 0.1f);
+                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T((float)(readByte * 0.1f), 4000U);
                     bty->max_cell_temp = fmaxf(bty->max_cell_temp, bty->cell_temp[GET_INDEX(i, j)]);
                     bty->min_cell_temp = fminf(bty->min_cell_temp, bty->cell_temp[GET_INDEX(i, j)]);
                 }
@@ -326,6 +326,12 @@ bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, b
         bty->cell_balancing[(uint8_t)cid*NUM_TOTAL_IC+cellIndex] = enable == true ? 1 : 0;
     }
     return bcc_error;
+}
+
+float V2T(float voltage, float B){ // B should be 4000
+  float R = voltage / ((5.0 - voltage) / 47e3) / 100e3;
+  float T = 1.0 / ((log(R) / B) + (1.0 / 298.15));
+  return T - 273.15;
 }
 
 /// @brief initialize cell balancing

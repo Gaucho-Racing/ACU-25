@@ -105,6 +105,7 @@ bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, b
 bool disable_cell_balancing(Battery * bty);
 bool init_cell_balancing(Battery * bty);
 bool init_registers(Battery * bty);
+float V2T(float voltage, float B);
 void reset_discharge(Battery * bty, bool on);
 
 bool check_volt(Battery *bty);
