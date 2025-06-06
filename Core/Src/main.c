@@ -169,8 +169,7 @@ void print_lpuart(char* arr) {
   }
 }
 
-// TODO: get rid of ==> Deprecate
-/// @brief setup function 
+/// @brief setup function => simplified
 /// @return 0 for success, 1 for FAILURE 🤦‍♂🥲
 int setup(){
 
@@ -344,26 +343,17 @@ int main(void)
       //   #endif
       // }
 
-      #if SPAMPRINT == 0
-      print_adc_data(&acu);
-      #endif
-
       // SYSTEM CHECK
       read_device_measurements(&battery, true, true);
       bool b_check = battery_check(&battery, true);
       if(b_check == false){
-        print_lpuart("battery_check @ main.c (343)\n");
         enqueue(ACU_Status_1, FDCAN1);
-        enqueue(ACU_Status_2, FDCAN1);
         enqueue(ACU_Status_2, FDCAN1);
         #if DEBUGG == 0
         state = state == INIT ? INIT : SHITDOWN;
         #endif
       }
     }
-    // #if SPAMPRINT == 1
-    // print_state();
-    // #endif
     switch(state){
       case (INIT):
         init();

@@ -162,9 +162,9 @@ void write_IRneg(bool state);
 void write_IRpos(bool state);
 void write_prechg(bool state);
 
+void sdc_reset();
 void turn_of_hv_pump(bool state);
 void write_LED(bool state);
-void sdc_reset();
 void update_relay_state(ACU* acu);
 
 #endif

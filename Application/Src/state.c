@@ -145,14 +145,12 @@ void init(){
     if (state == SHITDOWN) return;
     print_lpuart("CALL state_system_check(true, true)\n");
     if(!state_system_check(true, true)){
-        // print_lpuart("🤖 EEK 1\n");
+        print_lpuart("Failed 1st state_system_check. SHIT\n");
         #if DEBUGG == 0
         state = SHITDOWN;
-        print_lpuart("Failed 1st state_system_check. SHIT\n");
         #endif
     }
     else {
-        // print_lpuart("init(): INIT => STANDBY\n");
         state = STANDBY;
     }
     print_lpuart("DONE state_system_check(true, true)\n");

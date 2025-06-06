@@ -66,7 +66,7 @@ void print_bcc_status(bcc_status_t stat){
 }
 
 void debug(){
-//   print_lpuart("------------------- 💥 Debug Start 💥 -------------------\n");
+  print_lpuart("------------------- 💥 Debug Start 💥 -------------------\n");
   #if DUMP_TARGETS == 1
   print_targets(acu);
 
@@ -111,6 +111,6 @@ void debug(){
   print_charger_data(&acu);
   
   #endif
-//   print_lpuart("-------------------- 💣 End Debug 💣 --------------------\n");
+  print_lpuart("-------------------- 💣 End Debug 💣 --------------------\n");
 }
 

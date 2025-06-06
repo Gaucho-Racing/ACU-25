@@ -30,7 +30,7 @@
 #define MIN_GLV_VOLT 10.0f
 #define MAX_GLV_VOLT 14.4f
 #define ERRMG_ISNS_VREF 0.2f
-#define VOLT_MANUAL_VOLT_DIFF 0.5f
+#define STACK_VOLT_DIFF 1.0f
 #define MAX_READ_COUNT 8
 #define TRIES 5 // defines how many times we can retry an action
 

@@ -24,10 +24,10 @@
 #define DUMP_ADC_DATA 1
 
 #define DUMP_TEMPS 1
-#define DUMP_VOLTS 0
+#define DUMP_VOLTS 1
 
 #define CHARG_CTL 0
-#define DUMP_ERR_WARN 0
+#define DUMP_ERR_WARN 1
 
 #define DUMP_IMD_DATA 0
 #define DUMP_CHARGER_DATA 0

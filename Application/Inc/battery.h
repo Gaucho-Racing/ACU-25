@@ -100,7 +100,7 @@ static const bcc_init_reg_t init_regs[INIT_REG_CNT] = {
 };
 
 bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t read_temp);
-bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable);
+bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable);
 
 bool disable_cell_balancing(Battery * bty);
 bool init_cell_balancing(Battery * bty);
@@ -117,7 +117,6 @@ void clear_faults(bcc_drv_config_t * drvConfig);
 
 // print individuals
 void print_volt(const float * voltages, const uint8_t cid, uint8_t index);
-void print_temp(const float * temperatures, const uint8_t cid, uint8_t index);
 
 // print group
 void print_voltage(Battery *bty);
