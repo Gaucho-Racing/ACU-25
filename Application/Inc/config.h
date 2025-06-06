@@ -1,10 +1,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define DEBUGG 1
-#define SPAMPRINT 1
+#define DEBUGG 0
+#define SPAMPRINT 0
 
-#define NUM_TOTAL_IC 1U
+#define NUM_TOTAL_IC 2U
 #define REAL_NUM_TOTAL_IC 10U // only used in defining struct so no mem leaks LOL
 #define NUM_CELL_IC 14U
 
@@ -27,11 +27,14 @@
 
 //acu limits
 #define MAX_HV_CURRENT 135
-#define MIN_GLV_VOLT 10
+#define MIN_GLV_VOLT 10.0f
 #define MAX_GLV_VOLT 14.4f
 #define ERRMG_ISNS_VREF 0.2f
+#define VOLT_MANUAL_VOLT_DIFF 0.5f
 #define MAX_READ_COUNT 8
 #define TRIES 5 // defines how many times we can retry an action
+
+#define GET_INDEX(x, y) ((x * NUM_CELL_IC) + y) // get the index of the cell in the array
 
 // error masks
 #define ACU_ERR_OVER_TEMP   0b1000000000000000

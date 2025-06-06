@@ -47,7 +47,7 @@ bcc_status_t BCC_MCU_TransferTpl(const uint8_t drvInstance, uint8_t txBuf[], uin
     
     // move data to buffer
     uint8_t buffer[BCC_MSG_SIZE];
-    memcpy(buffer, txBuf, 6);
+    memcpy(buffer, txBuf, BCC_MSG_SIZE);
 
     // send
     

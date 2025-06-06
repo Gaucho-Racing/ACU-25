@@ -17,9 +17,9 @@ typedef struct
 
 typedef struct
 {
-    float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
+    float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC*2];
     float cell_volt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
-    uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; // 0 = off, 255 = on, error = anything else
+    uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; // 0 = off, 1 = on, 2 = disabled
 
     // Data we calculated from BCC measurements
     float min_cell_volt; // the cell with the min volt
@@ -96,15 +96,16 @@ static const bcc_init_reg_t init_regs[INIT_REG_CNT] = {
     {MC33771C_CB11_CFG_OFFSET, MC33771C_CB11_CFG_POR_VAL, CBX_SET},
     {MC33771C_CB12_CFG_OFFSET, MC33771C_CB12_CFG_POR_VAL, CBX_SET},
     {MC33771C_CB13_CFG_OFFSET, MC33771C_CB13_CFG_POR_VAL, CBX_SET},
-    {MC33771C_CB14_CFG_OFFSET, MC33771C_CB14_CFG_POR_VAL, CBX_SET}
+    {MC33771C_CB14_CFG_OFFSET, MC33771C_CB14_CFG_POR_VAL, CBX_SET},
 };
 
 bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t read_temp);
 bcc_status_t config_cell_balancing(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, bool all, bool enable);
 
+bool disable_cell_balancing(Battery * bty);
 bool init_cell_balancing(Battery * bty);
 bool init_registers(Battery * bty);
-void reset_discharge(Battery * bty);
+void reset_discharge(Battery * bty, bool on);
 
 bool check_volt(Battery *bty);
 bool check_temp(Battery *bty);

@@ -77,7 +77,8 @@ void shitdown(){
     enqueue(ACU_Charger_Control, FDCAN3);
 
     //indicates to battery to stop charging
-    reset_discharge(&battery); // TODO: double check this
+    reset_discharge(&battery, false); // TODO: double check this
+    // disable_cell_balancing
     
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
     uint16_t precharge_error = acu.acu_err_warns & ACU_PRECHARGE;
@@ -88,7 +89,7 @@ void shitdown(){
     uint8_t pass = state_system_check(true, false);
     
     if (acu.ts_voltage < SAFE_V_TO_TURN_OFF && pass) { // safe to turn off if TS voltage < 60V
-        print_lpuart("Shutdown (Safe) => Standby");
+        // print_lpuart("Shutdown (Safe) => Standby");
         state = STANDBY;
     }
 }
@@ -98,27 +99,22 @@ void init(){
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);
+    acu_init(&acu);
+
     if(first_init == true){
-        // setup battery configuring
-        battery.drvConfig.commMode = BCC_MODE_TPL;
-        battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
-        battery.drvConfig.drvInstance = 0U;
-        battery.drvConfig.loopBack = false;
-        for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
-            battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
-            battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
-        }
+        acu.bty = &battery;
     }
 
-    // initialize BCC first
+    BCC_MCU_WaitMs(300);
     bcc_error = BCC_Init(&(battery.drvConfig));
-
+    
     // start the cooked counter
-    uint8_t counter = TRIES;
-    while (bcc_error != BCC_STATUS_SUCCESS && counter > 0){ 
-        print_bcc_status(bcc_error);
-        bcc_error = BCC_Init(&(battery.drvConfig));
+    uint8_t counter = (uint8_t)TRIES;
+    while (bcc_error != BCC_STATUS_SUCCESS /*&& counter > 0*/){ 
+        BCC_MCU_WaitMs(10);
+        // print_bcc_status(bcc_error);
         print_lpuart("trying agin BCC_Init\n");
+        bcc_error = BCC_Init(&(battery.drvConfig)); 
         counter--;
     }
     if (counter == 0){
@@ -128,10 +124,10 @@ void init(){
     }
     
     print_lpuart("PASSED from BCC_Init\n");
-    battery.min_temp_thresh = CELL_MIN_TEMP;
-    battery.max_temp_thresh = CELL_MAX_TEMP;
-    battery.min_volt_thresh = CELL_MIN_VOLT;
-    battery.max_volt_thresh = CELL_MAX_VOLT;
+    battery.min_temp_thresh = (uint16_t)CELL_MIN_TEMP;
+    battery.max_temp_thresh = (uint16_t)CELL_MAX_TEMP;
+    battery.min_volt_thresh = (uint16_t)CELL_MIN_VOLT;
+    battery.max_volt_thresh = (uint16_t)CELL_MAX_VOLT;
 
     // initialize registers
     bool succ = init_registers(&battery);
@@ -143,28 +139,23 @@ void init(){
     clear_faults(&(battery.drvConfig));  
 
     // cb & first battery check
-    state = init_cell_balancing(&battery) && battery_check(&battery, true) == 1 ? STANDBY : SHITDOWN;
-    if (state == SHITDOWN) {
-        print_lpuart("error occured in cell_balancing init, and battery_check\n");
-        return;
-    }
+    reset_discharge(&battery, false);
+    state = init_cell_balancing(&battery) == 1 ? STANDBY : SHITDOWN;
 
-    if(first_init == true){
-        acu_init(&acu);
-        acu.bty = &battery;
-        print_lpuart("🤖 completed acu_init()\n");
-    }
-
-    reset_discharge(&battery);
+    if (state == SHITDOWN) return;
+    print_lpuart("CALL state_system_check(true, true)\n");
     if(!state_system_check(true, true)){
+        // print_lpuart("🤖 EEK 1\n");
         #if DEBUGG == 0
         state = SHITDOWN;
-        #endif
         print_lpuart("Failed 1st state_system_check. SHIT\n");
+        #endif
     }
     else {
+        // print_lpuart("init(): INIT => STANDBY\n");
         state = STANDBY;
     }
+    print_lpuart("DONE state_system_check(true, true)\n");
     if(first_init == true){
         first_init = false;
     }
@@ -335,7 +326,7 @@ void charge(){
     }
     
     if(HAL_GetTick() - last_charge_time >= 2000){
-        reset_discharge(&battery); 
+        reset_discharge(&battery, false); 
 
         last_charge_time = HAL_GetTick();
         if(!state_system_check(true, false)){
@@ -428,9 +419,7 @@ void normal(){
     cycle = cycle % 8;
 
     if (acu.ts_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
-    // if (HAL_GetTick() - acu.cur_LastHighTime > 10000) {
-    //     update_adc_data(&acu);
-    // }
+
 }
 
 /// @brief system check on acu, battery, errors/warnings
@@ -438,12 +427,16 @@ void normal(){
 /// @param startup true if this is the 1st system check
 /// @return returns True if passes, False otherwise
 bool state_system_check(bool full_check, bool startup){
+
+    if (startup == true){
+        read_device_measurements(&battery, true, true);
+    }
     bool a_check = acu_check(&acu, startup);
 
     if(a_check == false){
         print_lpuart("(¬_¬\") Failed acu_check\n");
     }
-
+    
     bool b_check = battery_check(&battery, full_check);
 
     if(b_check == false){
@@ -468,10 +461,10 @@ bool state_system_check(bool full_check, bool startup){
     if(b_check == false){
         // print all current errors
     }
-    print_errors_warning(&acu);
+    // print_errors_warning(&acu);
     if (a_check && b_check){
         write_bms_ok(state);
-        print_lpuart("ACU & BMS ok 🫰\n");
+        print_lpuart("SysCheck: ACU & BMS ok <3\n");
     }
-    return !a_check && !b_check;
+    return a_check && b_check;
 }

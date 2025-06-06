@@ -10,6 +10,7 @@
 
 #include "bcc_communication.h"
 extern void write_LED(bool state);
+extern void print_lpuart(char* arr);
 
 /*******************************************************************************
  * Definitions
@@ -337,6 +338,7 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
         /* Check the written data. */
         if ((status == BCC_STATUS_SUCCESS) && (writeVal != readVal))
         {
+            print_lpuart("bcc.c line 341\n");
             status = BCC_STATUS_SPI_FAIL;
         }
     }
@@ -359,6 +361,7 @@ static bcc_status_t BCC_AssignCid(bcc_drv_config_t* const drvConfig,
             /* Check the written data. */
             if ((status == BCC_STATUS_SUCCESS) && (writeVal != readVal))
             {
+                print_lpuart("bcc.c line 364\n");
                 status = BCC_STATUS_SPI_FAIL;
             }
         }
@@ -782,6 +785,7 @@ bcc_status_t BCC_Reg_Update(bcc_drv_config_t* const drvConfig,
     status = BCC_Reg_Read(drvConfig, cid, regAddr, 1U, &regValTemp);
     if (status != BCC_STATUS_SUCCESS)
     {
+        print_lpuart("BCC_Reg_Update: BCC_Reg_Read: Read failed.\n");
         return status;
     }
 
@@ -1591,6 +1595,7 @@ bcc_status_t BCC_CB_Pause(bcc_drv_config_t* const drvConfig,
     BCC_MCU_Assert(drvConfig != NULL);
     if ((cid == BCC_CID_UNASSIG) || (((uint8_t)cid) > drvConfig->devicesCnt))
     {
+        // print_lpuart("Invalid CID\n");
         return BCC_STATUS_PARAM_RANGE;
     }
 

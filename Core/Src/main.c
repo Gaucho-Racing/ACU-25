@@ -51,8 +51,17 @@
 
 /* USER CODE BEGIN PV */
 
+/***
+ * 
+ * OWEN IF UR READING THIS, ACU IS SOMEWHAT OK SOMEWHAT COOKED
+ * I FIXED SOME MEMORY BUFFER ISSUES, BUT RN PRINTING VOLTAGES MAY BE A BIT HARD BC
+ * SPI KEEPS FAILING WHEN THE STATE IS != INIT. IN INIT THE VOLTAGES ARE READ FINE.
+ * ALSO WE CAN GET TO STANDBY RN, AND STAY IN IT. VOLTAGE READINGS SEEM FINE, I THINK
+ * WE DO GET GLV_UNDERVOLT, BUT IT MAY JUST BE A PARAMETER ADJUSTMENT ISSUE.
+ */
 // trackers
 uint8_t cycle;
+char print_buffer[1000];
 uint32_t prev = 0;
 bcc_status_t bcc_error; 
 bool first_init = true;
@@ -297,50 +306,53 @@ int main(void)
   RxHeader.RxTimestamp = 0; /* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
 
   sdc_reset(); // remove this in production
+
+  // configure driveConfig
+  battery.drvConfig.commMode = BCC_MODE_TPL;
+  battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
+  battery.drvConfig.drvInstance = 0U;
+  battery.drvConfig.loopBack = false;
+  for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
+      battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
+      battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    write_LED(1);
-    write_prechg(1);
-    LL_mDelay(100);
-    write_LED(0);
-    write_prechg(0);
-    LL_mDelay(900);
-
-    #if SPAMPRINT == 1
-    print_state();
-    #endif
+    LL_GPIO_TogglePin(GPIOA, LL_GPIO_PIN_15);
+    BCC_WakeUp(&(battery.drvConfig));
 
     // proceed unless it's 🔥
     if(state != INIT){
       
       // check ts_active status
       if(acu.ts_active && state == STANDBY){
-        print_lpuart("(¬_¬\") [ts_active=1]\n");
+        print_lpuart("(¬_¬\") [state => PRECHARGE]\n");
         state = PRECHARGE;
       }
       else if(acu.ts_active && state > STANDBY){ // not sure if this is the correct move
-        print_lpuart("(¬_¬\") [ts_active=1]\n");
+        print_lpuart("(¬_¬\") [state => PRECHARGE]\n");
         state = PRECHARGE;
       }
-      else if(!acu.ts_active){ 
-        print_lpuart("(¬_¬\") [ts_active=0; SHUTDOWN]\n");
-        #if DEBUGG == 0
-        state = SHITDOWN;
-        #endif
-      }
+      // else if(!acu.ts_active){ 
+      //   #if DEBUGG == 0
+      //   print_lpuart("(¬_¬\") [ts_active=0; SHUTDOWN]\n");
+      //   state = SHITDOWN;
+      //   #endif
+      // }
 
-      #if SPAMPRINT == 1
+      #if SPAMPRINT == 0
       print_adc_data(&acu);
       #endif
 
       // SYSTEM CHECK
+      read_device_measurements(&battery, true, true);
       bool b_check = battery_check(&battery, true);
       if(b_check == false){
-        print_lpuart("battery_check @ main.c (331)\n");
+        print_lpuart("battery_check @ main.c (343)\n");
         enqueue(ACU_Status_1, FDCAN1);
         enqueue(ACU_Status_2, FDCAN1);
         enqueue(ACU_Status_2, FDCAN1);
@@ -349,10 +361,12 @@ int main(void)
         #endif
       }
     }
-
+    // #if SPAMPRINT == 1
+    // print_state();
+    // #endif
     switch(state){
       case (INIT):
-        init(first_init);
+        init();
         break;
       case (STANDBY):
         standby();
@@ -374,7 +388,7 @@ int main(void)
         state = SHITDOWN;
         break;
     }
-    #if DEBUG_MODE == 1
+    #if DEBUG_MODE == 0
     uint32_t curr = HAL_GetTick();
     if(curr - prev > 500){
       prev = curr;
@@ -472,19 +486,19 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
             CAN_RxBuffer[CAN_RxBufferTop].length = RxHeader.DataLength;
             CAN_RxBuffer[CAN_RxBufferTop].instance = hfdcan->Instance;
 
-            #if SPAMPRINT == 1
-            uint8_t headerBuff[64], dataBuff[8];
-            sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
-            print_lpuart(headerBuff);
-            for (uint32_t i = 0; i < RxHeader.DataLength; i++)
-            {
-                sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
-                print_lpuart(dataBuff);
-                bzero((void *)dataBuff, 8);
-            }
-            sprintf(dataBuff, "\n");
-            print_lpuart(dataBuff);
-            #endif
+            // #if SPAMPRINT == 1
+            // uint8_t headerBuff[64], dataBuff[8];
+            // sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
+            // print_lpuart(headerBuff);
+            // for (uint32_t i = 0; i < RxHeader.DataLength; i++)
+            // {
+            //     sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
+            //     print_lpuart(dataBuff);
+            //     bzero((void *)dataBuff, 8);
+            // }
+            // sprintf(dataBuff, "\n");
+            // print_lpuart(dataBuff);
+            // #endif
 
             // copy the data
             bzero((void *)CAN_RxBuffer[CAN_RxBufferTop].data, 64);

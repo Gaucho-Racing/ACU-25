@@ -3,6 +3,7 @@
 extern uint8_t get_state();
 extern void print_lpuart(char* arr);
  
+extern char print_buffer[1000];
 extern volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
 extern volatile uint8_t CAN_RxBufferBottom; // Index of oldest data ==> increment this whenever the data is processed
 extern volatile uint8_t CAN_RxBufferTop;
@@ -65,6 +66,7 @@ bool acu_check(ACU * acu, bool startup){
 
     // (2) check overcurrent
     if(acu->ts_current > MAX_HV_CURRENT){
+        print_lpuart("Max HV Current detected\n");
         hasErrors = true;
         acu->acuErrCount++;
         if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -77,9 +79,9 @@ bool acu_check(ACU * acu, bool startup){
     }
 
     //glv voltage
-    if(acu->voltage_12v < MIN_GLV_VOLT){
-        if (acu->voltage_12v > 3) {
-        }
+    if(acu->voltage_12v < 3/*MIN_GLV_VOLT*/){
+        print_lpuart("GLV Undervolt detected\n");
+        // previously there was acu->voltage_12v < 3.0f ifstatement that did nothing fsr
         acu->acuErrCount++;
         hasErrors = true;
         if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -102,6 +104,7 @@ bool acu_check(ACU * acu, bool startup){
         print_lpuart("SD Volt not close enough to GLV\n");
 
         if(acu->sdc_volt_w < acu->voltage_12v) {
+            print_lpuart("ACU_ERR_UNDER_VOLT detected\n");
             acu->acuErrCount++;
             hasErrors = true;
             if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -110,6 +113,7 @@ bool acu_check(ACU * acu, bool startup){
             }
         }
         else if(acu->sdc_volt_w > acu->voltage_12v){
+            print_lpuart("ACU_ERR_OVER_VOLT detected\n");
             acu->acuErrCount++;
             hasErrors = true;
             if (acu->acuErrCount >= ERRMG_ACU_ERR){
@@ -142,12 +146,13 @@ bool acu_check(ACU * acu, bool startup){
 
     // IMD iso failure
     if (acu->imd->status_warnings_alarms > 0){
-        hasErrors = true;
-        print_lpuart("IMD failures exist!\n");
+        // uncomment this later
+        // hasErrors = true; undo this for now
+        // print_lpuart("IMD failures exist!\n");
         
-        #if SPAMPRINT == 1
-        print_imd_err_warn(acu);
-        #endif
+        // #if SPAMPRINT == 1
+        // print_imd_err_warn(acu);
+        // #endif
     }
     return !hasErrors;
 }
@@ -164,8 +169,8 @@ float magical_union_flt(uint8_t data[], uint8_t size, bool big_endian){
         }
     }
     else{
-        for(size_t i = 0; i < size; i++){
-            unicorn.byts[size-i-i] = data[i];
+        for(size_t i = 0; i < (int)size; i++){
+            unicorn.byts[size-i-1] = (int)data[i];
         }
     }
     return unicorn.flt;
@@ -429,7 +434,7 @@ void dequeue(ACU* acu){
         case 3: // ACU_Cell_Data_1
             TxHeader_Data.Identifier = ACU_Cell_Data_1;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
-            for(uint8_t cell = 0; cell < 32; cell+=2){
+            for(uint8_t cell = 0U; cell < 32U; cell+=2){
                 CAN_TxData[cell] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
                 CAN_TxData[cell+1] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
             }
@@ -441,9 +446,9 @@ void dequeue(ACU* acu){
         case 4: // ACU_Cell_Data_2
             TxHeader_Data.Identifier = ACU_Cell_Data_2;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
-            for(uint8_t cell = 32; cell < 64; cell+=2){
-                CAN_TxData[cell] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
-                CAN_TxData[cell+1] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
+            for(uint8_t cell = 32U; cell < 64U; cell+=2){
+                CAN_TxData[cell-32U] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
+                CAN_TxData[cell+1-32U] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
             print_lpuart("ACU_Cell_Data_2 failed...\n");
@@ -453,9 +458,9 @@ void dequeue(ACU* acu){
         case 5: // ACU_Cell_Data_3
             TxHeader_Data.Identifier = ACU_Cell_Data_3;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
-            for(uint8_t cell = 64; cell < 96; cell+=2){
-                CAN_TxData[cell] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
-                CAN_TxData[cell+1] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
+            for(uint8_t cell = 64U; cell < 96U; cell+=2){
+                CAN_TxData[cell-64U] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
+                CAN_TxData[cell+1-64U] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_2 failed...\n");
@@ -465,9 +470,9 @@ void dequeue(ACU* acu){
         case 6: // ACU_Cell_Data_4
             TxHeader_Data.Identifier = ACU_Cell_Data_4;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
-            for(uint8_t cell = 96; cell < 128; cell+=2){
-                CAN_TxData[cell] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
-                CAN_TxData[cell+1] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
+            for(uint8_t cell = 96U; cell < 128U; cell+=2){
+                CAN_TxData[cell-96U] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
+                CAN_TxData[cell+1-96U] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_2 failed...\n");
@@ -477,9 +482,9 @@ void dequeue(ACU* acu){
         case 7: // ACU_Cell_Data_5
             TxHeader_Data.Identifier = ACU_Cell_Data_5;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
-            for(uint8_t cell = 128; cell < 160; cell+=2){
-                CAN_TxData[cell] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
-                CAN_TxData[cell+1] = fconstrain((acu->bty->cell_temp[cell]*4.0f));
+            for(uint8_t cell = 128U; cell < 140U; cell+=2){
+                CAN_TxData[cell-128U] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
+                CAN_TxData[cell+1-128U] = fconstrain(acu->bty->cell_temp[cell]*4.0f);
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_2 failed...\n");
@@ -516,7 +521,7 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
     uint8_t primary_full = (p_level == 64U);
     uint8_t data_full = (d_level == 64U);
     uint8_t charger_full = (c_level == 64U); 
-     __enable_irq();   
+     __enable_irq();
     switch (id){
         case ACU_Debug_2_Debug:
             if(primary_full) {
@@ -713,12 +718,12 @@ float calculate_glv_soc(ACU* acu){
 /// @brief just prints adc_data
 /// @param acu
 void print_adc_data(ACU *acu){
+    return; // @todo: remove this when adc_data is ready
     print_lpuart("ADC Data: -------------------------------\n");
-    char buff[256];
-    bzero(buff, sizeof(buff));
-    sprintf(buff, "ts_curr: %.3f | ts_volt: %.3f\nsdc_w: %.3f | sdc_v: %.3f\n12v: %.3f | water_sense: %.3f\n", 
+    bzero(print_buffer, sizeof(print_buffer));
+    sprintf(print_buffer, "ts_curr: %.3f | ts_volt: %.3f\nsdc_w: %.3f | sdc_v: %.3f\n12v: %.3f | water_sense: %.3f\n", 
         acu->ts_current, acu->ts_voltage, acu->sdc_volt_w,  acu->sdc_volt_v, acu->voltage_12v, acu->water_sense);
-    print_lpuart(buff);
+    print_lpuart(print_buffer);
     print_lpuart("-----------------------------------------\n");
 
 }
@@ -727,9 +732,8 @@ void print_adc_data(ACU *acu){
 /// @param acu 
 void print_imd_data(ACU* acu){
     print_lpuart("IMD Data: -------------------------------\n");
-    char buff[150];
-    bzero(buff, sizeof(buff));
-    sprintf(buff,
+    bzero(print_buffer, sizeof(print_buffer));
+    sprintf(print_buffer,
         "R_ISO_Corrected: %hu | R_ISO_Status: %u | ISO_Meas_Count: %u\n"
         "Status_Warnings_Alarms: %hu | Status_Device_Activity: %u | HV_System: %.2f\n",
         (unsigned short int)(acu->imd->r_iso_corrected),
@@ -739,7 +743,7 @@ void print_imd_data(ACU* acu){
         (unsigned int)(acu->imd->status_device_activity),
         acu->imd->hv_system_voltage
     );
-    print_lpuart(buff);
+    print_lpuart(print_buffer);
     print_lpuart("-----------------------------------------\n");
 }
 

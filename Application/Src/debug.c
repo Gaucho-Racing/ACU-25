@@ -18,7 +18,6 @@ extern void print_errors_warning(ACU * acu);
 /// @brief Print BCC Status messages
 /// @param stat bcc_status_t
 void print_bcc_status(bcc_status_t stat){
-    return;
   switch (stat)
   {
   case BCC_STATUS_SUCCESS:
@@ -66,13 +65,8 @@ void print_bcc_status(bcc_status_t stat){
   }
 }
 
-/// @brief: precharge testing
-void test1(){
-    state = PRECHARGE;
-}
-
 void debug(){
-  print_lpuart("------------------- 💥 Debug Start 💥 -------------------\n");
+//   print_lpuart("------------------- 💥 Debug Start 💥 -------------------\n");
   #if DUMP_TARGETS == 1
   print_targets(acu);
 
@@ -117,6 +111,6 @@ void debug(){
   print_charger_data(&acu);
   
   #endif
-  print_lpuart("-------------------- 💣 End Debug 💣 --------------------\n");
+//   print_lpuart("-------------------- 💣 End Debug 💣 --------------------\n");
 }
 
