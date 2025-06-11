@@ -63,19 +63,19 @@
 
 
 // charger error masks
-#define CHARGER_HW_FAIL     0b10000
-#define CHARGER_OV_TEMP     0b01000
-#define CHARGER_IN_VOLT     0b00100
-#define CHARGER_CONNECT     0b00010
-#define CHARGER_COOMMMM     0b00001
+#define CHARGER_HW_FAIL     0b00001U
+#define CHARGER_OV_TEMP     0b00010U
+#define CHARGER_IN_VOLT     0b00100U
+#define CHARGER_CONNECT     0b01000U
+#define CHARGER_COOMMMM     0b10000U
 
 // energy measurement status
 #define EM_VIOLATION        0b1000
 #define EM_LOGGING          0b0100
 
 // precharge cmd
-#define PLS_CHARGE 0b01000000
-#define NO_CHARGE  0b10000000
+#define PLS_CHARGE 0U
+#define NO_CHARGE  1U
 
 // relay state muxes
 #define AIR_PLUS   0b10000000 // IR- : 0: Open, 1: Closed

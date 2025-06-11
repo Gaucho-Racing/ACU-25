@@ -173,6 +173,31 @@ float magical_union_flt(uint8_t data[], uint8_t size, bool big_endian){
     return unicorn.flt;
 }
 
+/// @brief Charger Data Receive: Calculating Bytes 1-4
+/// @param data data being sent/received, 2 bytes total
+/// @param weird true if weird
+/// @return uint16_t value to store
+int16_t magical_union_chgr_rcv(uint8_t data[], bool weird){
+    memset(&unicorn, 0, sizeof(unicorn));
+    if(!weird){
+        unicorn.byts[0] = data[1];
+        unicorn.byts[1] = data[0];
+    }
+    else{
+        unicorn.byts[0] = data[1];
+        unicorn.byts[1] = data[0] & 0x7F; // mask out the "highest bit" => direction
+    }
+    return unicorn.i16;
+}
+
+void magical_union_chgr_send(uint8_t * buffer, float data){
+    memset(&unicorn, 0, sizeof(unicorn));
+    uint16_t rounded = roundf(data);
+    unicorn.u16 = rounded;
+    buffer[0] = unicorn.byts[1];
+    buffer[1] = unicorn.byts[0];
+}
+
 /// @brief convert byte arrays to uint16_t
 /// @param data array of bytes
 /// @return 
@@ -254,10 +279,11 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             }
             break;  
         case Charger_Data_ACU:
-            acu->lastChrgRecieveTime = curr; // @remark: check this
-            acu->chgr->charger_output_voltage = magical_union_flt(data, 2, false) * 0.1f;   // @remark: why is this? what is this for?
-            acu->chgr->charger_output_current = magical_union_flt(data+2, 2, false) * 0.1f; // @remark: why is this? what is this for?
-            acu->chgr->chgr_status = data[4]; // @remark: need to check for this when checking acu
+            acu->lastChrgRecieveTime = curr; 
+            acu->chgr->charger_output_voltage = (int16_t)(magical_union_chgr_rcv(data, false) * 0.1);   
+            acu->chgr->charger_output_current = (int16_t)(magical_union_chgr_rcv(data+2, true) * 0.1f);
+            acu->chgr->chgr_state = ((data+2)[0] & 0x80);
+            acu->chgr->chgr_status = data[4];
             break;  
         case Config_Charge_ACU:
             acu->target_voltage = magical_union_flt(data, 2, false) * 0.1f;
@@ -518,8 +544,8 @@ void dequeue(ACU* acu){
         case 1:
             TxHeader_Charger.Identifier = ACU_Charger_Control;
             TxHeader_Charger.DataLength = FDCAN_DLC_BYTES_5;
-            magical_union_flt_byts(CAN_TxData, (acu->target_voltage * 10.0f), 2);
-            magical_union_flt_byts(CAN_TxData+2, (acu->target_current * 10.0f), 2);
+            magical_union_chgr_send(CAN_TxData, acu->target_voltage * 10.0f);
+            magical_union_chgr_send(CAN_TxData+2, acu->target_current * 10.0f);
             CAN_TxData[4] = acu->chg_ctrl;
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan3, &TxHeader_Charger, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Charger_Control failed...\n");
@@ -847,7 +873,7 @@ void print_charger_data(ACU* acu){
     char buff[150];
     bzero(buff, sizeof(buff));
     sprintf(buff,
-        "Charger voltage: %u |Charger current: %u\n",
+        "Charger voltage: %hd |Charger current: %hd\n",
         acu->chgr->charger_output_voltage,
         acu->chgr->charger_output_current
     );

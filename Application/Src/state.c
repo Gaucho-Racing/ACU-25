@@ -72,7 +72,7 @@ void print_state(){
 /// @brief self explanatory
 void shitdown(){
     // Open all
-    acu.chg_ctrl = (uint8_t)NO_CHARGE;
+    acu.chg_ctrl = NO_CHARGE;
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);

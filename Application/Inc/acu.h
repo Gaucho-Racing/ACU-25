@@ -59,8 +59,9 @@ typedef struct {
                                     Bit 3: Starting State: 0-Correct, 1-Wrong polarity or NC
                                     Bit 4: Communication State: 0-Normal, 1-Timeout
                         */
-    uint16_t charger_output_voltage; // data from charger (via Rx)
-    uint16_t charger_output_current; // data from charger (via Rx)
+    uint8_t chgr_state; // 0: charging, 1: dicharging
+    int16_t charger_output_voltage; // data from charger (via Rx)
+    int16_t charger_output_current; // data from charger (via Rx)
 } Charger;
 
 typedef struct {
@@ -74,7 +75,7 @@ typedef struct {
     float target_voltage; 
     float target_current;
 
-    uint8_t chg_ctrl; // 0b01 : Start Charging, 0b10: Stop Charging => to be sent from ACU to others via Tx
+    uint8_t chg_ctrl; // 0 : Start Charging, 1: Stop Charging => to be sent from ACU to others via Tx
     float acu_current; // current output of ACU
 
     // ADC Stuff
@@ -112,6 +113,7 @@ typedef struct {
  union data_union {
     uint16_t u16; 
     int32_t i32; 
+    int16_t i16;
     float flt;
     uint8_t byts[4];
 };
@@ -128,10 +130,15 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 void can_read_handler(ACU* acu);
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data);
 
+// other data conversions
 void magical_union_flt_byts(uint8_t * buffer, float data, uint8_t size);
 float magical_union_flt(uint8_t data[], uint8_t size, bool big_endian);
 int32_t magical_union_i32(uint8_t data[], bool big_endian);
 uint16_t magical_union_u16(uint8_t data[]);
+
+// charger conversions
+int16_t magical_union_chgr_rcv(uint8_t data[], bool weird);
+void magical_union_chgr_send(uint8_t * buffer, float data);
 
 
 // Print functions
