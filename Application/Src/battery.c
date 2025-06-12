@@ -388,12 +388,6 @@ bool check_temp(Battery *bty){
                 bty->battery_check_faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
                 success = 0;
             }
-            // undertemp check
-            if(bty->cell_temp[i*NUM_CELL_IC + j] < bty->min_temp_thresh){
-                bty->cell_temp_errors++;
-                bty->battery_check_faults |= BATTERY_FAULT_CELL_UT; // probably not the correct one
-                success = 0;
-            }
         }
     }
     return success;

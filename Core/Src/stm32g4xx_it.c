@@ -67,6 +67,7 @@ extern void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 extern FDCAN_HandleTypeDef hfdcan3;
+extern TIM_HandleTypeDef htim7;
 /* USER CODE BEGIN EV */
 extern volatile uint8_t CAN_RxBufferLevel;
 extern volatile uint8_t p_bottom, d_bottom, c_bottom, p_level, d_level, c_level;
@@ -200,56 +201,9 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
-  static uint32_t tickCount = 0;
   /* USER CODE END SysTick_IRQn 0 */
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
-
-  // always check if we can send data
-  if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue_in_irq();
-
-  // always check if we can read data
-  if(CAN_RxBufferLevel > 0) parse_data();
-
-  // we can tweak this later
-  tickCount++;
-  
-  // queue data to send occasionally
-  if(tickCount >= 100){
-    enqueue(ACU_Cell_Data_1, FDCAN2);
-    enqueue(ACU_Cell_Data_2, FDCAN2);
-    enqueue(ACU_Cell_Data_3, FDCAN2);
-    enqueue(ACU_Cell_Data_4, FDCAN2);
-    enqueue(ACU_Cell_Data_5, FDCAN2);
-    enqueue(ACU_Status_1,FDCAN1);
-    enqueue(ACU_Status_2,FDCAN1);
-    enqueue(ACU_Status_3,FDCAN1);
-    enqueue(ACU_Charger_Control, FDCAN3);
-  }
-
-  // occasionally push data to "ready send"
-  if (CAN_1_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) != 0) 
-  {
-    tickCount = 0;
-    CAN_1_flag = prim_q[p_bottom];
-    p_level--;
-    p_bottom++;
-  }
-  if (CAN_2_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan2) != 0) 
-  {
-    tickCount = 0;
-    CAN_2_flag = data_q[d_bottom];
-    d_level--;
-    d_bottom++;
-  }
-  if (CAN_3_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan3) != 0) 
-  {
-    tickCount = 0;
-    CAN_3_flag = charger_q[c_bottom];
-    c_level--;
-    c_bottom++;
-  }
-
   update_adc_data(&acu);
   update_relay_state(&acu);
 
@@ -311,6 +265,53 @@ void SPI2_IRQHandler(void)
   }
   
   /* USER CODE END SPI2_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM7 global interrupt, DAC2 and DAC4 channel underrun error interrupts.
+  */
+void TIM7_DAC_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM7_DAC_IRQn 0 */
+  /* USER CODE END TIM7_DAC_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim7);
+  /* USER CODE BEGIN TIM7_DAC_IRQn 1 */
+  // always check if we can send data
+  if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue_in_irq();
+
+  // always check if we can read data
+  if(CAN_RxBufferLevel > 0) parse_data();
+  // queue data to send occasionally
+  enqueue(ACU_Cell_Data_1, FDCAN2);
+  enqueue(ACU_Cell_Data_2, FDCAN2);
+  enqueue(ACU_Cell_Data_3, FDCAN2);
+  enqueue(ACU_Cell_Data_4, FDCAN2);
+  enqueue(ACU_Cell_Data_5, FDCAN2);
+  enqueue(ACU_Status_1,FDCAN1);
+  enqueue(ACU_Status_2,FDCAN1);
+  enqueue(ACU_Status_3,FDCAN1);
+  enqueue(ACU_Charger_Control, FDCAN3);
+
+  // occasionally push data to "ready send"
+  if (CAN_1_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) != 0) 
+  {
+    CAN_1_flag = prim_q[p_bottom];
+    p_level--;
+    p_bottom++;
+  }
+  if (CAN_2_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan2) != 0) 
+  {
+    CAN_2_flag = data_q[d_bottom];
+    d_level--;
+    d_bottom++;
+  }
+  if (CAN_3_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan3) != 0) 
+  {
+    CAN_3_flag = charger_q[c_bottom];
+    c_level--;
+    c_bottom++;
+  }
+  /* USER CODE END TIM7_DAC_IRQn 1 */
 }
 
 /**

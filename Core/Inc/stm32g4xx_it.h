@@ -58,6 +58,7 @@ void SysTick_Handler(void);
 void DMA1_Channel1_IRQHandler(void);
 void FDCAN1_IT0_IRQHandler(void);
 void SPI2_IRQHandler(void);
+void TIM7_DAC_IRQHandler(void);
 void FDCAN2_IT0_IRQHandler(void);
 void FDCAN3_IT0_IRQHandler(void);
 /* USER CODE BEGIN EFP */
