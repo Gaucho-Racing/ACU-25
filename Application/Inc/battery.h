@@ -28,7 +28,10 @@ typedef struct
     float max_cell_temp; // the cell with the max temp
     
     // stacks
+    float battery_total_voltage;
     float stack_voltage[NUM_TOTAL_IC];
+    float calculated_stack_voltage[NUM_TOTAL_IC];
+    
     float icTemp[NUM_TOTAL_IC];
 
     float max_chg_current; // idk what the purpose of this one is, doesn't really get used

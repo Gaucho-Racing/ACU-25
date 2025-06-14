@@ -66,10 +66,13 @@ void print_bcc_status(bcc_status_t stat){
 }
 
 void debug(){
-  print_lpuart("------------------- 💥 Debug Start 💥 -------------------\n");
+  print_lpuart("\n\n\n\n\n\n\n\n\n\n\n------------------- 💥 Debug Start 💥 -------------------\n");
+  print_state();
+
+  print_relay_status(acu.relay_state);
+
   #if DUMP_TARGETS == 1
   print_targets(acu);
-
   #endif
 
   #if DUMP_VOLTS == 1

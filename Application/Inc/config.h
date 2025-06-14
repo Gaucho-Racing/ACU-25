@@ -12,13 +12,16 @@
 #define GPIO_CFG1 0.0f
 #define GPIO_CFG2 0.0f
 #define CBX_SET 1.0f
-#define RX_BUF_SIZE 8
 
 #define SPI_LOOP_TIMEOUT 500
 
 // #define KEY_PRESSED     GPIO_PIN_RESET
 // #define NOT_PRESSED     GPIO_PIN_SET
-    
+
+#define CELL_INT_RESISTANCE 0.006
+#define CELL_EMPTY_VOLTAGE 3
+#define CELL_FULL_VOLTAGE 4.15
+
 #define CELL_MAX_VOLT 4.2f
 #define CELL_MIN_VOLT 0.9f
 
@@ -77,30 +80,35 @@
 #define NO_CHARGE  1U
 
 // relay state muxes
-#define AIR_PLUS   0b10000000 // IR- : 0: Open, 1: Closed
-#define AIR_MINUS  0b01000000 // IR+ : 0: Open, 1: Closed
-#define RELAY_PRE  0b00100000 // Precharge 0: Open, 1: Closed
+#define AIR_PLUS   0b1000 // IR- : 0: Open, 1: Closed
+#define AIR_MINUS  0b0100 // IR+ : 0: Open, 1: Closed
+#define RELAY_PRE  0b0010 // Precharge 0: Open, 1: Closed
+#define ACU_LATCH  0b0001 // ACU Latch / Software Latch
 
 // IMD error masks
-#define IMD_ERROR_ACTIVE    0b10000000000
-#define HV_POS_CONN_FAIL    0b01000000000
-#define HV_NEG_CONN_FAIL    0b00100000000
-#define EARTH_CONNN_FAIL    0b00010000000
-#define ISO_ALARM_ERRROR    0b00001000000
-#define ISO_WARN_ERRRROR    0b00000100000
-#define ISO_OUTDATED_ERR    0b00000010000
-#define UN_BALANCE_ALARM    0b00000001000
-#define UNDERVOLTG_ALARM    0b00000000100
-#define UNSAFE_TOO_START    0b00000000010
-#define EARTH_LIFT_OPENN    0b00000000001
+#define IMD_ERROR_ACTIVE    0b10000000000U
+#define HV_POS_CONN_FAIL    0b01000000000U
+#define HV_NEG_CONN_FAIL    0b00100000000U
+#define EARTH_CONNN_FAIL    0b00010000000U
+#define ISO_ALARM_ERRROR    0b00001000000U
+#define ISO_WARN_ERRRROR    0b00000100000U
+#define ISO_OUTDATED_ERR    0b00000010000U
+#define UN_BALANCE_ALARM    0b00000001000U
+#define UNDERVOLTG_ALARM    0b00000000100U
+#define UNSAFE_TOO_START    0b00000000010U
+#define EARTH_LIFT_OPENN    0b00000000001U
 
 // error margins
-#define GLV_SDC_LOW 1.0f
+#define GLV_SDC_LOW 2.0f
 #define SDC_HIGH 9.0f
 #define ERRMG_ACU_ERR 50
 // #define ERRMG_5V 0.2
 // #define ERRMG_CELL_VOLT_ERR 20
 // #define ERRMG_CELL_TEMP_ERR 50
+
+// datatype
+#define UNSIGNED_16 0
+#define SIGNED_16   1
 
 // ADC Warning Thresholds
 #define UNDER_VOLTAGE_20V 15

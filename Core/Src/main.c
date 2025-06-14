@@ -52,13 +52,14 @@
 /* USER CODE BEGIN PV */
 
 // trackers
-uint8_t cycle;
+uint8_t cycle = 0;
 uint32_t prev = 0;
-bcc_status_t bcc_error; 
 bool first_init = true;
 char print_buffer[1000];
 bool check_ts_active = false;
 uint8_t bcc_cooked_count = 0;
+bcc_status_t bcc_error = BCC_STATUS_SUCCESS; 
+uint16_t cps = 0; // cycles per second
 
 // BMS/ACU
 ACU acu;
@@ -68,7 +69,7 @@ Battery battery;
 uint16_t adc_data[ADC_SIZE]; // 0: ts_current, 1: ts_voltage, 2: sdc_volt_w, 3: sdc_volt_v, 4:volt_12v, 5: water_sense
 
 // BCC - timeout vars
-uint32_t BCC_MCU_Timeout_Start;
+uint32_t BCC_MCU_Timeout_Start = 0;
 uint32_t BCC_MCU_Timeout_length = 0;
 
 // communication BCC - TPL
@@ -93,7 +94,7 @@ FDCAN_TxHeaderTypeDef TxHeader_Charger;
 FDCAN_RxHeaderTypeDef RxHeader_Charger;
 
 // communication queues - FDCAN (ensure mods are atomic)
-volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
+volatile uint8_t prim_q[256] = {0}, data_q[256] = {0}, charger_q[256] = {0}; 
 volatile uint8_t p_top = 0, p_bottom = 0, p_level = 0;
 volatile uint8_t d_top = 0, d_bottom = 0, d_level = 0;
 volatile uint8_t c_top = 0, c_bottom = 0, c_level = 0;
@@ -104,8 +105,8 @@ volatile uint8_t CAN_2_flag = 0;
 volatile uint8_t CAN_3_flag = 0;
 
 // SHARED BUFFER: all data enter in through this buffer (ensure mods are atomic)
-uint8_t CAN_TxData[64];
-uint8_t CAN_RxData[64];
+uint8_t CAN_TxData[64] = {0};
+uint8_t CAN_RxData[64] = {0};
 
 // SHARED BUFFER: ACCESSIBLE BY INTERRUPT HANDLER AND DEV (ME!) (ensure mods are atomic)
 volatile CAN_RX_message CAN_RxBuffer[256]; // Array to store received CAN data
@@ -235,6 +236,14 @@ int main(void)
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
   DWT_Delay_Init();
+  write_IRneg(false);
+  write_IRpos(false);
+  write_prechg(false);
+  // write_LED(1);
+  // HAL_Delay(100);
+  // write_LED(0);
+
+
 
   /* Enable the SPI peripherals */
   BCC_MCU_WriteCsbPin(0, 1);
@@ -264,7 +273,10 @@ int main(void)
 
   // enable microsecond timer
   LL_TIM_EnableCounter(TIM5);
+  // enable CAN handler timer interrupt
   LL_TIM_EnableCounter(TIM7);
+  LL_TIM_EnableIT_UPDATE(TIM7);
+
   write_LED(1);
   setup();
   
@@ -299,8 +311,6 @@ int main(void)
   RxHeader.FDFormat = FDCAN_CLASSIC_CAN;
   RxHeader.RxTimestamp = 0; /* Specifies the timestamp counter value captured on start of frame reception. Between 0 and 0xFFFF  */           
 
-  sdc_reset(); // remove this in production
-
   // configure driveConfig
   battery.drvConfig.commMode = BCC_MODE_TPL;
   battery.drvConfig.devicesCnt = NUM_TOTAL_IC;
@@ -316,6 +326,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    // print_state(); // prints the current state
+    // sdc_reset();
     LL_GPIO_TogglePin(GPIOA, LL_GPIO_PIN_15);
     BCC_WakeUp(&(battery.drvConfig));
 
@@ -357,11 +369,14 @@ int main(void)
         state = SHITDOWN;
         break;
     }
+    cps++;
     #if DEBUG_MODE == 0
-    uint32_t curr = HAL_GetTick();
-    if(curr - prev > 500){
-      prev = curr;
+    if(HAL_GetTick() - prev >= 1000){ // debug every 2 seconds
+      prev += 1000;
       debug();
+      sprintf(print_buffer, "%ucps\n", cps);
+      print_lpuart(print_buffer);
+      cps = 0;
     }
     #endif
     /* USER CODE END WHILE */
@@ -387,15 +402,14 @@ void SystemClock_Config(void)
   {
   }
   LL_PWR_SetRegulVoltageScaling(LL_PWR_REGU_VOLTAGE_SCALE1);
-  LL_RCC_HSE_EnableBypass();
-  LL_RCC_HSE_Enable();
-   /* Wait till HSE is ready */
-  while(LL_RCC_HSE_IsReady() != 1)
+  LL_RCC_HSI_Enable();
+   /* Wait till HSI is ready */
+  while(LL_RCC_HSI_IsReady() != 1)
   {
   }
 
-  LL_RCC_HSE_EnableCSS();
-  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSE, LL_RCC_PLLM_DIV_1, 32, LL_RCC_PLLR_DIV_2);
+  LL_RCC_HSI_SetCalibTrimming(64);
+  LL_RCC_PLL_ConfigDomain_SYS(LL_RCC_PLLSOURCE_HSI, LL_RCC_PLLM_DIV_1, 16, LL_RCC_PLLR_DIV_2);
   LL_RCC_PLL_EnableDomain_SYS();
   LL_RCC_PLL_Enable();
    /* Wait till PLL is ready */
@@ -455,24 +469,27 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
             CAN_RxBuffer[CAN_RxBufferTop].length = RxHeader.DataLength;
             CAN_RxBuffer[CAN_RxBufferTop].instance = hfdcan->Instance;
 
-            // #if SPAMPRINT == 1
-            // uint8_t headerBuff[64], dataBuff[8];
-            // sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
-            // print_lpuart(headerBuff);
-            // for (uint32_t i = 0; i < RxHeader.DataLength; i++)
-            // {
-            //     sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
-            //     print_lpuart(dataBuff);
-            //     bzero((void *)dataBuff, 8);
-            // }
-            // sprintf(dataBuff, "\n");
-            // print_lpuart(dataBuff);
-            // #endif
+            #if SPAMPRINT == 0
+            if (CAN_RxBuffer[CAN_RxBufferTop].identifier == Precharge_ACU){
+              uint8_t headerBuff[64], dataBuff[8];
+              sprintf(headerBuff, "Received CAN message: ID=0x%lX, DLC=%ld, Data=\n", RxHeader.Identifier, RxHeader.DataLength);
+              print_lpuart(headerBuff);
+              for (uint32_t i = 0; i < RxHeader.DataLength; i++)
+              {
+                  sprintf(dataBuff, " 0x%02X, ", CAN_RxData[i]);
+                  print_lpuart(dataBuff);
+                  bzero((void *)dataBuff, 8);
+              }
+              sprintf(dataBuff, "\n");
+              print_lpuart(dataBuff);
+              #endif
+            }
 
             // copy the data
             bzero((void *)CAN_RxBuffer[CAN_RxBufferTop].data, 64);
             memcpy((void * restrict)CAN_RxBuffer[CAN_RxBufferTop].data, CAN_RxData, RxHeader.DataLength);
             CAN_RxBufferTop++; // increment and mod the pointers in the buffer
+            CAN_RxBufferLevel++;
         }
     }
 }

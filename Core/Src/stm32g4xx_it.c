@@ -48,6 +48,7 @@ extern volatile uint8_t TPL_RxBuffer[256]; // Array to store received SPI data
 extern volatile uint8_t TPL_RxBufferLevel; // Number of bytes to be read
 extern volatile uint8_t TPL_RxBufferBottom; // Index of oldest data
 extern volatile uint8_t TPL_RxBufferTop; // Index of newest data
+volatile uint16_t delaying = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,11 +68,10 @@ extern void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can);
 extern FDCAN_HandleTypeDef hfdcan1;
 extern FDCAN_HandleTypeDef hfdcan2;
 extern FDCAN_HandleTypeDef hfdcan3;
-extern TIM_HandleTypeDef htim7;
 /* USER CODE BEGIN EV */
 extern volatile uint8_t CAN_RxBufferLevel;
 extern volatile uint8_t p_bottom, d_bottom, c_bottom, p_level, d_level, c_level;
-extern volatile uint8_t prim_q[64], data_q[64], charger_q[64]; 
+extern volatile uint8_t prim_q[256], data_q[256], charger_q[256]; 
 extern volatile uint8_t CAN_1_flag;
 extern volatile uint8_t CAN_2_flag;
 extern volatile uint8_t CAN_3_flag;
@@ -87,7 +87,7 @@ extern ACU acu; // global ACU variable
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
+  print_lpuart("NMI_Handler");
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
    while (1)
@@ -102,11 +102,12 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  print_lpuart("HardFault_Handler");
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
+    
     /* USER CODE END W1_HardFault_IRQn 0 */
   }
 }
@@ -117,11 +118,12 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
+  print_lpuart("MemManage_Handler");
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
   {
     /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
+    
     /* USER CODE END W1_MemoryManagement_IRQn 0 */
   }
 }
@@ -132,11 +134,12 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
-
+  print_lpuart("BusFault_Handler");
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
   {
     /* USER CODE BEGIN W1_BusFault_IRQn 0 */
+    
     /* USER CODE END W1_BusFault_IRQn 0 */
   }
 }
@@ -147,7 +150,7 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
-
+  print_lpuart("UsageFault_Handler");
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)
   {
@@ -162,7 +165,7 @@ void UsageFault_Handler(void)
 void SVC_Handler(void)
 {
   /* USER CODE BEGIN SVCall_IRQn 0 */
-
+  print_lpuart("SVC_Handler");
   /* USER CODE END SVCall_IRQn 0 */
   /* USER CODE BEGIN SVCall_IRQn 1 */
 
@@ -175,7 +178,7 @@ void SVC_Handler(void)
 void DebugMon_Handler(void)
 {
   /* USER CODE BEGIN DebugMonitor_IRQn 0 */
-
+  print_lpuart("DebugMon_Handler");
   /* USER CODE END DebugMonitor_IRQn 0 */
   /* USER CODE BEGIN DebugMonitor_IRQn 1 */
 
@@ -188,7 +191,7 @@ void DebugMon_Handler(void)
 void PendSV_Handler(void)
 {
   /* USER CODE BEGIN PendSV_IRQn 0 */
-
+  print_lpuart("PendSV_Handler");
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */
 
@@ -205,8 +208,6 @@ void SysTick_Handler(void)
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
   update_adc_data(&acu);
-  update_relay_state(&acu);
-
   /* USER CODE END SysTick_IRQn 1 */
 }
 
@@ -216,20 +217,6 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32g4xx.s).                    */
 /******************************************************************************/
-
-/**
-  * @brief This function handles DMA1 channel1 global interrupt.
-  */
-void DMA1_Channel1_IRQHandler(void)
-{
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
-
-  /* USER CODE END DMA1_Channel1_IRQn 0 */
-
-  /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
-
-  /* USER CODE END DMA1_Channel1_IRQn 1 */
-}
 
 /**
   * @brief This function handles FDCAN1 interrupt 0.
@@ -273,39 +260,45 @@ void SPI2_IRQHandler(void)
 void TIM7_DAC_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM7_DAC_IRQn 0 */
+  LL_TIM_ClearFlag_UPDATE(TIM7);
   /* USER CODE END TIM7_DAC_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim7);
-  /* USER CODE BEGIN TIM7_DAC_IRQn 1 */
-  // always check if we can send data
-  if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) dequeue_in_irq();
 
-  // always check if we can read data
-  if(CAN_RxBufferLevel > 0) parse_data();
-  // queue data to send occasionally
-  enqueue(ACU_Cell_Data_1, FDCAN2);
-  enqueue(ACU_Cell_Data_2, FDCAN2);
-  enqueue(ACU_Cell_Data_3, FDCAN2);
-  enqueue(ACU_Cell_Data_4, FDCAN2);
-  enqueue(ACU_Cell_Data_5, FDCAN2);
-  enqueue(ACU_Status_1,FDCAN1);
-  enqueue(ACU_Status_2,FDCAN1);
-  enqueue(ACU_Status_3,FDCAN1);
-  enqueue(ACU_Charger_Control, FDCAN3);
+  /* USER CODE BEGIN TIM7_DAC_IRQn 1 */
+  update_relay_state(&acu);
+  // always check if we can send data
+  if(CAN_1_flag != 0 || CAN_2_flag != 0 || CAN_3_flag != 0) {dequeue_in_irq();}
+
+  // always check if we can read data => HOLD OFF ON THIS
+  if(CAN_RxBufferLevel > 0) {parse_data();}
+
+  if(delaying == 0){
+    // queue data to send occasionally
+    delaying = 500;
+    // enqueue(ACU_Cell_Data_1, FDCAN2);
+    // enqueue(ACU_Cell_Data_2, FDCAN2);
+    // enqueue(ACU_Cell_Data_3, FDCAN2);
+    // enqueue(ACU_Cell_Data_4, FDCAN2);
+    // enqueue(ACU_Cell_Data_5, FDCAN2);
+    enqueue(ACU_Status_1,FDCAN1);
+    enqueue(ACU_Status_2,FDCAN1);
+    // enqueue(ACU_Charger_Control, FDCAN3);
+  }
+  else {delaying--;}
 
   // occasionally push data to "ready send"
-  if (CAN_1_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) != 0) 
+  if (CAN_1_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) != 0 && p_level > 0) 
   {
     CAN_1_flag = prim_q[p_bottom];
     p_level--;
     p_bottom++;
   }
-  if (CAN_2_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan2) != 0) 
+  if (CAN_2_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan2) != 0 && d_level > 0) 
   {
     CAN_2_flag = data_q[d_bottom];
     d_level--;
     d_bottom++;
   }
-  if (CAN_3_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan3) != 0) 
+  if (CAN_3_flag == 0 && HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan3) != 0 && c_level > 0) 
   {
     CAN_3_flag = charger_q[c_bottom];
     c_level--;

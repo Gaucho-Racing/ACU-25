@@ -10,8 +10,9 @@ extern bool check_ts_active;
 
 extern uint8_t cycle;
 extern uint16_t adc_data[6];
-extern bcc_status_t bcc_error; 
+extern char print_buffer[1000];
 extern uint8_t bcc_cooked_count;
+extern bcc_status_t bcc_error; 
 extern FDCAN_RxHeaderTypeDef RxHeader_Charger;
 
 extern void print_lpuart(char* arr);
@@ -38,6 +39,7 @@ uint8_t get_state(){
     return (uint8_t)(state);
 }
 
+/// @brief sets the state in functions that can't access the state
 void set_state(uint8_t value){
     state = value;
 }
@@ -116,6 +118,7 @@ void init(){
         BCC_MCU_WaitMs(10);
         print_lpuart("(¬_¬\") Trying BCC_Init again\n");
         bcc_error = BCC_Init(&(battery.drvConfig)); 
+        print_bcc_status(bcc_error);
         counter--;
     }
     if (counter == 0){
@@ -137,7 +140,8 @@ void init(){
         return;
     }
 
-    clear_faults(&(battery.drvConfig));  
+    clear_faults(&(battery.drvConfig)); 
+    print_lpuart("PASSED clear_faults\n"); 
 
     // cb & first battery check
     reset_discharge(&battery, false);
@@ -187,13 +191,11 @@ void standby(){
         check_ts_active = false;
     }
     else {}
-    // update cycle
-    cycle++;
-    cycle = cycle % 8;
 }
 
 /// @brief State: PRECHARGE
 void precharge(){
+    print_lpuart("PRECHARGE\n");
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
     acu.acu_err_warns &= ~(ACU_PRECHARGE);
 
@@ -204,17 +206,15 @@ void precharge(){
 
     // reset SDC latch and wait for voltage to stablize
     sdc_reset();
-    LL_mDelay(100);
+    LL_mDelay(10);
 
-    if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_v > SDC_HIGH) {
+    if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_w < SDC_HIGH) {
         print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
-        acu.acu_latch = 0;
         #if DEBUGG == 0
-        state = SHITDOWN;
+        state = STANDBY;
         return;
         #endif
     }
-    else {acu.acu_latch = 1;}
     
     // system check
     if (!state_system_check(true, false)) {
@@ -227,10 +227,7 @@ void precharge(){
     }
 
     // close AIR-
-    write_IRneg(true);
-
-    LL_mDelay(100);
-
+    write_IRneg(true); // starting precharge
     // Close precharge relay
     write_prechg(true);
 
@@ -238,7 +235,9 @@ void precharge(){
 
     // keep looping until ts_voltage reaches 0.95 of total cell voltage
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
-
+        sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
+        print_lpuart(print_buffer);
+        LL_mDelay(100);
         if (!state_system_check(false, false)) {
             print_lpuart("¯\\_(ツ)_/¯ PreCharge state_system_check() => Shutdown\n");
             #if DEBUGG == 0
@@ -248,9 +247,9 @@ void precharge(){
         }
 
         if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
-            print_lpuart("¯\\_(ツ)_/¯ PreCharge (243) SDC volt dropped\n");
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge (257) SDC volt dropped\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
-            enqueue(ACU_Status_2, FDCAN1);
+            // enqueue(ACU_Status_2, FDCAN1);
             #if DEBUGG == 0
             state = SHITDOWN;
             return;
@@ -259,7 +258,7 @@ void precharge(){
         if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
             print_lpuart("¯\\_(ツ)_/¯ (252) Precharge timeout\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
-            enqueue(ACU_Status_2,FDCAN1);
+            // enqueue(ACU_Status_2,FDCAN1);
             #if DEBUGG == 0
             state = SHITDOWN;
             return;
@@ -284,10 +283,10 @@ void precharge(){
             #endif
         }
         // signal to go to charge!
-        if(acu.chgr->chgr_status ^ CHARGER_COOMMMM){ // (if X ^ 1) => true
-            print_lpuart("💩 Charger_Data_ACU ping received!\n");
-            goToCharge = 1;
-        }
+        // if(acu.chgr->chgr_status ^ CHARGER_COOMMMM){ // (if X ^ 1) => true
+        //     print_lpuart("💩 Charger_Data_ACU ping received!\n");
+        //     goToCharge = 1;
+        // }
         
         // actively check total_voltage vs ts_voltage just in case
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){
@@ -300,10 +299,10 @@ void precharge(){
         }
         LL_mDelay(50);
     }
-
-    write_IRpos(true);
-
-    enqueue(ACU_Status_3,FDCAN3);
+    // close AIR+
+    write_IRpos(true); // precharge complete
+    write_prechg(false); // open precharge relay
+    print_lpuart("Precharge complete, closing AIR+\n");
 
     if(goToCharge){
         acu.chg_ctrl = PLS_CHARGE;
@@ -313,7 +312,6 @@ void precharge(){
         acu.chg_ctrl = NO_CHARGE;
         state = NORMAL;
     }
-    return;
 }
 
 uint32_t last_charge_time = 0;
@@ -397,6 +395,9 @@ void charge(){
 
 uint8_t tsVoltErrCount = 0;
 void normal(){
+    write_prechg(false);
+    write_IRneg(true);
+    write_IRpos(true);
     if(!state_system_check(false, false)){
         print_lpuart("( ˶°ㅁ°) !! SystemCheck failed in NORMAL state\n");
         #if DEBUGG == 0
@@ -427,10 +428,6 @@ void normal(){
     else {
         tsVoltErrCount = 0;
     }
-
-    // update cycle
-    cycle++;
-    cycle = cycle % 8;
 
     if (acu.ts_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
 
@@ -469,16 +466,14 @@ bool state_system_check(bool full_check, bool startup){
         acu.acu_err_warns |= ACU_ERR_OVER_TEMP;
     }
 
-    if(a_check == false){
-        // print all current errors
-    }
-    if(b_check == false){
-        // print all current errors
-    }
     // print_errors_warning(&acu);
-    if (a_check && b_check){
+    if (b_check){
         write_bms_ok(state);
-        print_lpuart("SysCheck: ACU & BMS ok <3\n");
+        // print_lpuart("BMS ok <3\n");
+    }
+    else {
+        write_bms_ok(false);
+        // print_lpuart("BMS not ok :(\n");
     }
     return a_check && b_check;
 }

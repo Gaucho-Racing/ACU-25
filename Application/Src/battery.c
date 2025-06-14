@@ -130,23 +130,22 @@ void reset_discharge(Battery * bty, bool on){
 /// @param read_volt True if we're reading voltages
 /// @param read_temp True if we're reading temps
 /// @return SUCCESS if read was successful, else failed
+float max_volt = -1000.0f, max_temp = -1000.0f, min_volt = 1000.0f, min_temp = 1000.0f;
 bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t read_temp) 
 {
+    float temp_stack_volt[NUM_TOTAL_IC] = {0};
+    float battery_total_volt_temp = 0;
+
     uint32_t measurements[NUM_CELL_IC];
     int16_t temp_measures;
 
-    bty->max_cell_volt = 0.0f;
-    bty->max_cell_temp = 0.0f;
-    bty->min_cell_temp = 10000.0f;
-    bty->min_cell_volt = 10000.0f;
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
         bcc_error = BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true); // pause b4 read
         if(bcc_error != BCC_STATUS_SUCCESS) {
             print_bcc_status(bcc_error);
             bcc_error = BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true);
         }
-        if(read_volt){
-            // CELL VOLTAGES
+        if(read_volt){ // CELL VOLTAGES
             bcc_error = BCC_Meas_StartAndWait(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_AVG_1);
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 print_bcc_status(bcc_error);
@@ -166,15 +165,18 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             }
             for (uint8_t j = 0; j < NUM_CELL_IC; j++){
                 bty->cell_volt[GET_INDEX(i, j)] = measurements[j] * 1e-6f;
-                
+                battery_total_volt_temp += (measurements[j] * 1e-6f);
+                temp_stack_volt[i] += measurements[j] * 1e-6f;
+
                 // measurements
-                bty->max_cell_volt = fmaxf(bty->max_cell_volt, bty->cell_volt[GET_INDEX(i, j)]);
-                bty->min_cell_volt = fminf(bty->min_cell_volt, bty->cell_volt[GET_INDEX(i, j)]);
+                max_volt = fmaxf(max_volt, measurements[j] * 1e-6f);
+                min_volt = fminf(min_volt, measurements[j] * 1e-6f);
             }
 
             bzero(measurements, sizeof(measurements));
             bcc_error = BCC_Meas_GetStackVoltage(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
             bty->stack_voltage[i] = *measurements * 1e-6f; // theres ~ .3 difference from manual calcs
+            bty->calculated_stack_voltage[i] = temp_stack_volt[i];
             
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
@@ -189,11 +191,10 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             }
         }
 
-        
-        if(read_temp){
+        if(read_temp && cycle == i){
             temp_measures = 0;
             bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, &temp_measures);
-            bty->icTemp[i] = V2T((temp_measures * 0.1f), 4000);
+            bty->icTemp[i] = (float)temp_measures; // TRIAGE: check this in charging
 
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
@@ -209,28 +210,27 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
         }
 
         // CELL TEMPS
-        if(read_temp){
+        if(read_temp && cycle == i){
             for(uint8_t j = 0; j < 28; j++) {
-                uint8_t readByte;
+                uint8_t readByte = 0;
                 bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
-                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T(readByte * 0.1f, 4000U);
-                    bty->max_cell_temp = fmaxf(bty->max_cell_temp, bty->cell_temp[GET_INDEX(i, j)]);
-                    bty->min_cell_temp = fminf(bty->min_cell_temp, bty->cell_temp[GET_INDEX(i, j)]);
+                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T(readByte * 0.01953125f, 4000.0f);
+                    max_temp = fmaxf(max_temp, bty->cell_temp[GET_INDEX(i, j)]);
+                    min_temp = fminf(min_temp, bty->cell_temp[GET_INDEX(i, j)]);
                 }
                 // uncomment this when temp is normal
                 if(bcc_error != BCC_STATUS_SUCCESS) {
                     print_lpuart("error in BCC_EEPROM_Read: ");
                     print_bcc_status(bcc_error);
-                    // bcc_cooked_count++;
-                    // if(bcc_cooked_count == 0){
-                    //     set_state(INIT);
-                    //     #if DEBUGG == 0
-                    //     print_lpuart("error in BCC_EEPROM_Read: ");
-                    //     print_bcc_status(bcc_error);
-                    //     return bcc_error;
-                    //     #endif
-                    // }
+                    bcc_cooked_count++;
+                    if(bcc_cooked_count == 0){
+                        set_state(INIT);
+                        #if DEBUGG == 0
+                        print_lpuart("error in BCC_EEPROM_Read: ");
+                        return bcc_error;
+                        #endif
+                    }
                 }
             }
         }
@@ -243,6 +243,19 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             #endif
         }
     }
+    
+    if(read_volt){
+        bty->min_cell_volt = min_volt;
+        bty->max_cell_volt = max_volt;
+        bty->battery_total_voltage = battery_total_volt_temp;
+        min_volt = 1000.0f; max_volt = -1000.0f;
+    }
+    if(read_temp && cycle == NUM_TOTAL_IC - 1){
+        bty->max_cell_temp = max_temp;
+        bty->min_cell_temp = min_temp;
+        min_temp = 1000.0f; max_temp = -1000.0f; 
+    }
+    cycle = (cycle + 1) % NUM_TOTAL_IC; 
     return BCC_STATUS_SUCCESS;
 }
 
@@ -328,6 +341,7 @@ bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, b
     return bcc_error;
 }
 
+/// @brief volt to temp
 float V2T(float voltage, float B){ // B should be 4000
   float R = voltage / ((5.0 - voltage) / 47e3) / 100e3;
   float T = 1.0 / ((log(R) / B) + (1.0 / 298.15));
@@ -419,9 +433,7 @@ bool check_volt(Battery *bty) {
         }
         
         // check stack voltage vs real sum aren't too different
-        float manual_sum = 0;
-        for (uint8_t j = 0; j < NUM_CELL_IC; j++) manual_sum += bty->cell_volt[GET_INDEX(i, j)];
-        if(fabsf(bty->stack_voltage[i] - manual_sum) > STACK_VOLT_DIFF){
+        if(fabsf(bty->stack_voltage[i] - bty->calculated_stack_voltage[i]) > STACK_VOLT_DIFF){
             bty->cell_volt_errors++;
             print_lpuart("stack voltage vs manual sum of cell volts is > 0.5!\n");
             success = 0;
@@ -437,16 +449,12 @@ bool check_volt(Battery *bty) {
 bool battery_check(Battery *bty, bool fullcheck){
     // note, reading temp may or may not be different bc Vamsi changed thermisters, now data is 12 bit resolution instead of 10
     bcc_error = BCC_STATUS_SUCCESS;
-
+    
     // clear all faults before reading again
     clear_faults(&(bty->drvConfig)); 
     bool success = true;
     if(fullcheck){
         bcc_error = read_device_measurements(bty, true, true);
-        if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
-    }
-    else if(cycle <= 7){ 
-        bcc_error = read_device_measurements(bty, false, true); // read temps only
         if(bcc_error != BCC_STATUS_SUCCESS) print_bcc_status(bcc_error);
     }
 
@@ -469,50 +477,49 @@ bool battery_check(Battery *bty, bool fullcheck){
 }
 
 // dump temp measurements
-void print_temperature(Battery * bty){    
+void print_temperature(Battery * bty){
     print_lpuart("Cell Temp: ------------------------------\n");
     for(size_t i = 0; i < NUM_TOTAL_IC; i++){
-        float min_temp = __FLT_MAX__, max_temp = __FLT_MIN__;
         bzero(print_buffer, sizeof(print_buffer));
-        sprintf(print_buffer, "IC %u: ", i);
+        sprintf(print_buffer, "IC %u:\n", i);
         print_lpuart(print_buffer);
         for(size_t j = 0; j < NUM_CELL_IC*2; j+=2){
-            if(j == 12){ print_lpuart("\n"); }
+            if(j == 14){ print_lpuart("\n"); }
             const float curr_temp = fmaxf(bty->cell_temp[(i*NUM_CELL_IC) + j], bty->cell_temp[(i*NUM_CELL_IC) + j+1]);
-            sprintf(print_buffer, "C%u: %.3f |", j, curr_temp);
-            print_lpuart(print_buffer);
-            min_temp = fminf(min_temp, curr_temp);
-            max_temp = fmaxf(max_temp, curr_temp); 
+            if (curr_temp < -40.0f) {
+                sprintf(print_buffer, "C%u: NC |", j);
+                print_lpuart(print_buffer);
+            }
+            else{
+                sprintf(print_buffer, "C%u: %.3f |", j, curr_temp);
+                print_lpuart(print_buffer);
+            }
         }
-        bzero(print_buffer, sizeof(print_buffer));
-        sprintf(print_buffer, "Min temp: %.3f | Max temp: %.3f\n", min_temp, max_temp);
-        print_lpuart(print_buffer);
+        print_lpuart("\n");
     }
-    print_lpuart("-----------------------------------------\n");
+    sprintf(print_buffer, "Min Temp: %.3f | Max Temp: %.3f\n", bty->min_cell_temp, bty->max_cell_temp);
+    print_lpuart(print_buffer);
+    // print_lpuart("-----------------------------------------\n");
 }
 
 // dump voltage measurements
 void print_voltage(Battery *bty){
     print_lpuart("Cell Voltage: ------------------------------\n");
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){ // change this later
-        float min_volt = __FLT_MAX__ -0.1f, max_volt = __FLT_MIN__+0.1f, stack = 0.0f;
         bzero(print_buffer, sizeof(print_buffer));
-        sprintf(print_buffer, "IC %u: ", i);
+        sprintf(print_buffer, "IC %u:\n", i);
         print_lpuart(print_buffer);
         for (uint8_t j = 0; j < NUM_CELL_IC; j++){
-            if(j == 6){print_lpuart("\n");}
-            float curr_volt = bty->cell_volt[GET_INDEX(i, j)];
-            stack += curr_volt;
-            sprintf(print_buffer, "C%u: %.3f | ", j, curr_volt);
+            if(j == 7){print_lpuart("\n");}
+            sprintf(print_buffer, "C%u: %.3f | ", j, bty->cell_volt[GET_INDEX(i, j)]);
             print_lpuart(print_buffer);
-            min_volt = fminf(min_volt, curr_volt);
-            max_volt = fmaxf(max_volt, curr_volt);
         }
-        print_lpuart("\n");
         bzero(print_buffer, 1000U);
         bzero(print_buffer, sizeof(print_buffer));
-        sprintf(print_buffer, "\nMin: %.3f | Max: %.3f\nStack Voltage: %.3f | Calculated Stack: %.3f\n", min_volt, max_volt, bty->stack_voltage[i], stack);
+        sprintf(print_buffer, "\nStack Voltage: %.3f | Calculated Stack: %.3f\n", bty->stack_voltage[i], bty->calculated_stack_voltage[i]);
         print_lpuart(print_buffer);
     }
-    print_lpuart("-----------------------------------------\n");
+    sprintf(print_buffer, "Min: %.3f | Max: %.3f\n", bty->min_cell_volt, bty->max_cell_volt);
+    print_lpuart(print_buffer);
+    // print_lpuart("-----------------------------------------\n");
 }

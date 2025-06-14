@@ -10,6 +10,15 @@
 #include "math.h"
 #include "stm32g4xx_hal_fdcan.h"
 
+/*******************************************************************
+* acu.h
+BIG BOY. ACU typedef, functions that handle can queuing, and helper
+functions to parse out different messages over CAN. 
+********************************************************************/
+
+/*******************************************************************
+* Declarations and Type Definitions
+********************************************************************/
 typedef struct {
     uint8_t data[64];
     FDCAN_GlobalTypeDef* instance; // Options: FDCAN1, FDCAN2, FDCAN3
@@ -65,7 +74,6 @@ typedef struct {
 } Charger;
 
 typedef struct {
-    
     Battery * bty;
     Charger * chgr;
     IMD * imd;
@@ -82,24 +90,21 @@ typedef struct {
     // 0:ts_current, 1:ts_voltage, 2:sdc_volt_w, 3:sdc_volt_v, 4:voltage_12v,5:water_sense
     volatile float ts_voltage;  // ts_v
     volatile float ts_current;  // uc_ts_i
-    volatile float sdc_volt_w;  // sdcw_w => BEFORE ACU latch
-    volatile float sdc_volt_v;  // sdcv_v => AFTER ACU latch
+    volatile float sdc_volt_w;  // sdcw_w => AFTER ACU latch
+    volatile float sdc_volt_v;  // sdcv_v => BEFORE ACU latch
     volatile float voltage_12v; // glv voltage
     volatile float water_sense; // uc_water
-    
-    // ACU-Status 3
-    float hv_input_voltage;  // 600v input voltage => Apparantly not needed anymore
-    float hv_output_voltage; // 20v output voltage => Apparantly not needed anymore
-    float hv_input_current;  // 600v input current => Apparantly not needed anymore
-    float hv_output_current;  // 20v output current => Apparantly not needed anymore
 
+    // SOC
+    float bat_voltage, bat_soc;
+    
+    // ACU-Status 3 ... not needed anymore
     // from GR24 => not sure if we still need to use
     uint32_t cur_LastHighTime;
     uint32_t lastChrgRecieveTime;
 
-    // 0: AIR+ | 1: AIR- | 2: Precharge
+    // 0: AIR+ | 1: AIR- | 2: Precharge | 3: ACU_latch (1: Closed | 0: Open)
     uint8_t relay_state; 
-    uint8_t acu_latch; // 1: CLosed | 0: Open
 
     // ACU errors/warnings
     uint8_t acuErrCount; // cummulative error counts
@@ -107,16 +112,22 @@ typedef struct {
 
     // ACU PRECHARGE via TX
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
+    
 } ACU;
 
 /// @brief good for parsing CAN messages
- union data_union {
+ typedef union {
     uint16_t u16; 
     int32_t i32; 
     int16_t i16;
     float flt;
     uint8_t byts[4];
-};
+} data_union;
+
+
+/*******************************************************************
+* Function Declarations
+********************************************************************/
 
 // Basic blocks
 void acu_init(ACU * acu);
@@ -131,7 +142,6 @@ void can_read_handler(ACU* acu);
 void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t * data);
 
 // other data conversions
-void magical_union_flt_byts(uint8_t * buffer, float data, uint8_t size);
 float magical_union_flt(uint8_t data[], uint8_t size, bool big_endian);
 int32_t magical_union_i32(uint8_t data[], bool big_endian);
 uint16_t magical_union_u16(uint8_t data[]);
@@ -139,7 +149,6 @@ uint16_t magical_union_u16(uint8_t data[]);
 // charger conversions
 int16_t magical_union_chgr_rcv(uint8_t data[], bool weird);
 void magical_union_chgr_send(uint8_t * buffer, float data);
-
 
 // Print functions
 void print_targets(ACU * acu);
@@ -150,28 +159,29 @@ void print_imd_err_warn(ACU* acu);
 void print_charger_data(ACU* acu);
 void print_errors_warning(ACU * acu);
 float get_total_voltage(ACU* acu);
+void print_relay_status(uint8_t relay);
 
 // helpers
 uint8_t fconstrain(float value);
+void prepare_can_send(uint8_t offset, float source, uint8_t type);
+float map(float x, float in_min, float in_max, float out_min, float out_max);
 
-// TO IMPLEMENT
-// void charger_check(ACU* acu); // check chgr_status
-
-// sets acu_SOC based on lowest cell voltage
 float calculate_acu_soc(ACU* acu);
-
-// sets acu_GLV based on glv_volt?
 float calculate_glv_soc(ACU* acu);
 
 // GPIO functions
+void sdc_reset();
 void write_bms_ok(bool state);
 void write_IRneg(bool state);
 void write_IRpos(bool state);
 void write_prechg(bool state);
-
-void sdc_reset();
+void write_acu_latch(bool state);
 void turn_of_hv_pump(bool state);
-void write_LED(bool state);
 void update_relay_state(ACU* acu);
+
+
+// Debug functions
+void write_LED(bool state);
+/*******************************************************************/
 
 #endif
