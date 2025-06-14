@@ -226,19 +226,19 @@ void precharge(){
         #endif
     }
 
+    uint32_t start_time = HAL_GetTick();
     // close AIR-
     write_IRneg(true); // starting precharge
     // Close precharge relay
     write_prechg(true);
 
-    uint32_t start_time = HAL_GetTick();
-
     // keep looping until ts_voltage reaches 0.95 of total cell voltage
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
+        read_device_measurements(&battery, true, true);
         sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
         print_lpuart(print_buffer);
-        LL_mDelay(100);
-        if (!state_system_check(false, false)) {
+        // LL_mDelay(100);
+        if (!state_system_check(true, false)) {
             print_lpuart("¯\\_(ツ)_/¯ PreCharge state_system_check() => Shutdown\n");
             #if DEBUGG == 0
             state = state == INIT ? INIT : SHITDOWN;
@@ -247,7 +247,7 @@ void precharge(){
         }
 
         if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
-            print_lpuart("¯\\_(ツ)_/¯ PreCharge (257) SDC volt dropped\n");
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge (250) SDC volt dropped\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             // enqueue(ACU_Status_2, FDCAN1);
             #if DEBUGG == 0
@@ -256,7 +256,7 @@ void precharge(){
             #endif
         }
         if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
-            print_lpuart("¯\\_(ツ)_/¯ (252) Precharge timeout\n");
+            print_lpuart("¯\\_(ツ)_/¯ (259) Precharge timeout\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
             // enqueue(ACU_Status_2,FDCAN1);
             #if DEBUGG == 0
@@ -273,8 +273,12 @@ void precharge(){
     start_time = HAL_GetTick();
     uint8_t goToCharge = 0; // change this to false on final build
 
-    // 3 seconds to check if we go to charge
-    while (HAL_GetTick() - start_time < 3000) {
+    // 1 second to check if we go to charge
+    while (HAL_GetTick() - start_time < 1000) {
+        read_device_measurements(&battery, true, true);
+        sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
+        print_lpuart(print_buffer);
+        LL_mDelay(100);
         if(!acu_check(&acu, false)){
             print_lpuart("PRECHARGE (274) => SHITDOWN");
             #if DEBUGG == 0
@@ -297,7 +301,7 @@ void precharge(){
             return;
             #endif
         }
-        LL_mDelay(50);
+        // LL_mDelay(100);
     }
     // close AIR+
     write_IRpos(true); // precharge complete
@@ -429,7 +433,14 @@ void normal(){
         tsVoltErrCount = 0;
     }
 
-    if (acu.ts_current > 0.5) acu.cur_LastHighTime = HAL_GetTick();
+    // check ts_active status
+    if((!acu.ts_active) && check_ts_active){
+    print_lpuart("(¬_¬\") [NORMAL => SHITDOWN]\n");
+        state = SHITDOWN;
+        check_ts_active = false;
+    }
+
+    if (fabsf(acu.ts_current) > 0.5) acu.cur_LastHighTime = HAL_GetTick();
 
 }
 

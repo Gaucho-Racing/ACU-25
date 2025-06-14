@@ -298,10 +298,10 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
     switch (id){
         case Debug_2_ACU:
             enqueue(ACU_Debug_2_Debug, which_can);
-            break;  
+            break;
         case Debug_FD_ACU:
             enqueue(ACU_Debug_FD, which_can);
-            break;  
+            break;
         case Debug_Ping_ACU:
             enqueue(ACU_Ping_Debug, which_can);
             break;  
@@ -309,12 +309,12 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             // enqueue(ACU_Ping_ECU, which_can); => not needed
             break;
         case Precharge_ACU:
-            acu->ts_active = data[0] & 1; // @details: command to precharge
+            acu->ts_active = data[0] & 1U; // @details: command to precharge
             check_ts_active  = true;
             if(get_state() != 1){
                 print_lpuart("[WARNING]: Precharge msg when != PRECHARGE???\n");
             }
-            break;  
+            break;
         case Charger_Data_ACU:
             acu->lastChrgRecieveTime = curr; 
             acu->chgr->charger_output_voltage = (int16_t)(magical_union_chgr_rcv(data, false) * 0.1);   

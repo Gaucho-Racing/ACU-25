@@ -115,7 +115,7 @@
 #define UNDER_VOLTAGE_GLV 10
 #define UNDER_VOLTAGE_SDCV 9
 
-#define PRECHARGE_THRESHOLD 0.96f // fraction of total cell voltage
+#define PRECHARGE_THRESHOLD 0.95f // fraction of total cell voltage
 #define SAFE_V_TO_TURN_OFF 60
 
 /* Send ***********************************************************/
