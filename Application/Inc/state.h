@@ -1,5 +1,7 @@
 #ifndef STATE_H
 #define STATE_H
+#include <stdint.h>
+#include <stdbool.h>
 
 // Typedef
 typedef enum {

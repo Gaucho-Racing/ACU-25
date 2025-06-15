@@ -166,6 +166,7 @@ uint8_t fconstrain(float value);
 void prepare_can_send(uint8_t offset, float source, uint8_t type);
 float map(float x, float in_min, float in_max, float out_min, float out_max);
 
+// @OWEN PLS CHECK THIS
 float calculate_acu_soc(ACU* acu);
 float calculate_glv_soc(ACU* acu);
 
