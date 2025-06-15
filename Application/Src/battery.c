@@ -215,7 +215,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
                 uint8_t readByte = 0;
                 bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
-                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T(readByte * 0.01953125f, 4000.0f);
+                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T(readByte * 0.01953125f, 4250.0f);
                     max_temp = fmaxf(max_temp, bty->cell_temp[GET_INDEX(i, j)]);
                     min_temp = fminf(min_temp, bty->cell_temp[GET_INDEX(i, j)]);
                 }
@@ -342,7 +342,7 @@ bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, b
 }
 
 /// @brief volt to temp
-float V2T(float voltage, float B){ // B should be 4000
+float V2T(float voltage, float B){
   float R = voltage / ((5.0 - voltage) / 47e3) / 100e3;
   float T = 1.0 / ((log(R) / B) + (1.0 / 298.15));
   return T - 273.15;
