@@ -607,7 +607,6 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
     uint8_t data_full = (d_level >= 255U);
     uint8_t charger_full = (c_level >= 255U);
      __enable_irq();
-    // print_lpuart("in enqueue\n");
     switch (id){
         case ACU_Debug_2_Debug:
             if(primary_full) {
@@ -782,7 +781,7 @@ float map(float x, float in_min, float in_max, float out_min, float out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-/// @attention idk if this is right
+/// @attention @OWEN PLS CHECK IF THIS IS RIGHT
 float calculate_acu_soc(ACU* acu){
     return (acu->bty->min_cell_volt) / acu->target_voltage;
     // float cell_open_volt = acu->bty->battery_total_voltage + acu->ts_current * CELL_INT_RESISTANCE * NUM_TOTAL_IC * 16U;
@@ -792,9 +791,9 @@ float calculate_acu_soc(ACU* acu){
     return acu->bat_soc;
 }
 
-/// @attention idk if this is right
+/// @attention @OWEN PLS CHECK IF THIS IS RIGHT
 float calculate_glv_soc(ACU* acu){
-    return (acu->voltage_12v) / 12.0f;
+    return (acu->voltage_12v) / 12.0f; // ehhh this could also be wrong
 }
 
 /// @brief just prints adc_data
