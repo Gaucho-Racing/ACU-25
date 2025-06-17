@@ -17,10 +17,10 @@
 
 #define CELL_INT_RESISTANCE 0.006
 #define CELL_EMPTY_VOLTAGE 3
-#define CELL_FULL_VOLTAGE 4.15
+#define CELL_FULL_VOLTAGE 4.18
 
 #define CELL_MAX_VOLT 4.2f
-#define CELL_MIN_VOLT 0.9f
+#define CELL_MIN_VOLT 2.5f
 
 #define CELL_MIN_TEMP 0.0f // to set later
 #define CELL_MAX_TEMP 1000.0f // to set later

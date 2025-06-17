@@ -15,6 +15,8 @@ extern void print_charger_data(ACU* acu);
 extern void print_temperature(Battery * bty);
 extern void print_errors_warning(ACU * acu);
 
+extern char print_buffer[1000];
+
 /// @brief Print BCC Status messages
 /// @param stat bcc_status_t
 void print_bcc_status(bcc_status_t stat){
@@ -67,6 +69,8 @@ void print_bcc_status(bcc_status_t stat){
 
 void debug(){
   print_lpuart("\n\n\n\n\n\n\n\n\n\n\n------------------- 💥 Debug Start 💥 -------------------\n");
+  sprintf(print_buffer, "Timestamp: %lums | ", TIM5->CNT / 1000);
+  print_lpuart(print_buffer);
   print_state();
 
   print_relay_status(acu.relay_state);

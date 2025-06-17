@@ -306,7 +306,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             enqueue(ACU_Ping_Debug, which_can);
             break;  
         case ECU_Ping_ALL:
-            // enqueue(ACU_Ping_ECU, which_can); => not needed
+            enqueue(ACU_Ping_ECU, which_can);
             break;
         case Precharge_ACU:
             acu->ts_active = data[0] & 1U; // @details: command to precharge
@@ -316,7 +316,7 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             }
             break;
         case Charger_Data_ACU:
-            acu->lastChrgRecieveTime = curr; 
+            acu->lastChrgRecieveTime = curr;
             acu->chgr->charger_output_voltage = (int16_t)(magical_union_chgr_rcv(data, false) * 0.1);   
             acu->chgr->charger_output_current = (int16_t)(magical_union_chgr_rcv(data+2, true) * 0.1f);
             acu->chgr->chgr_state = ((data+2)[0] & 0x80);
@@ -783,11 +783,11 @@ float map(float x, float in_min, float in_max, float out_min, float out_max) {
 
 /// @attention @OWEN PLS CHECK IF THIS IS RIGHT
 float calculate_acu_soc(ACU* acu){
-    return (acu->bty->min_cell_volt) / acu->target_voltage;
-    // float cell_open_volt = acu->bty->battery_total_voltage + acu->ts_current * CELL_INT_RESISTANCE * NUM_TOTAL_IC * 16U;
-    // float zero_chg_volt = NUM_TOTAL_IC * 16U * CELL_EMPTY_VOLTAGE;
-    // float full_chg_volt = NUM_TOTAL_IC * 16U * CELL_FULL_VOLTAGE;
-    // acu->bat_soc += (map(cell_open_volt, zero_chg_volt, full_chg_volt, 0.0F, 255.0F) - acu->bat_soc) * 0.1; // SEEMS WRONG
+    // return (acu->bty->min_cell_volt) / acu->target_voltage;
+    float cell_open_volt = acu->bty->battery_total_voltage + acu->ts_current * CELL_INT_RESISTANCE * NUM_TOTAL_IC * 16U;
+    float zero_chg_volt = NUM_TOTAL_IC * 16U * CELL_EMPTY_VOLTAGE;
+    float full_chg_volt = NUM_TOTAL_IC * 16U * CELL_FULL_VOLTAGE;
+    acu->bat_soc += (map(cell_open_volt, zero_chg_volt, full_chg_volt, 0.0F, 255.0F) - acu->bat_soc) * 0.1;
     return acu->bat_soc;
 }
 

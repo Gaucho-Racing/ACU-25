@@ -14,6 +14,14 @@ extern void print_lpuart(char* arr);
 extern void write_LED(bool state);
 extern void print_bcc_status(bcc_status_t stat);
 
+// Thermistor mapping array
+const uint8_t thermistor_map[28] = {
+    0,  1,  2,  3, 
+    8,  9,  10, 11, 12, 13, 14, 15, 
+    16, 17, 18, 19, 20, 21, 22, 23, 
+    24, 25, 26, 27, 28, 29, 30, 31
+};
+
 /// @brief for bcc spi read
 /// @param buffer 
 /// @param length 
@@ -213,7 +221,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
         if(read_temp && cycle == i){
             for(uint8_t j = 0; j < 28; j++) {
                 uint8_t readByte = 0;
-                bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+1, &readByte);
+                bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), thermistor_map[j]+1, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
                     bty->cell_temp[GET_INDEX(i*2, j)] = V2T(readByte * 0.01953125f, 4250.0f);
                     max_temp = fmaxf(max_temp, bty->cell_temp[GET_INDEX(i, j)]);
