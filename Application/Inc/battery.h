@@ -18,7 +18,9 @@ typedef struct
 typedef struct
 {
     float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC*2];
+    uint8_t cell_temp_err_cnt[NUM_CELL_IC*REAL_NUM_TOTAL_IC*2];
     float cell_volt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
+    uint8_t cell_volt_err_cnt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; // 0 = off, 1 = on, 2 = disabled
 
     // Data we calculated from BCC measurements

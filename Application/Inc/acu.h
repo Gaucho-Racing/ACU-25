@@ -68,7 +68,6 @@ typedef struct {
                                     Bit 3: Starting State: 0-Correct, 1-Wrong polarity or NC
                                     Bit 4: Communication State: 0-Normal, 1-Timeout
                         */
-    uint8_t chgr_state; // 0: charging, 1: dicharging
     int16_t charger_output_voltage; // data from charger (via Rx)
     int16_t charger_output_current; // data from charger (via Rx)
 } Charger;
@@ -80,8 +79,8 @@ typedef struct {
     EM * em;
 
     // Config Charge Parameters (ACU to sends via TX to Charger)
-    float target_voltage; 
-    float target_current;
+    float target_chg_voltage; 
+    float target_chg_current;
 
     uint8_t chg_ctrl; // 0 : Start Charging, 1: Stop Charging => to be sent from ACU to others via Tx
     float acu_current; // current output of ACU
@@ -166,7 +165,7 @@ uint8_t fconstrain(float value);
 void prepare_can_send(uint8_t offset, float source, uint8_t type);
 float map(float x, float in_min, float in_max, float out_min, float out_max);
 
-// @OWEN PLS CHECK THIS
+// SOC calculation functions
 float calculate_acu_soc(ACU* acu);
 float calculate_glv_soc(ACU* acu);
 

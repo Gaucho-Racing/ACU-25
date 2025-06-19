@@ -20,14 +20,14 @@
 #define CELL_FULL_VOLTAGE 4.18
 
 #define CELL_MAX_VOLT 4.2f
-#define CELL_MIN_VOLT 2.5f
+#define CELL_MIN_VOLT 1.0f
 
-#define CELL_MIN_TEMP 0.0f // to set later
-#define CELL_MAX_TEMP 1000.0f // to set later
+#define CELL_MIN_TEMP -300.0f
+#define CELL_MAX_TEMP 60.0f
 
 //acu limits
 #define MAX_HV_CURRENT 135
-#define MIN_GLV_VOLT 10.0f
+#define MIN_GLV_VOLT 4.0f
 #define MAX_GLV_VOLT 14.4f
 #define ERRMG_ISNS_VREF 0.2f
 #define STACK_VOLT_DIFF 1.0f
@@ -98,10 +98,8 @@
 // error margins
 #define GLV_SDC_LOW 2.0f
 #define SDC_HIGH 9.0f
-#define ERRMG_ACU_ERR 50
-// #define ERRMG_5V 0.2
-// #define ERRMG_CELL_VOLT_ERR 20
-// #define ERRMG_CELL_TEMP_ERR 50
+#define ERRMG_ACU_ERR 10
+#define ERRMG_BMS_ERR 5
 
 // datatype
 #define UNSIGNED_16 0

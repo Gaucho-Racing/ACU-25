@@ -274,7 +274,7 @@ void precharge(){
     uint8_t goToCharge = 0; // change this to false on final build
 
     // 1 second to check if we go to charge
-    while (HAL_GetTick() - start_time < 1000) {
+    while (HAL_GetTick() - start_time < 2000) {
         read_device_measurements(&battery, true, true);
         sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
         print_lpuart(print_buffer);
@@ -286,11 +286,12 @@ void precharge(){
             return;
             #endif
         }
-        // signal to go to charge!
-        // if(acu.chgr->chgr_status ^ CHARGER_COOMMMM){ // (if X ^ 1) => true
-        //     print_lpuart("💩 Charger_Data_ACU ping received!\n");
-        //     goToCharge = 1;
-        // }
+
+        // Charger detected, go to charge!
+        if(HAL_GetTick() - acu.lastChrgRecieveTime < 1000){
+            print_lpuart("Charger_Data received!\n");
+            goToCharge = 1;
+        }
         
         // actively check total_voltage vs ts_voltage just in case
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){
@@ -342,9 +343,8 @@ void charge(){
     }
     
     if(HAL_GetTick() - last_charge_time >= 2000){
-        reset_discharge(&battery, false); 
-
         last_charge_time = HAL_GetTick();
+        reset_discharge(&battery, false); 
         if(!state_system_check(true, false)){
             print_lpuart("( ˶°ㅁ°) !! Failed system check inside of charge\n");
             #if DEBUGG == 0
@@ -359,12 +359,13 @@ void charge(){
     if(HAL_GetTick() - last_send_time > 990){
         last_send_time = HAL_GetTick();
         if(battery.max_cell_volt > battery.max_volt_thresh){
-            battery.max_chg_current = constrain(battery.max_chg_current, 0.0f, acu.target_current);
+            battery.max_chg_current = map(battery.max_cell_volt, CELL_MAX_VOLT-0.06, CELL_MAX_VOLT-0.01, acu.target_chg_current, 0);
+            battery.max_chg_current = constrain(battery.max_chg_current, 0.0f, acu.target_chg_voltage);
         } else {
-            battery.max_chg_current = acu.target_current;
+            battery.max_chg_current = acu.target_chg_current;
         }
         // TODO: figure this line out
-        battery.max_chg_current = acu.target_current; 
+        battery.max_chg_current = acu.target_chg_current; 
         //every 0.99 seconds send charger "ping"
         enqueue(ACU_Charger_Control, FDCAN3);
     }
@@ -379,20 +380,20 @@ void charge(){
     }
 
     // re-measure current sensor ref every 5 minutes
-    if (HAL_GetTick() - last_call_time > 300000U) {
+    // if (HAL_GetTick() - last_call_time > 300000U) {
 
-        last_call_time = HAL_GetTick();
-        state = NORMAL; // turn charger off
+    //     last_call_time = HAL_GetTick();
+    //     state = NORMAL; // turn charger off
 
-        acu.chg_ctrl = NO_CHARGE;
-        enqueue(ACU_Charger_Control,FDCAN3);
+    //     acu.chg_ctrl = NO_CHARGE;
+    //     enqueue(ACU_Charger_Control,FDCAN3);
 
-        LL_mDelay(1000);
+    //     LL_mDelay(1000);
 
-        state = CHARGE; // turn charger back on
-        acu.chg_ctrl = PLS_CHARGE;
-        enqueue(ACU_Charger_Control,FDCAN3);
-    }
+    //     state = CHARGE; // turn charger back on
+    //     acu.chg_ctrl = PLS_CHARGE;
+    //     enqueue(ACU_Charger_Control,FDCAN3);
+    // }
     
     return;
 }
@@ -453,14 +454,15 @@ bool state_system_check(bool full_check, bool startup){
     if (startup == true){
         read_device_measurements(&battery, true, true);
     }
-    bool a_check = acu_check(&acu, startup);
 
+    calculate_acu_soc(&acu);
+
+    bool a_check = acu_check(&acu, startup);
     if(a_check == false){
         print_lpuart("(¬_¬\") Failed acu_check\n");
     }
     
     bool b_check = battery_check(&battery, full_check);
-
     if(b_check == false){
         print_lpuart("(¬_¬\") Failed battery_check\n");
     }

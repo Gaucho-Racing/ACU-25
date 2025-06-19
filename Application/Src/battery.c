@@ -407,8 +407,15 @@ bool check_temp(Battery *bty){
             // overtemp check
             if(bty->cell_temp[i*NUM_CELL_IC + j] > bty->max_temp_thresh){
                 bty->cell_temp_errors++;
-                bty->battery_check_faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
-                success = 0;
+                bty->cell_temp_err_cnt[i*NUM_CELL_IC + j]++;
+                if(bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
+                    bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
+                    bty->battery_check_faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
+                    success = 0;
+                }
+            }
+            else{
+                bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] = 0;
             }
         }
     }
@@ -428,15 +435,23 @@ bool check_volt(Battery *bty) {
             // max_volt check
             if(bty->cell_volt[i*NUM_CELL_IC + j] > bty->max_volt_thresh){
                 bty->cell_volt_errors++;
-                bty->battery_check_faults |= BATTERY_FAULT_CELL_OV;
-                success = 0;
+                bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]++;
+                if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
+                    bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
+                    bty->battery_check_faults |= BATTERY_FAULT_CELL_OV; // probably not the correct one
+                    success = 0;
+                }
             }
 
             // min_volt check
             if(bty->cell_volt[i*NUM_CELL_IC + j] < bty->min_volt_thresh){
                 bty->cell_volt_errors++;
-                bty->battery_check_faults |= BATTERY_FAULT_CELL_UV;
-                success = 0;
+                bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]++;
+                if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
+                    bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
+                    bty->battery_check_faults |= BATTERY_FAULT_CELL_UV; // probably not the correct one
+                    success = 0;
+                }
             }
         }
         
@@ -491,9 +506,9 @@ void print_temperature(Battery * bty){
         bzero(print_buffer, sizeof(print_buffer));
         sprintf(print_buffer, "IC %u:\n", i);
         print_lpuart(print_buffer);
-        for(size_t j = 0; j < NUM_CELL_IC*2; j+=2){
-            if(j == 14){ print_lpuart("\n"); }
-            const float curr_temp = fmaxf(bty->cell_temp[(i*NUM_CELL_IC) + j], bty->cell_temp[(i*NUM_CELL_IC) + j+1]);
+        for(size_t j = 0; j < NUM_CELL_IC; j++){
+            if(j == 7){ print_lpuart("\n"); }
+            const float curr_temp = fmaxf(bty->cell_temp[(i*2*NUM_CELL_IC) + j*2], bty->cell_temp[(i*2*NUM_CELL_IC) + j*2+1]);
             if (curr_temp < -40.0f) {
                 sprintf(print_buffer, "C%u: NC |", j);
                 print_lpuart(print_buffer);
