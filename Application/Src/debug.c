@@ -5,10 +5,11 @@
 extern ACU acu;
 extern State state;
 
+extern void print_lpuart(char* arr);
+
 extern void print_imd_data(ACU* acu);
 extern void print_targets(ACU * acu);
 extern void print_adc_data(ACU *acu);
-extern void print_lpuart(char* arr);
 extern void print_voltage(Battery *bty);
 extern void print_imd_err_warn(ACU* acu);
 extern void print_charger_data(ACU* acu);

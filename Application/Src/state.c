@@ -171,6 +171,7 @@ void standby(){
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);
+    reset_discharge(&battery, false);
     if(state_system_check(false, false) == false){
         print_lpuart("𝓕𝓾𝓬𝓴\n");
         #if DEBUGG == 0

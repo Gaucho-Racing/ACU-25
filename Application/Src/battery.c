@@ -219,11 +219,11 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 
         // CELL TEMPS
         if(read_temp && cycle == i){
-            for(uint8_t j = 0; j < 28; j++) {
+            for(uint8_t j = 0; j < 14; j++) {
                 uint8_t readByte = 0;
-                bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), thermistor_map[j]+1, &readByte);
+                bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+32, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
-                    bty->cell_temp[GET_INDEX(i*2, j)] = V2T(readByte * 0.01953125f, 4250.0f);
+                    bty->cell_temp[GET_INDEX(i*2, j)] = (float)readByte - 40.0f;//V2T(readByte * 0.01953125f, 4250.0f);
                     max_temp = fmaxf(max_temp, bty->cell_temp[GET_INDEX(i, j)]);
                     min_temp = fminf(min_temp, bty->cell_temp[GET_INDEX(i, j)]);
                 }
@@ -279,22 +279,31 @@ bool do_cell_balancing(Battery * bty){
     // cell balancing ~
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++)
     {
-        uint8_t to_discharge = 0;
+        // uint8_t to_discharge = 0;
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
             if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->min_cell_volt > 0.02f)){
-                to_discharge = 1;
-            }
-        }
-        if(to_discharge == 1){
-            for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-                // resets after default = 30 seconds
+                // to_discharge = 1;
                 if ((bcc_error = set_cell_balance(bty, (bcc_cid_t)(i), j, 0, 1))!= BCC_STATUS_SUCCESS){ 
+                    print_bcc_status(bcc_error);
+                    return false;
+                }
+            }else{
+                if ((bcc_error = set_cell_balance(bty, (bcc_cid_t)(i), j, 0, 0))!= BCC_STATUS_SUCCESS){ 
                     print_bcc_status(bcc_error);
                     return false;
                 }
             }
         }
-        to_discharge = 0;
+        // if(to_discharge == 1){
+        //     for(uint8_t j = 0; j < NUM_CELL_IC; j++){
+        //         // resets after default = 30 seconds
+        //         if ((bcc_error = set_cell_balance(bty, (bcc_cid_t)(i), j, 0, 1))!= BCC_STATUS_SUCCESS){ 
+        //             print_bcc_status(bcc_error);
+        //             return false;
+        //         }
+        //     }
+        // }
+        // to_discharge = 0;
         
     }
     return true;
@@ -318,7 +327,7 @@ bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, b
             for(uint8_t j = 0; j < NUM_CELL_IC; j++){
 
                 bcc_status_t errors;
-                if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)(i+1), j, true, 0)) != BCC_STATUS_SUCCESS){
+                if((errors = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)(i+1), j, enable, 0)) != BCC_STATUS_SUCCESS){
                     bzero(print_buffer, sizeof(print_buffer));
                     sprintf(print_buffer, "Error IC %d, Cell %d: ", (int)(i+1), (int)(j));
                     print_lpuart(print_buffer);
@@ -508,13 +517,13 @@ void print_temperature(Battery * bty){
         print_lpuart(print_buffer);
         for(size_t j = 0; j < NUM_CELL_IC; j++){
             if(j == 7){ print_lpuart("\n"); }
-            const float curr_temp = fmaxf(bty->cell_temp[(i*2*NUM_CELL_IC) + j*2], bty->cell_temp[(i*2*NUM_CELL_IC) + j*2+1]);
-            if (curr_temp < -40.0f) {
+            const float curr_temp = bty->cell_temp[(i*NUM_CELL_IC) + j];//fmaxf(bty->cell_temp[(i*2*NUM_CELL_IC) + j*2], bty->cell_temp[(i*2*NUM_CELL_IC) + j*2+1]);
+            if (curr_temp < -39.9f) {
                 sprintf(print_buffer, "C%u: NC |", j);
                 print_lpuart(print_buffer);
             }
             else{
-                sprintf(print_buffer, "C%u: %.3f |", j, curr_temp);
+                sprintf(print_buffer, "C%u: %2.0f |", j, curr_temp);
                 print_lpuart(print_buffer);
             }
         }
