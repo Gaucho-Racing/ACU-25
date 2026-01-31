@@ -153,7 +153,9 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             print_bcc_status(bcc_error);
             bcc_error = BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true);
         }
-        if(read_volt){ // CELL VOLTAGES
+
+        // CELL VOLTAGES
+        if(read_volt){
             bcc_error = BCC_Meas_StartAndWait(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_AVG_1);
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 print_bcc_status(bcc_error);

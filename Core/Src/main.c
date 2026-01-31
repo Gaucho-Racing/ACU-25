@@ -60,6 +60,8 @@ bool check_ts_active = false;
 uint8_t bcc_cooked_count = 0;
 bcc_status_t bcc_error = BCC_STATUS_SUCCESS; 
 uint16_t cps = 0; // cycles per second
+uint32_t last_read_temp_time;
+uint16_t read_temp_interval = 100;
 
 // BMS/ACU
 ACU acu;
@@ -335,7 +337,11 @@ int main(void)
     if(state != INIT){
 
       // SYSTEM CHECK
-      read_device_measurements(&battery, true, true);
+      read_device_measurements(&battery, true, false);
+      if (HAL_GetTick() - last_read_temp_time >= read_temp_interval){
+        last_read_temp_time += read_temp_interval;
+        read_device_measurements(&battery, false, true);
+      }
       bool b_check = battery_check(&battery, true);
       if(b_check == false){
         enqueue(ACU_Status_1, FDCAN1);
