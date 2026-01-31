@@ -461,13 +461,13 @@ void dequeue(ACU* acu){
         case 6: // ACU_Status_2
             TxHeader.Identifier = ACU_Status_2;
             TxHeader.DataLength = FDCAN_DLC_BYTES_7;
-            CAN_TxData[0] = 0; // 20v GLV voltage
+            CAN_TxData[0] = 0; // 20v GLV voltage not measured
             CAN_TxData[1] = (uint8_t)(acu->voltage_12v * 10.0f);
             CAN_TxData[2] = (uint8_t)(acu->sdc_volt_v * 10.0f);
             CAN_TxData[3] = (uint8_t)((acu->bty->min_cell_volt - 2.0f) * 100.0f);
             CAN_TxData[4] = (uint8_t)(acu->bty->max_cell_temp * 4.0f);
             CAN_TxData[5] = (uint8_t)(acu->acu_err_warns & 0xFF); // takes [OT, OV, UV, OC, UC, UV_20v, UV_GLV, UV_SDC]
-            CAN_TxData[6] = acu->acu_err_warns & ACU_PRECHARGE >> 7; // takes precharge error to lsb
+            CAN_TxData[6] = acu->acu_err_warns & ACU_PRECHARGE >> 8; // takes precharge error to lsb
             CAN_TxData[6] |= (acu->relay_state & AIR_MINUS) >> 1;
             CAN_TxData[6] |= (acu->relay_state & AIR_PLUS) >> 1;
             CAN_TxData[6] |= (acu->relay_state & ACU_LATCH) << 3; 
@@ -509,11 +509,10 @@ void dequeue(ACU* acu){
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
             // cell_volt range: [0:32]
-            // cell_temp range: [0:64]
+            // cell_temp range: [0:32]
             for(uint8_t cell = 0U; cell < 32U; cell++){
-                float max_temp = fmaxf(acu->bty->cell_temp[cell*2]*4.0f, acu->bty->cell_temp[cell*2+1]*4.0f);
                 CAN_TxData[2*cell] = fconstrain((acu->bty->cell_volt[cell] - 2.0f) * 100.0f);
-                CAN_TxData[2*cell+1] = fconstrain(max_temp);
+                CAN_TxData[2*cell+1] = fconstrain(acu->bty->cell_temp[cell] * 4.0f);
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_1 failed...\n");
@@ -525,11 +524,10 @@ void dequeue(ACU* acu){
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
             // cell_volt range: [32:64]
-            // cell_temp range: [64:128]
+            // cell_temp range: [32:64]
             for(uint8_t cell = 0U; cell < 32U; cell++){
-                float max_temp = fmaxf(acu->bty->cell_temp[cell*2+64]*4.0f, acu->bty->cell_temp[cell*2+64+1]*4.0f);
                 CAN_TxData[2*cell] = fconstrain((acu->bty->cell_volt[cell+32] - 2.0f) * 100.0f);
-                CAN_TxData[2*cell+1] = fconstrain(max_temp);
+                CAN_TxData[2*cell+1] = fconstrain(acu->bty->cell_temp[cell+32] * 4.0f);
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
             print_lpuart("ACU_Cell_Data_2 failed...\n");
@@ -541,11 +539,10 @@ void dequeue(ACU* acu){
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
             // cell_volt range: [64:96]
-            // cell_temp range: [128:192]
+            // cell_temp range: [64:96]
             for(uint8_t cell = 0U; cell < 32U; cell++){
-                float max_temp = fmaxf(acu->bty->cell_temp[cell*2+128]*4.0f, acu->bty->cell_temp[cell*2+128+1]*4.0f);
                 CAN_TxData[2*cell] = fconstrain((acu->bty->cell_volt[cell+64] - 2.0f) * 100.0f);
-                CAN_TxData[2*cell+1] = fconstrain(max_temp);
+                CAN_TxData[2*cell+1] = fconstrain(acu->bty->cell_temp[cell+64] * 4.0f);
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_3 failed...\n");
@@ -557,11 +554,10 @@ void dequeue(ACU* acu){
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
             // cell_volt range: [96:128]
-            // cell_temp range: [192:256]
-            for(uint8_t cell = 0U; cell < 64U; cell+=2){
-                // float max_temp = fmaxf(acu->bty->cell_temp[cell*2+128]*4.0f, acu->bty->cell_temp[cell*2+128+1]*4.0f);
-                // CAN_TxData[2*cell] = fconstrain((acu->bty->cell_volt[cell+64] - 2.0f) * 100.0f);
-                // CAN_TxData[2*cell+1] = fconstrain(max_temp);
+            // cell_temp range: [96:128]
+            for(uint8_t cell = 0U; cell < 32U; cell+=2){
+                CAN_TxData[2*cell] = fconstrain((acu->bty->cell_volt[cell+96] - 2.0f) * 100.0f);
+                CAN_TxData[2*cell+1] = fconstrain(acu->bty->cell_temp[cell+96] * 4.0f);
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_4 failed...\n");
@@ -570,11 +566,13 @@ void dequeue(ACU* acu){
             break;
         case 7: // ACU_Cell_Data_5
             TxHeader_Data.Identifier = ACU_Cell_Data_5;
-            TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
+            TxHeader_Data.DataLength = FDCAN_DLC_BYTES_24;
+
+            // cell_volt range: [128:140]
+            // cell_temp range: [128:140]
             for(uint8_t cell = 0U; cell < 12U; cell+=2){
-                // float max_temp = fmaxf(acu->bty->cell_temp[2*cell+256]*4.0f, acu->bty->cell_temp[2*cell+256+1]*4.0f);
-                // CAN_TxData[cell] = fconstrain((acu->bty->cell_volt[cell+128] - 2.0f) * 100.0f);
-                // CAN_TxData[cell+1] = fconstrain(max_temp);
+                CAN_TxData[2*cell] = fconstrain((acu->bty->cell_volt[cell+128] - 2.0f) * 100.0f);
+                CAN_TxData[2*cell+1] = fconstrain(acu->bty->cell_temp[cell+128] * 4.0f);
             }
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Cell_Data_5 failed...\n");
@@ -968,7 +966,7 @@ void print_charger_data(ACU* acu){
 /// @param acu 
 void print_errors_warning(ACU * acu){
     print_lpuart("Err/Warns: ------------------------------\n");
-    char buff[30];
+    char buff[64];
     if(acu->acu_err_warns & ACU_ERR_OVER_TEMP){
         bzero(buff, sizeof(buff));
         sprintf(buff, "Error: ACU Overtemperature\n");
@@ -996,17 +994,17 @@ void print_errors_warning(ACU * acu){
     }
     if(acu->acu_err_warns & ACU_ERR_UV_20_V){
         bzero(buff, sizeof(buff));
-        sprintf(buff, "Error: Undervoltage for 20v\n");
+        sprintf(buff, "Warning: Undervoltage for 20v\n");
         print_lpuart(buff);
     }
     if(acu->acu_err_warns & ACU_ERR_UV_12_V){
         bzero(buff, sizeof(buff));
-        sprintf(buff, "Error: Undervoltage for 12v\n");
+        sprintf(buff, "Warning: Undervoltage for 12v\n");
         print_lpuart(buff);
     }
     if(acu->acu_err_warns & ACU_ERR_UV_SDC){
         bzero(buff, sizeof(buff));
-        sprintf(buff, "Error: Undervoltage for SDC\n");
+        sprintf(buff, "Warning: Undervoltage for SDC\n");
         print_lpuart(buff);
     }
     print_lpuart("-----------------------------------------\n");

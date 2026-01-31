@@ -107,7 +107,7 @@ typedef struct {
 
     // ACU errors/warnings
     uint8_t acuErrCount; // cummulative error counts
-    uint16_t acu_err_warns; // [ 0:OT, OV, UV, OC, UC, UV_20v, UV_GLV, 7:UV_SDC, 8:Precharge, 0, 0, 0, 0, 0, 0, 0]        
+    uint16_t acu_err_warns; // [ 0:OT, OV, UV, OC, UV_20v, UV_GLV, UV_SDC, 7:Precharge, 0, 0, 0, 0, 0, 0, 0, 0]        
 
     // ACU PRECHARGE via TX
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge

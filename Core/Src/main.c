@@ -371,7 +371,7 @@ int main(void)
     }
     cps++;
     #if DEBUG_MODE == 0
-    if(HAL_GetTick() - prev >= 1000){ // debug every 2 seconds
+    if(HAL_GetTick() - prev >= 1000){ // debug every 1 second
       prev += 1000;
       debug();
       sprintf(print_buffer, "%ucps\n", cps);

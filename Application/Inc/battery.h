@@ -17,8 +17,8 @@ typedef struct
 
 typedef struct
 {
-    float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC*2];
-    uint8_t cell_temp_err_cnt[NUM_CELL_IC*REAL_NUM_TOTAL_IC*2];
+    float cell_temp[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
+    uint8_t cell_temp_err_cnt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     float cell_volt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     uint8_t cell_volt_err_cnt[NUM_CELL_IC*REAL_NUM_TOTAL_IC];
     uint8_t cell_balancing[NUM_CELL_IC*REAL_NUM_TOTAL_IC]; // 0 = off, 1 = on, 2 = disabled
@@ -36,7 +36,7 @@ typedef struct
     
     float icTemp[NUM_TOTAL_IC];
 
-    float max_chg_current; // idk what the purpose of this one is, doesn't really get used
+    float max_chg_current; // max safe charging current
 
     // ACU Config Operational Parameters via Rx
     uint16_t min_volt_thresh;

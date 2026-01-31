@@ -359,14 +359,14 @@ void charge(){
 
     if(HAL_GetTick() - last_send_time > 990){
         last_send_time = HAL_GetTick();
-        if(battery.max_cell_volt > battery.max_volt_thresh){
-            battery.max_chg_current = map(battery.max_cell_volt, CELL_MAX_VOLT-0.06, CELL_MAX_VOLT-0.01, acu.target_chg_current, 0);
-            battery.max_chg_current = constrain(battery.max_chg_current, 0.0f, acu.target_chg_voltage);
+        if(battery.max_cell_volt > battery.max_volt_thresh-0.06f){
+            battery.max_chg_current = map(battery.max_cell_volt, battery.max_volt_thresh-0.06f, battery.max_volt_thresh-0.01f, acu.target_chg_current, 0);
+            battery.max_chg_current = constrain(battery.max_chg_current, 0.0f, acu.target_chg_current);
         } else {
             battery.max_chg_current = acu.target_chg_current;
         }
         // TODO: figure this line out
-        battery.max_chg_current = acu.target_chg_current; 
+        // battery.max_chg_current = acu.target_chg_current; 
         //every 0.99 seconds send charger "ping"
         enqueue(ACU_Charger_Control, FDCAN3);
     }

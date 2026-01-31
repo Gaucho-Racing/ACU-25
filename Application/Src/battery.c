@@ -202,7 +202,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
         if(read_temp && cycle == i){
             temp_measures = 0;
             bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, &temp_measures);
-            bty->icTemp[i] = (float)temp_measures; // TRIAGE: check this in charging
+            bty->icTemp[i] = (float)temp_measures * 0.1f; // TRIAGE: check this in charging
 
             if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
@@ -219,11 +219,12 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 
         // CELL TEMPS
         if(read_temp && cycle == i){
+            uint8_t readByte = 0;
+            bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), 32, &readByte);
             for(uint8_t j = 0; j < 14; j++) {
-                uint8_t readByte = 0;
-                bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+32, &readByte);
+                bcc_error = BCC_EEPROM_Read(&(bty->drvConfig), (bcc_cid_t)(i+1), j+33, &readByte);
                 if (bcc_error == BCC_STATUS_SUCCESS) {
-                    bty->cell_temp[GET_INDEX(i*2, j)] = (float)readByte - 40.0f;//V2T(readByte * 0.01953125f, 4250.0f);
+                    bty->cell_temp[GET_INDEX(i, j)] = (float)readByte * 0.25f;//V2T(readByte * 0.01953125f, 4250.0f);
                     max_temp = fmaxf(max_temp, bty->cell_temp[GET_INDEX(i, j)]);
                     min_temp = fminf(min_temp, bty->cell_temp[GET_INDEX(i, j)]);
                 }
@@ -419,7 +420,7 @@ bool check_temp(Battery *bty){
                 bty->cell_temp_err_cnt[i*NUM_CELL_IC + j]++;
                 if(bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
                     bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
-                    bty->battery_check_faults |= BATTERY_FAULT_CELL_OT; // probably not the correct one
+                    bty->battery_check_faults |= BATTERY_FAULT_CELL_OT;
                     success = 0;
                 }
             }
@@ -513,23 +514,23 @@ void print_temperature(Battery * bty){
     print_lpuart("Cell Temp: ------------------------------\n");
     for(size_t i = 0; i < NUM_TOTAL_IC; i++){
         bzero(print_buffer, sizeof(print_buffer));
-        sprintf(print_buffer, "IC %u:\n", i);
+        sprintf(print_buffer, "IC %u: %3.1f\n", i, bty->icTemp[i]);
         print_lpuart(print_buffer);
         for(size_t j = 0; j < NUM_CELL_IC; j++){
             if(j == 7){ print_lpuart("\n"); }
             const float curr_temp = bty->cell_temp[(i*NUM_CELL_IC) + j];//fmaxf(bty->cell_temp[(i*2*NUM_CELL_IC) + j*2], bty->cell_temp[(i*2*NUM_CELL_IC) + j*2+1]);
-            if (curr_temp < -39.9f) {
+            if (curr_temp < 0.0f) {
                 sprintf(print_buffer, "C%u: NC |", j);
                 print_lpuart(print_buffer);
             }
             else{
-                sprintf(print_buffer, "C%u: %2.0f |", j, curr_temp);
+                sprintf(print_buffer, "C%u: %2.1f |", j, curr_temp);
                 print_lpuart(print_buffer);
             }
         }
         print_lpuart("\n");
     }
-    sprintf(print_buffer, "Min Temp: %.3f | Max Temp: %.3f\n", bty->min_cell_temp, bty->max_cell_temp);
+    sprintf(print_buffer, "Min Temp: %2.0f | Max Temp: %2.0f\n", bty->min_cell_temp, bty->max_cell_temp);
     print_lpuart(print_buffer);
     // print_lpuart("-----------------------------------------\n");
 }

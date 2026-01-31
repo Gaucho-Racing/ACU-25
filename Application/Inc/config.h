@@ -16,18 +16,18 @@
 #define SPI_LOOP_TIMEOUT 500
 
 #define CELL_INT_RESISTANCE 0.006
-#define CELL_EMPTY_VOLTAGE 3
-#define CELL_FULL_VOLTAGE 4.18
+#define CELL_EMPTY_VOLTAGE 2.8
+#define CELL_FULL_VOLTAGE 4.19
 
 #define CELL_MAX_VOLT 4.2f
-#define CELL_MIN_VOLT 1.0f
+#define CELL_MIN_VOLT 2.5f
 
 #define CELL_MIN_TEMP -300.0f
 #define CELL_MAX_TEMP 60.0f
 
 //acu limits
 #define MAX_HV_CURRENT 135
-#define MIN_GLV_VOLT 4.0f
+#define MIN_GLV_VOLT 4.0f // change this on final build
 #define MAX_GLV_VOLT 14.4f
 #define ERRMG_ISNS_VREF 0.2f
 #define STACK_VOLT_DIFF 1.0f
