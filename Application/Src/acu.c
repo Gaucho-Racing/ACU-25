@@ -88,6 +88,8 @@ void acu_init(ACU * acu){
     acu->target_chg_voltage = NUM_CELL_IC * NUM_TOTAL_IC * CELL_FULL_VOLTAGE;
     acu->bat_soc = 0.0f;
 
+    acu->is_VCP_override = 0;
+
     // fix later
     // uint8_t count = 0;
     // while (fabsf(get_total_voltage(acu) - 1.235f) > ERRMG_ISNS_VREF) {

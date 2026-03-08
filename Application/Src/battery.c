@@ -430,6 +430,10 @@ bool check_temp(Battery *bty){
                 bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] = 0;
             }
         }
+        if(bty->icTemp[i] > IC_MAX_TEMP){
+            bty->cell_temp_errors++;
+            success = 0;
+        }
     }
     return success;
 }

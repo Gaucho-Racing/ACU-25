@@ -25,6 +25,8 @@
 #define CELL_MIN_TEMP -300.0f
 #define CELL_MAX_TEMP 60.0f
 
+#define IC_MAX_TEMP 80
+
 //acu limits
 #define MAX_HV_CURRENT 135
 #define MIN_GLV_VOLT 4.0f // change this on final build

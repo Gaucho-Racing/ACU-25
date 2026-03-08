@@ -111,6 +111,9 @@ typedef struct {
 
     // ACU PRECHARGE via TX
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
+
+    // VCP override
+    uint8_t is_VCP_override; // [x|x|x|x|x|x|state override|error disable]
     
 } ACU;
 
