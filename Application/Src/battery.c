@@ -551,6 +551,7 @@ void print_voltage(Battery *bty){
         print_lpuart(print_buffer);
         for (uint8_t j = 0; j < NUM_CELL_IC; j++){
             if(j == 7){print_lpuart("\n");}
+            if(bty->cell_balancing[GET_INDEX(i, j)] == 1) print_lpuart("*");
             sprintf(print_buffer, "C%u: %.3f | ", j, bty->cell_volt[GET_INDEX(i, j)]);
             print_lpuart(print_buffer);
         }
