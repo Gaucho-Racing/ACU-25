@@ -437,6 +437,8 @@ bool check_temp(Battery *bty){
             success = 0;
         }
     }
+
+    if (success) bty->battery_check_faults &= ~BATTERY_FAULT_CELL_OT;
     return success;
 }
 
@@ -456,7 +458,7 @@ bool check_volt(Battery *bty) {
                 bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]++;
                 if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
                     bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
-                    bty->battery_check_faults |= BATTERY_FAULT_CELL_OV; // probably not the correct one
+                    bty->battery_check_faults |= BATTERY_FAULT_CELL_OV;
                     success = 0;
                 }
             }
@@ -467,7 +469,7 @@ bool check_volt(Battery *bty) {
                 bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]++;
                 if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
                     bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
-                    bty->battery_check_faults |= BATTERY_FAULT_CELL_UV; // probably not the correct one
+                    bty->battery_check_faults |= BATTERY_FAULT_CELL_UV;
                     success = 0;
                 }
             }
@@ -484,6 +486,8 @@ bool check_volt(Battery *bty) {
             success = 0;
         }
     }
+
+    if (success) bty->battery_check_faults &= ~(BATTERY_FAULT_CELL_OV | BATTERY_FAULT_CELL_UV);
     return success;
 }
 
@@ -570,4 +574,17 @@ void print_voltage(Battery *bty){
     sprintf(print_buffer, "Min: %.3f | Max: %.3f\n", bty->min_cell_volt, bty->max_cell_volt);
     print_lpuart(print_buffer);
     // print_lpuart("-----------------------------------------\n");
+}
+
+// print errors
+void print_errors_warning_bty(Battery *bty){
+    print_lpuart("BMS Errors: -----------------------------\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_CELL_OV) print_lpuart("Error: Battery Overvoltage\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_CELL_UV) print_lpuart("Error: Battery Undervoltage\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_CB_OPEN) print_lpuart("Error: BMS balance control open\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_CB_SHRT) print_lpuart("Error: BMS balance control short\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_CELL_OT) print_lpuart("Error: Battery Overtemperature\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_GPIO_ST) print_lpuart("Error: BATTERY_FAULT_GPIO_ST\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_GPIO_SH) print_lpuart("Error: BATTERY_FAULT_GPIO_SH\n");
+    if (bty->battery_check_faults & BATTERY_FAULT_COMM_FL) print_lpuart("Error: BATTERY_FAULT_COMM_FL\n");
 }

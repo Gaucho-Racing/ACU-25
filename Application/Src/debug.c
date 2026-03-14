@@ -94,6 +94,7 @@ void debug(){
 
   #if DUMP_ERR_WARN == 1
   print_errors_warning(&acu);
+  print_errors_warning_bty(acu.bty);
   #endif
 
   #if CHARG_CTL == 1

@@ -330,24 +330,24 @@ void charge(){
     acu.acu_err_warns &= ~(ACU_CLEAR_WARN);
 
     // monitor accumulator
-    if(!acu_check(&acu, false)){
+    // if(!acu_check(&acu, false)){
 
-        // if fault detected, open charging shutdown circuits
-        // all current flow to accumulator MUST stop
-        // voltage in tractive system must be low voltage in 5 seconds or less
-        // turn off charger, disabled until manually reset
-        // print_lpuart("CHARGE (328) => SHITDOWN");
-        #if DEBUGG == 0
-        if((acu.is_VCP_override & OVERRIDE_ERROR) == 0) state = SHITDOWN; 
-        return;
-        #endif
-    }
+    //     // if fault detected, open charging shutdown circuits
+    //     // all current flow to accumulator MUST stop
+    //     // voltage in tractive system must be low voltage in 5 seconds or less
+    //     // turn off charger, disabled until manually reset
+    //     // print_lpuart("CHARGE (328) => SHITDOWN");
+    //     #if DEBUGG == 0
+    //     if((acu.is_VCP_override & OVERRIDE_ERROR) == 0) state = SHITDOWN; 
+    //     return;
+    //     #endif
+    // }
     
     if(HAL_GetTick() - last_charge_time >= 2000){
         last_charge_time = HAL_GetTick();
         reset_discharge(&battery, false);
         LL_mDelay(100);
-        read_device_measurements(&battery, true, false);
+        // read_device_measurements(&battery, true, false);
         if(!state_system_check(true, false)){
             print_lpuart("( ˶°ㅁ°) !! Failed system check inside of charge\n");
             #if DEBUGG == 0
@@ -463,26 +463,14 @@ bool state_system_check(bool full_check, bool startup){
     calculate_acu_soc(&acu);
 
     bool a_check = acu_check(&acu, startup);
-    if(a_check == false){
-        print_lpuart("(¬_¬\") Failed acu_check\n");
-    }
+    // if(a_check == false){
+    //     print_lpuart("(¬_¬\") Failed acu_check\n");
+    // }
     
     bool b_check = battery_check(&battery, full_check);
-    if(b_check == false){
-        print_lpuart("(¬_¬\") Failed battery_check\n");
-    }
-
-    // voltage values vs allowable range EV.7.4.2
-    if(battery.battery_check_faults & BATTERY_FAULT_CELL_OV){
-        acu.acu_err_warns |= ACU_ERR_OVER_VOLT;
-    }
-    if(battery.battery_check_faults & BATTERY_FAULT_CELL_UV){
-        acu.acu_err_warns |= ACU_ERR_UNDER_VOLT;
-    }
-    // (3) temp values outside the allowable range EV.7.5.2
-    if(battery.battery_check_faults & BATTERY_FAULT_CELL_OT){
-        acu.acu_err_warns |= ACU_ERR_OVER_TEMP;
-    }
+    // if(b_check == false){
+    //     print_lpuart("(¬_¬\") Failed battery_check\n");
+    // }
 
     // print_errors_warning(&acu);
     if (b_check){

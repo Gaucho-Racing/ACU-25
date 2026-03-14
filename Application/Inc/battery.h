@@ -128,6 +128,9 @@ void print_volt(const float * voltages, const uint8_t cid, uint8_t index);
 void print_voltage(Battery *bty);
 void print_temperature(Battery * bty);
 
+// print errors
+void print_errors_warning_bty(Battery *bty);
+
 // bcc stuff with spi
 uint8_t bcc_read_string(uint8_t *buffer, uint16_t length);
 uint8_t bcc_send_string(const uint8_t *data, uint16_t length);

@@ -68,6 +68,8 @@ uint16_t read_temp_interval = 100;
 // BMS/ACU
 ACU acu;
 Battery battery;
+Charger charger;
+EM eMeter;
 
 // ADC Data
 uint16_t adc_data[ADC_SIZE]; // 0: ts_current, 1: ts_voltage, 2: sdc_volt_w, 3: sdc_volt_v, 4:volt_12v, 5: water_sense
@@ -247,7 +249,10 @@ int main(void)
   // HAL_Delay(100);
   // write_LED(0);
 
-
+  // HOW DID I FORGET THIS AND IT STILL WORK?
+  acu.bty = &battery;
+  acu.chgr = &charger;
+  acu.em = &eMeter;
 
   /* Enable the SPI peripherals */
   BCC_MCU_WriteCsbPin(0, 1);

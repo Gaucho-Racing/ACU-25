@@ -967,7 +967,7 @@ void print_charger_data(ACU* acu){
 /// @brief prints acu errors & warnings
 /// @param acu 
 void print_errors_warning(ACU * acu){
-    print_lpuart("Err/Warns: ------------------------------\n");
+    print_lpuart("ACU Err/Warns: --------------------------\n");
     char buff[64];
     if(acu->acu_err_warns & ACU_ERR_OVER_TEMP){
         bzero(buff, sizeof(buff));
@@ -1009,7 +1009,6 @@ void print_errors_warning(ACU * acu){
         sprintf(buff, "Warning: Undervoltage for SDC\n");
         print_lpuart(buff);
     }
-    print_lpuart("-----------------------------------------\n");
 }
 
 /// @brief writes the BMS OK signal to PC8
