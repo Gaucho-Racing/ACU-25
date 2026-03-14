@@ -56,6 +56,8 @@ uint8_t cycle = 0;
 uint32_t prev = 0;
 bool first_init = true;
 char print_buffer[1000];
+volatile char command_buffer[256] = {0};
+volatile uint16_t command_length = 0;
 bool check_ts_active = false;
 uint8_t bcc_cooked_count = 0;
 bcc_status_t bcc_error = BCC_STATUS_SUCCESS; 
@@ -117,7 +119,7 @@ volatile uint8_t CAN_RxBufferBottom = 0; // Index of oldest data
 volatile uint8_t CAN_RxBufferTop = 0; // Index of newest data
 
 // STATE tracker
-State state;
+volatile State state;
 
 extern void print_bcc_status(bcc_status_t stat);
 extern void update_adc_data(ACU* acu);
@@ -322,6 +324,9 @@ int main(void)
       battery.drvConfig.device[i] = BCC_DEVICE_MC33771C;
       battery.drvConfig.cellCnt[i] = NUM_CELL_IC;
   }
+
+  // turn on LPUART RXNE interrupt to receive commands from VCP
+  LL_LPUART_EnableIT_RXNE_RXFNE(LPUART1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -337,12 +342,14 @@ int main(void)
     if(state != INIT){
 
       // SYSTEM CHECK
-      read_device_measurements(&battery, true, false);
+      if (state != CHARGE){
+        read_device_measurements(&battery, true, false);
+      }
       if (HAL_GetTick() - last_read_temp_time >= read_temp_interval){
         last_read_temp_time += read_temp_interval;
         read_device_measurements(&battery, false, true);
       }
-      bool b_check = battery_check(&battery, true);
+      bool b_check = battery_check(&battery, false);
       if(b_check == false){
         enqueue(ACU_Status_1, FDCAN1);
         enqueue(ACU_Status_2, FDCAN1);
@@ -380,6 +387,8 @@ int main(void)
     if(HAL_GetTick() - prev >= 1000){ // debug every 1 second
       prev += 1000;
       debug();
+      if ((acu.is_VCP_override & OVERRIDE_STATE) != 0) print_lpuart("state override\n");
+      if ((acu.is_VCP_override & OVERRIDE_ERROR) != 0) print_lpuart("error override\n");
       sprintf(print_buffer, "%ucps\n", cps);
       print_lpuart(print_buffer);
       cps = 0;
@@ -488,8 +497,8 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
               }
               sprintf(dataBuff, "\n");
               print_lpuart(dataBuff);
-              #endif
             }
+            #endif
 
             // copy the data
             bzero((void *)CAN_RxBuffer[CAN_RxBufferTop].data, 64);

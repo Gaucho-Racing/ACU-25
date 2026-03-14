@@ -25,6 +25,8 @@
 #include "config.h"
 #include <stdio.h>
 #include "acu.h"
+#include <string.h>
+#include "state.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,6 +51,7 @@ extern volatile uint8_t TPL_RxBufferLevel; // Number of bytes to be read
 extern volatile uint8_t TPL_RxBufferBottom; // Index of oldest data
 extern volatile uint8_t TPL_RxBufferTop; // Index of newest data
 volatile uint16_t delaying = 0;
+extern volatile State state;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,6 +79,8 @@ extern volatile uint8_t CAN_1_flag;
 extern volatile uint8_t CAN_2_flag;
 extern volatile uint8_t CAN_3_flag;
 extern ACU acu; // global ACU variable
+extern volatile char command_buffer[256];
+extern volatile uint16_t command_length;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -333,6 +338,48 @@ void FDCAN3_IT0_IRQHandler(void)
   /* USER CODE BEGIN FDCAN3_IT0_IRQn 1 */
 
   /* USER CODE END FDCAN3_IT0_IRQn 1 */
+}
+
+/**
+  * @brief This function handles LPUART1 global interrupt.
+  */
+void LPUART1_IRQHandler(void)
+{
+  /* USER CODE BEGIN LPUART1_IRQn 0 */
+  uint8_t rcvd_data = LL_LPUART_ReceiveData8(LPUART1);
+  if (rcvd_data == '\n'){
+    char command_copy[256];
+    memcpy(command_copy, command_buffer, 256);
+    print_lpuart(command_copy);
+    char* search_ptr = strstr(command_copy, "override");
+    if (search_ptr != NULL){
+      if (strstr(search_ptr, " -s 1") != NULL) acu.is_VCP_override |= OVERRIDE_STATE;
+      if (strstr(search_ptr, " -e 1") != NULL) acu.is_VCP_override |= OVERRIDE_ERROR;
+      if (strstr(search_ptr, " -s 0") != NULL) acu.is_VCP_override &= ~OVERRIDE_STATE;
+      if (strstr(search_ptr, " -e 0") != NULL) acu.is_VCP_override &= ~OVERRIDE_ERROR;
+    }
+    search_ptr = strstr(command_copy, "state");
+    if (search_ptr != NULL && (acu.is_VCP_override & OVERRIDE_STATE) != 0){
+      if (strstr(search_ptr, " -i") != NULL) state = INIT;
+      if (strstr(search_ptr, " -p") != NULL) state = PRECHARGE;
+      if (strstr(search_ptr, " -c") != NULL) state = CHARGE;
+      if (strstr(search_ptr, " -n") != NULL) state = NORMAL;
+      if (strstr(search_ptr, " -s") != NULL) state = SHITDOWN;
+    }
+    command_length = 0;
+    for (uint16_t i = 0; i < 256; i++){
+      command_buffer[i] = 0;
+    }
+  }
+  else{
+    command_buffer[command_length] = rcvd_data;
+    command_length++;
+  }
+  
+  /* USER CODE END LPUART1_IRQn 0 */
+  /* USER CODE BEGIN LPUART1_IRQn 1 */
+
+  /* USER CODE END LPUART1_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

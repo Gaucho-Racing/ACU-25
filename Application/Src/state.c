@@ -336,21 +336,25 @@ void charge(){
         // all current flow to accumulator MUST stop
         // voltage in tractive system must be low voltage in 5 seconds or less
         // turn off charger, disabled until manually reset
-        print_lpuart("CHARGE (328) => SHITDOWN");
+        // print_lpuart("CHARGE (328) => SHITDOWN");
         #if DEBUGG == 0
-        state = SHITDOWN;
+        if((acu.is_VCP_override & OVERRIDE_ERROR) == 0) state = SHITDOWN; 
         return;
         #endif
     }
     
     if(HAL_GetTick() - last_charge_time >= 2000){
         last_charge_time = HAL_GetTick();
-        reset_discharge(&battery, false); 
+        reset_discharge(&battery, false);
+        LL_mDelay(100);
+        read_device_measurements(&battery, true, false);
         if(!state_system_check(true, false)){
             print_lpuart("( ˶°ㅁ°) !! Failed system check inside of charge\n");
             #if DEBUGG == 0
-            state = state == INIT ? INIT : SHITDOWN;
-            return;
+            if((acu.is_VCP_override & OVERRIDE_ERROR) == 0){
+                state = state == INIT ? INIT : SHITDOWN;
+                return;
+            }
             #endif
         }
         // do cell balancing
@@ -372,7 +376,7 @@ void charge(){
     }
 
     //if no CAN data for 5 seconds, shut down
-    if(HAL_GetTick() - acu.lastChrgRecieveTime > 5000U){
+    if(HAL_GetTick() - acu.lastChrgRecieveTime > 5000U && (acu.is_VCP_override & OVERRIDE_STATE) == 0){
         print_lpuart("( ˶°ㅁ°) !! CHARGE: Charger CAN timeout, shutting down\n");
         #if DEBUGG == 0
         state = SHITDOWN;

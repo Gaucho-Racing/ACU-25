@@ -141,6 +141,7 @@ void reset_discharge(Battery * bty, bool on){
 float max_volt = -1000.0f, max_temp = -1000.0f, min_volt = 1000.0f, min_temp = 1000.0f;
 bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t read_temp) 
 {
+    // if (read_volt)print_lpuart("read_device_measurements\n");
     float temp_stack_volt[NUM_TOTAL_IC] = {0};
     float battery_total_volt_temp = 0;
 
@@ -284,7 +285,7 @@ bool do_cell_balancing(Battery * bty){
     {
         // uint8_t to_discharge = 0;
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->min_cell_volt > 0.02f)){
+            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->min_cell_volt > 0.001f)){
                 // to_discharge = 1;
                 if ((bcc_error = set_cell_balance(bty, (bcc_cid_t)(i), j, 0, 1))!= BCC_STATUS_SUCCESS){ 
                     print_bcc_status(bcc_error);

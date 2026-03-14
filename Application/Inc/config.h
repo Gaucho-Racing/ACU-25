@@ -115,6 +115,9 @@
 #define PRECHARGE_THRESHOLD 0.95f // fraction of total cell voltage
 #define SAFE_V_TO_TURN_OFF 60
 
+#define OVERRIDE_STATE 0b10U
+#define OVERRIDE_ERROR 0b01U
+
 /* Send ***********************************************************/
 // CAN1
 #define ACU_Debug_2_Debug       0x300001    // FLAG = 1 (CAN1)

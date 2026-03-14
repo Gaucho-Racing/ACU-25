@@ -283,18 +283,6 @@ __weak HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
   }
 
   /* Return function status */
-  while(status == HAL_ERROR) {
-    hell:
-    for (uint32_t i = 0; i < 160000; i++)
-    {
-      __ASM("NOP");
-      /* code */
-    }
-    GPIOA->ODR ^= GPIO_ODR_OD15; // Toggle LED
-    // write_LED(1);
-    goto hell;
-    
-  }
   return status;
 }
 

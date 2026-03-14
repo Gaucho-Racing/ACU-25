@@ -99,7 +99,7 @@ void debug(){
   #if CHARG_CTL == 1
   char buff[40];
   bzero(buff, sizeof(buff));
-  if(acu.chg_ctrl & PLS_CHARGE){
+  if(acu.chg_ctrl == PLS_CHARGE){
     sprintf(buff, "Charge Control: pls charge\n");
   }
   else{

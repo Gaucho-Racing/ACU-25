@@ -778,7 +778,7 @@ void update_adc_data(ACU* acu){
     acu->ts_voltage += (adc_data[1] * 0.0005f * 400.0f - acu->ts_voltage) * 0.2f; // 1:400 voltage divider
     acu->sdc_volt_w += (adc_data[2] * 0.0005f * 10.0f - acu->sdc_volt_w) * 0.2f; // 1:10 voltage divider
     acu->sdc_volt_v += (adc_data[3] * 0.0005f * 10.0f - acu->sdc_volt_v) * 0.2f; // 1:10 voltage divider
-    acu->voltage_12v += (adc_data[4] * 0.0005f * 10.07475f - acu->voltage_12v) * 0.2f; // 1:10 voltage divider
+    acu->voltage_12v += (adc_data[4] * 0.0005f * 10.0f - acu->voltage_12v) * 0.2f; // 1:10 voltage divider
     acu->water_sense += (adc_data[5] * 0.0005f - acu->water_sense) * 0.2f;  // keep raw voltage
 }
 
