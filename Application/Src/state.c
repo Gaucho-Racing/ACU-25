@@ -8,7 +8,7 @@ extern State state;
 extern bool first_init;
 extern bool check_ts_active;
 
-extern uint8_t cycle;
+// extern uint8_t cycle;
 extern uint16_t adc_data[6];
 extern char print_buffer[1000];
 extern uint8_t bcc_cooked_count;
@@ -128,10 +128,10 @@ void init(){
     }
     
     print_lpuart("PASSED from BCC_Init\n");
-    battery.min_temp_thresh = (uint16_t)CELL_MIN_TEMP;
-    battery.max_temp_thresh = (uint16_t)CELL_MAX_TEMP;
-    battery.min_volt_thresh = (uint16_t)CELL_MIN_VOLT;
-    battery.max_volt_thresh = (uint16_t)CELL_MAX_VOLT;
+    battery.min_temp_thresh = CELL_MIN_TEMP;
+    battery.max_temp_thresh = CELL_MAX_TEMP;
+    battery.min_volt_thresh = CELL_MIN_VOLT;
+    battery.max_volt_thresh = CELL_MAX_VOLT;
 
     // initialize registers
     bool succ = init_registers(&battery);

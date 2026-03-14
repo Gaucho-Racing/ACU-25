@@ -349,7 +349,9 @@ void LPUART1_IRQHandler(void)
   uint8_t rcvd_data = LL_LPUART_ReceiveData8(LPUART1);
   if (rcvd_data == '\n'){
     char command_copy[256];
-    memcpy(command_copy, command_buffer, 256);
+    for (uint16_t i = 0; i < 256; i++){
+      command_copy[i] = command_buffer[i];
+    }
     print_lpuart(command_copy);
     char* search_ptr = strstr(command_copy, "override");
     if (search_ptr != NULL){

@@ -349,14 +349,14 @@ int main(void)
         last_read_temp_time += read_temp_interval;
         read_device_measurements(&battery, false, true);
       }
-      bool b_check = battery_check(&battery, false);
-      if(b_check == false){
-        enqueue(ACU_Status_1, FDCAN1);
-        enqueue(ACU_Status_2, FDCAN1);
-        #if DEBUGG == 0
-        state = state == INIT ? INIT : SHITDOWN;
-        #endif
-      }
+      // bool b_check = battery_check(&battery, false);
+      // if(b_check == false){
+      //   enqueue(ACU_Status_1, FDCAN1);
+      //   enqueue(ACU_Status_2, FDCAN1);
+      //   #if DEBUGG == 0
+      //   state = state == INIT ? INIT : SHITDOWN;
+      //   #endif
+      // }
     }
     switch(state){
       case (INIT):

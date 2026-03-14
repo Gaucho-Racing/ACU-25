@@ -202,6 +202,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
             }
         }
 
+        // CHIP TEMP
         if(read_temp && cycle == i){
             temp_measures = 0;
             bcc_error = BCC_Meas_GetIcTemperature(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_TEMP_CELSIUS, &temp_measures);
@@ -267,7 +268,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
         bty->min_cell_temp = min_temp;
         min_temp = 1000.0f; max_temp = -1000.0f; 
     }
-    cycle = (cycle + 1) % NUM_TOTAL_IC; 
+    if(read_temp)cycle = (cycle + 1) % NUM_TOTAL_IC; 
     return BCC_STATUS_SUCCESS;
 }
 
@@ -461,7 +462,7 @@ bool check_volt(Battery *bty) {
             }
 
             // min_volt check
-            if(bty->cell_volt[i*NUM_CELL_IC + j] < bty->min_volt_thresh){
+            else if(bty->cell_volt[i*NUM_CELL_IC + j] < bty->min_volt_thresh){
                 bty->cell_volt_errors++;
                 bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]++;
                 if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
@@ -470,12 +471,16 @@ bool check_volt(Battery *bty) {
                     success = 0;
                 }
             }
+
+            else{
+                bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] = 0;
+            }
         }
         
         // check stack voltage vs real sum aren't too different
         if(fabsf(bty->stack_voltage[i] - bty->calculated_stack_voltage[i]) > STACK_VOLT_DIFF){
             bty->cell_volt_errors++;
-            print_lpuart("stack voltage vs manual sum of cell volts is > 0.5!\n");
+            print_lpuart("stack voltage vs manual sum of cell volts mismatch!\n");
             success = 0;
         }
     }
@@ -499,11 +504,13 @@ bool battery_check(Battery *bty, bool fullcheck){
     }
 
     // check temp
-    success = check_temp(bty);
-    if(!success) {
-        bzero(print_buffer, sizeof(print_buffer));
-        sprintf(print_buffer, "%d errors from check_temp()\n", bty->cell_temp_errors);
-        print_lpuart(print_buffer);
+    if(cycle == NUM_TOTAL_IC - 1){ // only check when all temps are up to date
+        success = check_temp(bty);
+        if(!success) {
+            bzero(print_buffer, sizeof(print_buffer));
+            sprintf(print_buffer, "%d errors from check_temp()\n", bty->cell_temp_errors);
+            print_lpuart(print_buffer);
+        }
     }
 
     // check volts

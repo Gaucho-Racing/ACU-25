@@ -43,8 +43,8 @@ typedef struct
     uint16_t max_temp_thresh;
 
     // Internal Data
-    uint16_t max_volt_thresh;
-    uint16_t min_temp_thresh;
+    float max_volt_thresh;
+    float min_temp_thresh;
     uint8_t cell_temp_errors;
     uint8_t cell_volt_errors;
     uint16_t faults[BCC_FS_MAX*NUM_TOTAL_IC];
