@@ -286,7 +286,7 @@ bool do_cell_balancing(Battery * bty){
     {
         // uint8_t to_discharge = 0;
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->min_cell_volt > 0.001f)){
+            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->min_cell_volt > 0.002f)){
                 // to_discharge = 1;
                 if ((bcc_error = set_cell_balance(bty, (bcc_cid_t)(i), j, 0, 1))!= BCC_STATUS_SUCCESS){ 
                     print_bcc_status(bcc_error);
@@ -544,7 +544,7 @@ void print_temperature(Battery * bty){
         }
         print_lpuart("\n");
     }
-    sprintf(print_buffer, "Min Temp: %2.0f | Max Temp: %2.0f\n", bty->min_cell_temp, bty->max_cell_temp);
+    sprintf(print_buffer, "Min Temp: %2.01f | Max Temp: %2.01f\n", bty->min_cell_temp, bty->max_cell_temp);
     print_lpuart(print_buffer);
     // print_lpuart("-----------------------------------------\n");
 }
