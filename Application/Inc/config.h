@@ -15,9 +15,9 @@
 
 #define SPI_LOOP_TIMEOUT 500
 
-#define CELL_INT_RESISTANCE 0.006
-#define CELL_EMPTY_VOLTAGE 2.8
-#define CELL_FULL_VOLTAGE 4.19
+#define CELL_INT_RESISTANCE 0.006f
+#define CELL_EMPTY_VOLTAGE 2.8f
+#define CELL_FULL_VOLTAGE 4.19f
 
 #define CELL_MAX_VOLT 4.2f
 #define CELL_MIN_VOLT 2.5f
@@ -30,7 +30,7 @@
 //acu limits
 #define MAX_HV_CURRENT 135
 #define MIN_GLV_VOLT 4.0f // change this on final build
-#define MAX_GLV_VOLT 14.4f
+#define MAX_GLV_VOLT 21.67f
 #define ERRMG_ISNS_VREF 0.2f
 #define STACK_VOLT_DIFF 1.0f
 #define MAX_READ_COUNT 8
@@ -109,7 +109,7 @@
 
 // ADC Warning Thresholds
 #define UNDER_VOLTAGE_20V 15
-#define UNDER_VOLTAGE_GLV 10
+#define UNDER_VOLTAGE_GLV 15
 #define UNDER_VOLTAGE_SDCV 9
 
 #define PRECHARGE_THRESHOLD 0.95f // fraction of total cell voltage
