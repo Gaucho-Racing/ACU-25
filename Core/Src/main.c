@@ -59,7 +59,7 @@ char print_buffer[1000];
 volatile char command_buffer[256] = {0};
 volatile uint16_t command_length = 0;
 bool check_ts_active = false;
-uint8_t bcc_cooked_count = 0;
+uint8_t bcc_cooked_count = 1; // 1 means good, 0 means it got to 255 and overflowed and we reset
 bcc_status_t bcc_error = BCC_STATUS_SUCCESS; 
 uint16_t cps = 0; // cycles per second
 uint32_t last_read_temp_time;
@@ -388,17 +388,18 @@ int main(void)
         break;
     }
     cps++;
-    #if DEBUG_MODE == 0
     if(HAL_GetTick() - prev >= 1000){ // debug every 1 second
       prev += 1000;
+      #if DEBUG_MODE == 0
       debug();
-      if ((acu.is_VCP_override & OVERRIDE_STATE) != 0) print_lpuart("state override\n");
-      if ((acu.is_VCP_override & OVERRIDE_ERROR) != 0) print_lpuart("error override\n");
       sprintf(print_buffer, "%ucps\n", cps);
       print_lpuart(print_buffer);
+      #endif
+      bcc_cooked_count = 1; // reset error rate accumulator
+      if ((acu.is_VCP_override & OVERRIDE_STATE) != 0) print_lpuart("state override\n");
+      if ((acu.is_VCP_override & OVERRIDE_ERROR) != 0) print_lpuart("error override\n");
       cps = 0;
     }
-    #endif
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -774,7 +774,7 @@ uint8_t fconstrain(float value){
 /// @brief updates adc_data[]
 /// @param acu 
 void update_adc_data(ACU* acu){
-    acu->ts_current += ((adc_data[0] * 0.0005f - 1.235f) / 0.005f - acu->ts_current) * 0.05f; // 5mV/A
+    acu->ts_current += ((adc_data[0] * 0.0005f - 1.235f) * 200.0f - acu->ts_current) * 0.05f; // 5mV/A
     acu->ts_voltage += (adc_data[1] * 0.0005f * 400.0f - acu->ts_voltage) * 0.2f; // 1:400 voltage divider
     acu->sdc_volt_w += (adc_data[2] * 0.0005f * 10.0f - acu->sdc_volt_w) * 0.2f; // 1:10 voltage divider
     acu->sdc_volt_v += (adc_data[3] * 0.0005f * 10.0f - acu->sdc_volt_v) * 0.2f; // 1:10 voltage divider

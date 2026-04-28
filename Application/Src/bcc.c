@@ -785,7 +785,7 @@ bcc_status_t BCC_Reg_Update(bcc_drv_config_t* const drvConfig,
     status = BCC_Reg_Read(drvConfig, cid, regAddr, 1U, &regValTemp);
     if (status != BCC_STATUS_SUCCESS)
     {
-        print_lpuart("BCC_Reg_Update: BCC_Reg_Read: Read failed.\n");
+        // print_lpuart("BCC_Reg_Update: BCC_Reg_Read: Read failed.\n");
         return status;
     }
 

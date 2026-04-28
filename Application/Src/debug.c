@@ -21,6 +21,7 @@ extern char print_buffer[1000];
 /// @brief Print BCC Status messages
 /// @param stat bcc_status_t
 void print_bcc_status(bcc_status_t stat){
+#if DUMP_BCC_ERROR == 1
   switch (stat)
   {
   case BCC_STATUS_SUCCESS:
@@ -66,6 +67,7 @@ void print_bcc_status(bcc_status_t stat){
       print_lpuart("Unknown status\n");
       break;
   }
+#endif
 }
 
 void debug(){

@@ -162,7 +162,7 @@ void init(){
     if(first_init == true){
         first_init = false;
     }
-    bcc_cooked_count = 0;
+    bcc_cooked_count = 1;
     check_ts_active = false;
 }
 

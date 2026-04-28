@@ -33,20 +33,22 @@ typedef struct
     float battery_total_voltage;
     float stack_voltage[NUM_TOTAL_IC];
     float calculated_stack_voltage[NUM_TOTAL_IC];
+    uint8_t stack_volt_err_cnt[NUM_CELL_IC];
     
     float icTemp[NUM_TOTAL_IC];
+    uint8_t ic_temp_err_cnt[NUM_CELL_IC];
 
     float max_chg_current; // max safe charging current
 
     // ACU Config Operational Parameters via Rx
-    uint16_t min_volt_thresh;
-    uint16_t max_temp_thresh;
+    float min_volt_thresh;
+    float max_temp_thresh;
 
     // Internal Data
     float max_volt_thresh;
     float min_temp_thresh;
-    uint8_t cell_temp_errors;
-    uint8_t cell_volt_errors;
+    uint8_t cell_temp_errors; // used to track # of error in one check_temp()
+    uint8_t cell_volt_errors; // used to track # of error in one check_volt()
     uint16_t faults[BCC_FS_MAX*NUM_TOTAL_IC];
     uint8_t battery_check_faults;
 

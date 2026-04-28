@@ -234,7 +234,7 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
                 }
                 // uncomment this when temp is normal
                 if(bcc_error != BCC_STATUS_SUCCESS) {
-                    print_lpuart("error in BCC_EEPROM_Read: ");
+                    // print_lpuart("error in BCC_EEPROM_Read: ");
                     print_bcc_status(bcc_error);
                     bcc_cooked_count++;
                     if(bcc_cooked_count == 0){
@@ -422,7 +422,7 @@ bool check_temp(Battery *bty){
             if(bty->cell_temp[i*NUM_CELL_IC + j] > bty->max_temp_thresh){
                 bty->cell_temp_errors++;
                 bty->cell_temp_err_cnt[i*NUM_CELL_IC + j]++;
-                if(bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
+                if(bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] >= ERRMG_BMS_ERR){
                     bty->cell_temp_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
                     bty->battery_check_faults |= BATTERY_FAULT_CELL_OT;
                     success = 0;
@@ -434,7 +434,14 @@ bool check_temp(Battery *bty){
         }
         if(bty->icTemp[i] > IC_MAX_TEMP){
             bty->cell_temp_errors++;
-            success = 0;
+            bty->ic_temp_err_cnt[i]++;
+            if(bty->ic_temp_err_cnt[i] >= ERRMG_BMS_ERR){
+                bty->ic_temp_err_cnt[i] = ERRMG_BMS_ERR;
+                success = 0;
+            }
+        }
+        else{
+            bty->ic_temp_err_cnt[i] = 0;
         }
     }
 
@@ -456,7 +463,7 @@ bool check_volt(Battery *bty) {
             if(bty->cell_volt[i*NUM_CELL_IC + j] > bty->max_volt_thresh){
                 bty->cell_volt_errors++;
                 bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]++;
-                if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
+                if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] >= ERRMG_BMS_ERR){
                     bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
                     bty->battery_check_faults |= BATTERY_FAULT_CELL_OV;
                     success = 0;
@@ -467,7 +474,7 @@ bool check_volt(Battery *bty) {
             else if(bty->cell_volt[i*NUM_CELL_IC + j] < bty->min_volt_thresh){
                 bty->cell_volt_errors++;
                 bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]++;
-                if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] > ERRMG_BMS_ERR){
+                if(bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] >= ERRMG_BMS_ERR){
                     bty->cell_volt_err_cnt[i*NUM_CELL_IC + j] = ERRMG_BMS_ERR;
                     bty->battery_check_faults |= BATTERY_FAULT_CELL_UV;
                     success = 0;
@@ -481,9 +488,16 @@ bool check_volt(Battery *bty) {
         
         // check stack voltage vs real sum aren't too different
         if(fabsf(bty->stack_voltage[i] - bty->calculated_stack_voltage[i]) > STACK_VOLT_DIFF){
+            bty->stack_volt_err_cnt[i]++;
             bty->cell_volt_errors++;
-            print_lpuart("stack voltage vs manual sum of cell volts mismatch!\n");
-            success = 0;
+            // print_lpuart("stack voltage vs manual sum of cell volts mismatch!\n");
+            if(bty->stack_volt_err_cnt[i] >= ERRMG_BMS_ERR){
+                bty->stack_volt_err_cnt[i] = ERRMG_BMS_ERR;
+                success = 0;
+            }
+        }
+        else{
+            bty->stack_volt_err_cnt[i] = 0;
         }
     }
 
@@ -548,7 +562,7 @@ void print_temperature(Battery * bty){
         }
         print_lpuart("\n");
     }
-    sprintf(print_buffer, "Min Temp: %2.01f | Max Temp: %2.01f\n", bty->min_cell_temp, bty->max_cell_temp);
+    sprintf(print_buffer, "Min Temp: %2.01f | Max Temp: %2.01f | Errors: %u\n", bty->min_cell_temp, bty->max_cell_temp, bty->cell_temp_errors);
     print_lpuart(print_buffer);
     // print_lpuart("-----------------------------------------\n");
 }
@@ -571,14 +585,16 @@ void print_voltage(Battery *bty){
         sprintf(print_buffer, "\nStack Voltage: %.3f | Calculated Stack: %.3f\n", bty->stack_voltage[i], bty->calculated_stack_voltage[i]);
         print_lpuart(print_buffer);
     }
-    sprintf(print_buffer, "Min: %.3f | Max: %.3f\n", bty->min_cell_volt, bty->max_cell_volt);
+    sprintf(print_buffer, "Min: %.3f | Max: %.3f | UV: %.3f | OV: %.3f | Errors: %u\n", 
+        bty->min_cell_volt, bty->max_cell_volt, bty->min_volt_thresh, bty->max_volt_thresh, bty->cell_volt_errors);
     print_lpuart(print_buffer);
     // print_lpuart("-----------------------------------------\n");
 }
 
 // print errors
 void print_errors_warning_bty(Battery *bty){
-    print_lpuart("BMS Errors: -----------------------------\n");
+    sprintf(print_buffer, "BMS Errors: %03u -------------------------\n", bcc_cooked_count-1);
+    print_lpuart(print_buffer);
     if (bty->battery_check_faults & BATTERY_FAULT_CELL_OV) print_lpuart("Error: Battery Overvoltage\n");
     if (bty->battery_check_faults & BATTERY_FAULT_CELL_UV) print_lpuart("Error: Battery Undervoltage\n");
     if (bty->battery_check_faults & BATTERY_FAULT_CB_OPEN) print_lpuart("Error: BMS balance control open\n");
