@@ -392,6 +392,13 @@ void charge(){
         #endif
     }
 
+    // check ts_active status
+    if((!acu.ts_active) && check_ts_active && (acu.is_VCP_override & OVERRIDE_STATE) == 0){
+    print_lpuart("(¬_¬\") [CHARGE => SHITDOWN]\n");
+        state = SHITDOWN;
+        check_ts_active = false;
+    }
+
     // re-measure current sensor ref every 5 minutes
     // if (HAL_GetTick() - last_call_time > 300000U) {
 
