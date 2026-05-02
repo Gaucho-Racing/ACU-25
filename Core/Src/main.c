@@ -58,7 +58,7 @@ bool first_init = true;
 char print_buffer[1000];
 volatile char command_buffer[256] = {0};
 volatile uint16_t command_length = 0;
-bool check_ts_active = false;
+volatile bool check_ts_active = false;
 uint8_t bcc_cooked_count = 1; // 1 means good, 0 means it got to 255 and overflowed and we reset
 bcc_status_t bcc_error = BCC_STATUS_SUCCESS; 
 uint16_t cps = 0; // cycles per second

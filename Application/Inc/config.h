@@ -98,7 +98,7 @@
 #define EARTH_LIFT_OPENN    0b00000000001U
 
 // error margins
-#define GLV_SDC_LOW 2.0f
+#define GLV_SDC_LOW 3.0f
 #define SDC_HIGH 9.0f
 #define ERRMG_ACU_ERR 10
 #define ERRMG_BMS_ERR 5

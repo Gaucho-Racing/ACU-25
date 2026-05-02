@@ -181,7 +181,7 @@ void standby(){
 
     // check ts_active status
     if(acu.ts_active && check_ts_active){
-    print_lpuart("(¬_¬\") [STANDBY => PRECHARGE]\n");
+    print_lpuart("(φ(゜▽゜*)♪) [STANDBY => PRECHARGE]\n");
         state = PRECHARGE;
         check_ts_active = false;
     }
@@ -209,7 +209,7 @@ void precharge(){
     sdc_reset();
     LL_mDelay(10);
 
-    if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) < GLV_SDC_LOW) && acu.sdc_volt_w < SDC_HIGH) {
+    if ((fabsf(acu.sdc_volt_w - acu.sdc_volt_v) > GLV_SDC_LOW) || acu.sdc_volt_w < SDC_HIGH) {
         print_lpuart("¯\\_(ツ)_/¯ Latch not closed, skill issue\n");
         #if DEBUGG == 0
         state = STANDBY;
@@ -238,7 +238,7 @@ void precharge(){
         read_device_measurements(&battery, true, true);
         sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
         print_lpuart(print_buffer);
-        // LL_mDelay(100);
+        LL_mDelay(50);
         if (!state_system_check(true, false)) {
             print_lpuart("¯\\_(ツ)_/¯ PreCharge state_system_check() => Shutdown\n");
             #if DEBUGG == 0
@@ -264,6 +264,14 @@ void precharge(){
             state = SHITDOWN;
             return;
             #endif
+        }
+
+        // check ts_active status
+        if((!acu.ts_active) && check_ts_active){
+        print_lpuart("(¬_¬\") Precharge cancelled\n");
+            state = SHITDOWN;
+            check_ts_active = false;
+            return;
         }
 
         if(state != PRECHARGE){
