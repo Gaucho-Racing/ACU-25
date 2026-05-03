@@ -102,7 +102,7 @@ typedef struct {
     uint32_t cur_LastHighTime;
     uint32_t lastChrgRecieveTime;
 
-    // 0: AIR+ | 1: AIR- | 2: Precharge | 3: ACU_latch (1: Closed | 0: Open)
+    // |x|x|x|x| 0: AIR+ | 1: AIR- | 2: Precharge | 3: ACU_latch (1: Closed | 0: Open)
     uint8_t relay_state; 
 
     // ACU errors/warnings

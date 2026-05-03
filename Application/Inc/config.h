@@ -82,7 +82,7 @@
 #define AIR_PLUS   0b1000 // IR- : 0: Open, 1: Closed
 #define AIR_MINUS  0b0100 // IR+ : 0: Open, 1: Closed
 #define RELAY_PRE  0b0010 // Precharge 0: Open, 1: Closed
-#define ACU_LATCH  0b0001 // ACU Latch / Software Latch
+#define ACU_LATCH  0b0001 // ACU Latch / Software Latch (inverted)
 
 // IMD error masks
 #define IMD_ERROR_ACTIVE    0b10000000000U

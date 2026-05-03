@@ -469,7 +469,7 @@ void dequeue(ACU* acu){
             CAN_TxData[6] = acu->acu_err_warns & ACU_PRECHARGE >> 8; // takes precharge error to lsb
             CAN_TxData[6] |= (acu->relay_state & AIR_MINUS) >> 1;
             CAN_TxData[6] |= (acu->relay_state & AIR_PLUS) >> 1;
-            CAN_TxData[6] |= (acu->relay_state & ACU_LATCH) << 3; 
+            CAN_TxData[6] |= ((acu->relay_state & ACU_LATCH) ^ ACU_LATCH) << 3; 
 
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Status_2 failed...\n");
@@ -903,7 +903,7 @@ void print_imd_err_warn(ACU* acu){
 void print_relay_status(uint8_t relay){
     print_lpuart("Relay: ----------------------------------\n");
     char buff[100];
-    sprintf(buff, "Relay (HEX): %02X\n", relay);
+    sprintf(buff, "IR+%s | IR-%s | Prechg%s | SDC%s\n", (relay&AIR_PLUS)?"🟢":"⚫", (relay&AIR_MINUS)?"🟢":"⚫", (relay&RELAY_PRE)?"🟢":"⚫", (relay&ACU_LATCH)?"⚫":"🟢");
     print_lpuart(buff);
 }
 
