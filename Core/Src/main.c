@@ -301,7 +301,7 @@ int main(void)
   TxHeader_Data.TxFrameType = FDCAN_DATA_FRAME;
   TxHeader_Data.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
   TxHeader_Data.BitRateSwitch = FDCAN_BRS_OFF;
-  TxHeader_Data.FDFormat = FDCAN_CLASSIC_CAN;
+  TxHeader_Data.FDFormat = FDCAN_FD_CAN;
   TxHeader_Data.TxEventFifoControl = FDCAN_NO_TX_EVENTS; 
 
   TxHeader_Charger.IdType = FDCAN_EXTENDED_ID;

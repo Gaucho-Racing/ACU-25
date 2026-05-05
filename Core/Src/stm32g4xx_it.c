@@ -279,11 +279,11 @@ void TIM7_DAC_IRQHandler(void)
   if(delaying == 0){
     // queue data to send occasionally
     delaying = 500;
-    // enqueue(ACU_Cell_Data_1, FDCAN2);
-    // enqueue(ACU_Cell_Data_2, FDCAN2);
-    // enqueue(ACU_Cell_Data_3, FDCAN2);
-    // enqueue(ACU_Cell_Data_4, FDCAN2);
-    // enqueue(ACU_Cell_Data_5, FDCAN2);
+    enqueue(ACU_Cell_Data_1, FDCAN2);
+    enqueue(ACU_Cell_Data_2, FDCAN2);
+    enqueue(ACU_Cell_Data_3, FDCAN2);
+    enqueue(ACU_Cell_Data_4, FDCAN2);
+    enqueue(ACU_Cell_Data_5, FDCAN2);
     enqueue(ACU_Status_1,FDCAN1);
     enqueue(ACU_Status_2,FDCAN1);
     // enqueue(ACU_Charger_Control, FDCAN3);

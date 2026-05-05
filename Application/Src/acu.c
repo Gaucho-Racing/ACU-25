@@ -431,15 +431,6 @@ void dequeue(ACU* acu){
             }
             CAN_1_flag = 0;
             break;   
-        case 4:
-            memcpy(CAN_TxData, CAN_RxData, 64*sizeof(uint8_t));
-            TxHeader.Identifier = ACU_Debug_FD;
-            TxHeader.DataLength = FDCAN_DLC_BYTES_64;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
-                print_lpuart("ACU_Debug_FD > hfdcan1 failed...\n");
-            }
-            CAN_1_flag = 0;
-            break;
         case 5: // ACU_Status_1
             TxHeader.Identifier = ACU_Status_1;
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
@@ -496,14 +487,22 @@ void dequeue(ACU* acu){
             break;
         case 2: // ACU_Ping_ECU
             memcpy(CAN_TxData, CAN_RxData, 4*sizeof(uint8_t));
-            TxHeader.Identifier = ACU_Ping_ECU; // @attention check if it's sent through CAN1 or CAN2
-            TxHeader.DataLength = FDCAN_DLC_BYTES_4;
-            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, CAN_TxData) != HAL_OK) {
+            TxHeader_Data.Identifier = ACU_Ping_ECU; // @attention check if it's sent through CAN1 or CAN2
+            TxHeader_Data.DataLength = FDCAN_DLC_BYTES_4;
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Ping_ECU > hfdcan2 failed...\n");
             }
             CAN_2_flag = 0;
             break;
-        case 3: // ACU_Cell_Data_1
+        case 3: // ACU_Debug_FD
+            TxHeader_Data.Identifier = ACU_Debug_2_Debug;
+            TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
+            if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK){
+                print_lpuart("ACU_Debug_FD failed...\n");
+            }
+            CAN_1_flag = 0;
+            break;
+        case 4: // ACU_Cell_Data_1
             TxHeader_Data.Identifier = ACU_Cell_Data_1;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
@@ -518,7 +517,7 @@ void dequeue(ACU* acu){
             }
             CAN_2_flag = 0;
             break;
-        case 4: // ACU_Cell_Data_2
+        case 5: // ACU_Cell_Data_2
             TxHeader_Data.Identifier = ACU_Cell_Data_2;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
@@ -533,7 +532,7 @@ void dequeue(ACU* acu){
             }
             CAN_2_flag = 0;
             break;
-        case 5: // ACU_Cell_Data_3
+        case 6: // ACU_Cell_Data_3
             TxHeader_Data.Identifier = ACU_Cell_Data_3;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
@@ -548,7 +547,7 @@ void dequeue(ACU* acu){
             }
             CAN_2_flag = 0;
             break;
-        case 6: // ACU_Cell_Data_4
+        case 7: // ACU_Cell_Data_4
             TxHeader_Data.Identifier = ACU_Cell_Data_4;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_64;
 
@@ -563,7 +562,7 @@ void dequeue(ACU* acu){
             }
             CAN_2_flag = 0;
             break;
-        case 7: // ACU_Cell_Data_5
+        case 8: // ACU_Cell_Data_5
             TxHeader_Data.Identifier = ACU_Cell_Data_5;
             TxHeader_Data.DataLength = FDCAN_DLC_BYTES_24;
 
@@ -722,7 +721,7 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
                 return;
             }
             __disable_irq();
-            data_q[d_top] = 6;
+            data_q[d_top] = 7;
             d_top++; d_level++;
             __enable_irq();  
             break;    
@@ -731,7 +730,7 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
                 return;
             }
             __disable_irq();
-            data_q[d_top] = 7;
+            data_q[d_top] = 8;
             d_top++; d_level++;
             __enable_irq();  
             break;     
@@ -1024,9 +1023,11 @@ void write_bms_ok(bool state){
 void write_IRneg(bool state){
     if (state){
         LL_GPIO_SetOutputPin(GPIOC, LL_GPIO_PIN_5);
+        LL_GPIO_SetOutputPin(GPIOB, LL_GPIO_PIN_9);
     }
     else{
-        LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_5); 
+        LL_GPIO_ResetOutputPin(GPIOC, LL_GPIO_PIN_5);
+        LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_9);
     }
 }
 
