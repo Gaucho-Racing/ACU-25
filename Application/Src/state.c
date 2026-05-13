@@ -115,7 +115,7 @@ void init(){
     // start the cooked counter
     uint8_t counter = TRIES;
     while (bcc_error != BCC_STATUS_SUCCESS /*&& counter > 0*/){ 
-        BCC_MCU_WaitMs(10);
+        BCC_MCU_WaitMs(100);
         print_lpuart("(¬_¬\") Trying BCC_Init again\n");
         bcc_error = BCC_Init(&(battery.drvConfig)); 
         print_bcc_status(bcc_error);

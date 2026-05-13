@@ -174,6 +174,8 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
                     #endif
                 }
             }
+            measurements[0] += 5000; // compensate for offset, idk why
+            measurements[13] += 5000;
             for (uint8_t j = 0; j < NUM_CELL_IC; j++){
                 bty->cell_volt[GET_INDEX(i, j)] = measurements[j] * 1e-6f;
                 battery_total_volt_temp += (measurements[j] * 1e-6f);
@@ -580,13 +582,13 @@ void print_voltage(Battery *bty){
             sprintf(print_buffer, "C%u: %.3f | ", j, bty->cell_volt[GET_INDEX(i, j)]);
             print_lpuart(print_buffer);
         }
-        bzero(print_buffer, 1000U);
+        // bzero(print_buffer, 1000U);
         bzero(print_buffer, sizeof(print_buffer));
         sprintf(print_buffer, "\nStack Voltage: %.3f | Calculated Stack: %.3f\n", bty->stack_voltage[i], bty->calculated_stack_voltage[i]);
         print_lpuart(print_buffer);
     }
-    sprintf(print_buffer, "Min: %.3f | Max: %.3f | UV: %.3f | OV: %.3f | Errors: %u\n", 
-        bty->min_cell_volt, bty->max_cell_volt, bty->min_volt_thresh, bty->max_volt_thresh, bty->cell_volt_errors);
+    sprintf(print_buffer, "Min: %.3f | Max: %.3f | Total: %.3f | UV: %.3f | OV: %.3f | Errors: %u\n", 
+        bty->min_cell_volt, bty->max_cell_volt, bty->battery_total_voltage, bty->min_volt_thresh, bty->max_volt_thresh, bty->cell_volt_errors);
     print_lpuart(print_buffer);
     // print_lpuart("-----------------------------------------\n");
 }

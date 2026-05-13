@@ -441,7 +441,7 @@ void dequeue(ACU* acu){
             CAN_TxData[3] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) >> 8) & 0xFF;
             CAN_TxData[4] = (uint8_t)((int8_t)(acu->ts_current * 100.0f) & 0xFF);         
             CAN_TxData[5] = (((uint16_t)(acu->ts_current * 100.0f) >> 8) & 0xFF);  
-            CAN_TxData[6] = (uint8_t)(acu->bat_soc * 51.0f * 0.2f);
+            CAN_TxData[6] = (uint8_t)(acu->bat_soc * 255.0f);
             CAN_TxData[7] = (uint8_t)(calculate_glv_soc(acu) * 51.0f * 0.2f);
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
                 print_lpuart("ACU_Status_1 failed...\n");
@@ -782,25 +782,29 @@ float map(float x, float in_min, float in_max, float out_min, float out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
-/// @attention @OWEN PLS CHECK IF THIS IS RIGHT
 float calculate_acu_soc(ACU* acu){
-    float min_cell_open_volt = acu->bty->min_cell_volt + acu->ts_current*0.33333333f * CELL_INT_RESISTANCE * NUM_TOTAL_IC * NUM_CELL_IC;
+    float min_cell_open_volt = acu->bty->min_cell_volt + acu->ts_current*0.5f * CELL_INT_RESISTANCE * NUM_TOTAL_IC * NUM_CELL_IC;
     // float zero_chg_volt = NUM_TOTAL_IC * 16U * CELL_EMPTY_VOLTAGE;
     // float full_chg_volt = NUM_TOTAL_IC * 16U * CELL_FULL_VOLTAGE;
     // acu->bat_soc += (map(cell_open_volt, zero_chg_volt, full_chg_volt, 0.0F, 255.0F) - acu->bat_soc) * 0.1;
     // return acu->bat_soc;
     uint16_t i = 1;
-        for(; i < CELL_CHGR_ARR_SIZE; i++) {
-            if(cell_volts_tbl[i] > min_cell_open_volt) break;
-        }
-        float minCellCharge = cell_charge_tbl[0] - map(min_cell_open_volt, cell_volts_tbl[i-1], cell_volts_tbl[i], cell_charge_tbl[i-1], cell_charge_tbl[i]);
-        acu->bat_soc += (map(minCellCharge, 0.0f, cell_charge_tbl[0], 0.0f, 1.0f) - acu->bat_soc) * 0.1;
-        return acu->bat_soc;
+    for(; i < CELL_CHGR_ARR_SIZE; i++) {
+        if(cell_volts_tbl[i] > min_cell_open_volt) break;
+    }
+    float minCellCharge = cell_charge_tbl[0] - map(min_cell_open_volt, cell_volts_tbl[i-1], cell_volts_tbl[i], cell_charge_tbl[i-1], cell_charge_tbl[i]);
+    acu->bat_soc += (map(minCellCharge, 0.0f, cell_charge_tbl[0], 0.0f, 1.0f) - acu->bat_soc) * 0.1;
+    return acu->bat_soc;
 }
 
-/// @attention @OWEN PLS CHECK IF THIS IS RIGHT
 float calculate_glv_soc(ACU* acu){
-    return (acu->voltage_12v) / 12.0f; // ehhh this could also be wrong
+    uint16_t i = 1;
+    float GLV_batt_single_volt = acu->voltage_12v * 0.2f;
+    for(; i < CELL_CHGR_ARR_SIZE; i++) {
+        if(cell_volts_tbl[i] > GLV_batt_single_volt) break;
+    }
+    float minCellCharge = cell_charge_tbl[0] - map(GLV_batt_single_volt, cell_volts_tbl[i-1], cell_volts_tbl[i], cell_charge_tbl[i-1], cell_charge_tbl[i]);
+    return map(minCellCharge, 0.0f, cell_charge_tbl[0], 0.0f, 1.0f);
 }
 
 /// @brief just prints adc_data
