@@ -470,6 +470,9 @@ bool check_volt(Battery *bty) {
                     bty->battery_check_faults |= BATTERY_FAULT_CELL_OV;
                     success = 0;
                 }
+                sprintf(print_buffer, "Volt error IC%u C%u %f %u\n",
+                    i, j, bty->cell_volt[i*NUM_CELL_IC + j], bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]);
+                print_lpuart(print_buffer);
             }
 
             // min_volt check
@@ -481,6 +484,9 @@ bool check_volt(Battery *bty) {
                     bty->battery_check_faults |= BATTERY_FAULT_CELL_UV;
                     success = 0;
                 }
+                sprintf(print_buffer, "Volt error IC%u C%u %f %u\n",
+                    i, j, bty->cell_volt[i*NUM_CELL_IC + j], bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]);
+                print_lpuart(print_buffer);
             }
 
             else{

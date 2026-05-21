@@ -89,6 +89,7 @@ typedef struct {
     // 0:ts_current, 1:ts_voltage, 2:sdc_volt_w, 3:sdc_volt_v, 4:voltage_12v,5:water_sense
     volatile float ts_voltage;  // ts_v
     volatile float ts_current;  // uc_ts_i
+    volatile float ts_current_os; // current sensor voltage offset
     volatile float sdc_volt_w;  // sdcw_w => AFTER ACU latch
     volatile float sdc_volt_v;  // sdcv_v => BEFORE ACU latch
     volatile float voltage_12v; // glv voltage

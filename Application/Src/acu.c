@@ -435,14 +435,14 @@ void dequeue(ACU* acu){
             TxHeader.Identifier = ACU_Status_1;
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
  
-            CAN_TxData[0] = (((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) & 0xFF); 
-            CAN_TxData[1] = ((((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) >> 8) & 0xFF); 
-            CAN_TxData[2] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) & 0xFF); 
+            CAN_TxData[0] = (((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) & 0xFF);
+            CAN_TxData[1] = ((((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) >> 8) & 0xFF);
+            CAN_TxData[2] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) & 0xFF);
             CAN_TxData[3] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) >> 8) & 0xFF;
-            CAN_TxData[4] = (uint8_t)((int8_t)(acu->ts_current * 100.0f) & 0xFF);         
-            CAN_TxData[5] = (((uint16_t)(acu->ts_current * 100.0f) >> 8) & 0xFF);  
+            CAN_TxData[4] = (uint8_t)((int8_t)(acu->ts_current * 100.0f) & 0xFF);
+            CAN_TxData[5] = (((uint16_t)(acu->ts_current * 100.0f) >> 8) & 0xFF);
             CAN_TxData[6] = (uint8_t)(acu->bat_soc * 255.0f);
-            CAN_TxData[7] = (uint8_t)(calculate_glv_soc(acu) * 51.0f * 0.2f);
+            CAN_TxData[7] = (uint8_t)(calculate_glv_soc(acu) * 255.0f);
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
                 print_lpuart("ACU_Status_1 failed...\n");
             }
@@ -770,7 +770,13 @@ uint8_t fconstrain(float value){
 /// @brief updates adc_data[]
 /// @param acu 
 void update_adc_data(ACU* acu){
-    acu->ts_current += ((adc_data[0] * 0.0005f - 1.235f) * 200.0f - acu->ts_current) * 0.05f; // 5mV/A
+    if (get_state() == 1 || get_state() == 5) {
+        acu->ts_current_os += ((adc_data[0] * 0.0005f - 1.235f) * -200.0f - acu->ts_current_os) * 0.01f; // 5mV/A
+        acu->ts_current = 0.0f;
+    }
+    else {
+        acu->ts_current += ((adc_data[0] * 0.0005f - 1.235f) * -200.0f - acu->ts_current - acu->ts_current_os) * 0.01f; // 5mV/A
+    }
     acu->ts_voltage += (adc_data[1] * 0.0005f * 400.0f - acu->ts_voltage) * 0.2f; // 1:400 voltage divider
     acu->sdc_volt_w += (adc_data[2] * 0.0005f * 10.0f - acu->sdc_volt_w) * 0.2f; // 1:10 voltage divider
     acu->sdc_volt_v += (adc_data[3] * 0.0005f * 10.0f - acu->sdc_volt_v) * 0.2f; // 1:10 voltage divider
@@ -783,7 +789,7 @@ float map(float x, float in_min, float in_max, float out_min, float out_max) {
 }
 
 float calculate_acu_soc(ACU* acu){
-    float min_cell_open_volt = acu->bty->min_cell_volt + acu->ts_current*0.5f * CELL_INT_RESISTANCE * NUM_TOTAL_IC * NUM_CELL_IC;
+    float min_cell_open_volt = acu->bty->min_cell_volt + acu->ts_current*0.5f * CELL_INT_RESISTANCE;
     // float zero_chg_volt = NUM_TOTAL_IC * 16U * CELL_EMPTY_VOLTAGE;
     // float full_chg_volt = NUM_TOTAL_IC * 16U * CELL_FULL_VOLTAGE;
     // acu->bat_soc += (map(cell_open_volt, zero_chg_volt, full_chg_volt, 0.0F, 255.0F) - acu->bat_soc) * 0.1;

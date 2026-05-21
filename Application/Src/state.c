@@ -301,6 +301,16 @@ void precharge(){
             print_lpuart("Charger_Data received!\n");
             goToCharge = 1;
         }
+
+        if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
+            print_lpuart("¯\\_(ツ)_/¯ PreCharge (250) SDC volt dropped\n");
+            acu.acu_err_warns |= ACU_PRECHARGE;
+            // enqueue(ACU_Status_2, FDCAN1);
+            #if DEBUGG == 0
+            state = SHITDOWN;
+            return;
+            #endif
+        }
         
         // actively check total_voltage vs ts_voltage just in case
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){

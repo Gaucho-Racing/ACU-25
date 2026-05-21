@@ -32,7 +32,7 @@
 #define MIN_GLV_VOLT 4.0f // change this on final build
 #define MAX_GLV_VOLT 21.67f
 #define ERRMG_ISNS_VREF 0.2f
-#define STACK_VOLT_DIFF 1.0f
+#define STACK_VOLT_DIFF 2.0f
 #define MAX_READ_COUNT 8
 #define TRIES 5 // defines how many times we can retry an action
 
@@ -100,8 +100,8 @@
 // error margins
 #define GLV_SDC_LOW 3.0f
 #define SDC_HIGH 9.0f
-#define ERRMG_ACU_ERR 10
-#define ERRMG_BMS_ERR 5
+#define ERRMG_ACU_ERR 100
+#define ERRMG_BMS_ERR 100
 
 // datatype
 #define UNSIGNED_16 0
@@ -133,11 +133,11 @@
 // ACU_Ping_Debug               0x300201    // FLAG = 1 (CAN2)
 // ACU_Ping_ECU                 0x300202    // FLAG = 2 (CAN2)
 #define ACU_Debug_FD            0x300101    // FLAG = 3 (CAN2)
-#define ACU_Cell_Data_1         0x300DFF    // FLAG = 4 (CAN2)
-#define ACU_Cell_Data_2         0x300EFF    // FLAG = 5 (CAN2)
-#define ACU_Cell_Data_3         0x300FFF    // FLAG = 6 (CAN2)
-#define ACU_Cell_Data_4         0x3010FF    // FLAG = 7 (CAN2)
-#define ACU_Cell_Data_5         0x3011FF    // FLAG = 8 (CAN2)
+#define ACU_Cell_Data_1         0x300D00    // FLAG = 4 (CAN2)
+#define ACU_Cell_Data_2         0x300E00    // FLAG = 5 (CAN2)
+#define ACU_Cell_Data_3         0x300F00    // FLAG = 6 (CAN2)
+#define ACU_Cell_Data_4         0x301000    // FLAG = 7 (CAN2)
+#define ACU_Cell_Data_5         0x301100    // FLAG = 8 (CAN2)
 
 // CAN3
 #define ACU_Charger_Control     0x1806E5F4  // FLAG = 1 (CAN3)
