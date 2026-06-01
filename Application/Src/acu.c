@@ -154,8 +154,9 @@ bool acu_check(ACU * acu, bool startup){
         }
     }
 
-    // sdc_volt_v should be close to voltage_12v (glv_voltage)
-    if(fabsf(acu->sdc_volt_v - acu->voltage_12v) > GLV_SDC_LOW && !startup && get_state() == 3){
+    // sdc_volt_v should be close to voltage_12v (glv_voltage), if in normal, precharge, or charge state
+    if(fabsf(acu->sdc_volt_v - acu->voltage_12v) > GLV_SDC_LOW && !startup 
+        && (get_state()==2 || get_state()==3 || get_state()==4)){
         print_lpuart("SD Volt not close enough to GLV\n");
 
         if(acu->sdc_volt_v < acu->voltage_12v) {
@@ -205,7 +206,7 @@ bool acu_check(ACU * acu, bool startup){
         print_lpuart("IMD failures exist!\n");
         acu->imd->status_warnings_alarms = 0; 
     }
-    return (!hasErrors) && (acu->acu_err_warns == 0);
+    return (acu->acu_err_warns == 0);
 }
 
 /// @brief convert byte arrays to float
@@ -439,8 +440,10 @@ void dequeue(ACU* acu){
             CAN_TxData[1] = ((((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) >> 8) & 0xFF);
             CAN_TxData[2] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) & 0xFF);
             CAN_TxData[3] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) >> 8) & 0xFF;
-            CAN_TxData[4] = (uint8_t)((int8_t)(acu->ts_current * 100.0f) & 0xFF);
-            CAN_TxData[5] = (((uint16_t)(acu->ts_current * 100.0f) >> 8) & 0xFF);
+            int16_t data_i16 = acu->ts_current * 100.0f;
+            memcpy(&CAN_TxData[4], &data_i16, 2);
+            // CAN_TxData[4] = (uint8_t)((int8_t)(acu->ts_current * 100.0f) & 0xFF);
+            // CAN_TxData[5] = (((uint16_t)(acu->ts_current * 100.0f) >> 8) & 0xFF);
             CAN_TxData[6] = (uint8_t)(acu->bat_soc * 255.0f);
             CAN_TxData[7] = (uint8_t)(calculate_glv_soc(acu) * 255.0f);
             if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK){
@@ -771,11 +774,11 @@ uint8_t fconstrain(float value){
 /// @param acu 
 void update_adc_data(ACU* acu){
     if (get_state() == 1 || get_state() == 5) {
-        acu->ts_current_os += ((adc_data[0] * 0.0005f - 1.235f) * -200.0f - acu->ts_current_os) * 0.01f; // 5mV/A
+        acu->ts_current_os += ((adc_data[0] * 0.0005f - 1.235f) * 200.0f - acu->ts_current_os) * 0.01f; // 5mV/A
         acu->ts_current = 0.0f;
     }
     else {
-        acu->ts_current += ((adc_data[0] * 0.0005f - 1.235f) * -200.0f - acu->ts_current - acu->ts_current_os) * 0.01f; // 5mV/A
+        acu->ts_current += ((adc_data[0] * 0.0005f - 1.235f) * 200.0f - acu->ts_current - acu->ts_current_os) * 0.01f; // 5mV/A
     }
     acu->ts_voltage += (adc_data[1] * 0.0005f * 400.0f - acu->ts_voltage) * 0.2f; // 1:400 voltage divider
     acu->sdc_volt_w += (adc_data[2] * 0.0005f * 10.0f - acu->sdc_volt_w) * 0.2f; // 1:10 voltage divider

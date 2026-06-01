@@ -389,7 +389,7 @@ int main(void)
     }
     cps++;
     if(HAL_GetTick() - prev >= 1000){ // debug every 1 second
-      prev += 1000;
+      while(HAL_GetTick() - prev >= 1000)prev += 1000;
       #if DEBUG_MODE == 0
       debug();
       sprintf(print_buffer, "%ucps\n", cps);

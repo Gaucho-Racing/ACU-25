@@ -20,7 +20,7 @@
 
 #define DEBUG_MODE 0
 
-#define DUMP_BCC_ERROR 0
+#define DUMP_BCC_ERROR 1
 
 #define DUMP_TARGETS 0
 #define DUMP_ADC_DATA 1

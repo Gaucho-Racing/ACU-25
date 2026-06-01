@@ -100,8 +100,8 @@
 // error margins
 #define GLV_SDC_LOW 3.0f
 #define SDC_HIGH 9.0f
-#define ERRMG_ACU_ERR 100
-#define ERRMG_BMS_ERR 100
+#define ERRMG_ACU_ERR 50
+#define ERRMG_BMS_ERR 10
 
 // datatype
 #define UNSIGNED_16 0

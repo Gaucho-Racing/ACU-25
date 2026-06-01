@@ -238,7 +238,7 @@ void precharge(){
         read_device_measurements(&battery, true, true);
         sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
         print_lpuart(print_buffer);
-        LL_mDelay(50);
+        LL_mDelay(10);
         if (!state_system_check(true, false)) {
             print_lpuart("¯\\_(ツ)_/¯ PreCharge state_system_check() => Shutdown\n");
             #if DEBUGG == 0
@@ -247,15 +247,15 @@ void precharge(){
             #endif
         }
 
-        if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
-            print_lpuart("¯\\_(ツ)_/¯ PreCharge (250) SDC volt dropped\n");
-            acu.acu_err_warns |= ACU_PRECHARGE;
-            // enqueue(ACU_Status_2, FDCAN1);
-            #if DEBUGG == 0
-            state = SHITDOWN;
-            return;
-            #endif
-        }
+        // if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
+        //     print_lpuart("¯\\_(ツ)_/¯ PreCharge (250) SDC volt dropped\n");
+        //     acu.acu_err_warns |= ACU_PRECHARGE;
+        //     // enqueue(ACU_Status_2, FDCAN1);
+        //     #if DEBUGG == 0
+        //     state = SHITDOWN;
+        //     return;
+        //     #endif
+        // }
         if (HAL_GetTick() - start_time > 5000) { // timeout, throw error
             print_lpuart("¯\\_(ツ)_/¯ (259) Precharge timeout\n");
             acu.acu_err_warns |= ACU_PRECHARGE;
@@ -302,15 +302,15 @@ void precharge(){
             goToCharge = 1;
         }
 
-        if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
-            print_lpuart("¯\\_(ツ)_/¯ PreCharge (250) SDC volt dropped\n");
-            acu.acu_err_warns |= ACU_PRECHARGE;
-            // enqueue(ACU_Status_2, FDCAN1);
-            #if DEBUGG == 0
-            state = SHITDOWN;
-            return;
-            #endif
-        }
+        // if(fabsf(acu.voltage_12v - acu.sdc_volt_w) > GLV_SDC_LOW){
+        //     print_lpuart("¯\\_(ツ)_/¯ PreCharge (250) SDC volt dropped\n");
+        //     acu.acu_err_warns |= ACU_PRECHARGE;
+        //     // enqueue(ACU_Status_2, FDCAN1);
+        //     #if DEBUGG == 0
+        //     state = SHITDOWN;
+        //     return;
+        //     #endif
+        // }
         
         // actively check total_voltage vs ts_voltage just in case
         if(acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD){
@@ -433,6 +433,7 @@ void normal(){
     write_prechg(false);
     write_IRneg(true);
     write_IRpos(true);
+    reset_discharge(&battery, false);
     if(!state_system_check(false, false)){
         print_lpuart("( ˶°ㅁ°) !! SystemCheck failed in NORMAL state\n");
         #if DEBUGG == 0

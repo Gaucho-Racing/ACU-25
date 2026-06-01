@@ -288,12 +288,16 @@ bool do_cell_balancing(Battery * bty){
     {
         // uint8_t to_discharge = 0;
         for(uint8_t j = 0; j < NUM_CELL_IC; j++){
-            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold || bty->cell_volt[i*NUM_CELL_IC + j] - bty->min_cell_volt > 0.002f)){
+            if((bty->cell_volt[i*NUM_CELL_IC+j] > threshold 
+                || bty->cell_volt[i*NUM_CELL_IC+j] - bty->min_cell_volt > 0.01f)
+                && bty->icTemp[i] < IC_MAX_TEMP - 1){
                 // to_discharge = 1;
                 if ((bcc_error = set_cell_balance(bty, (bcc_cid_t)(i), j, 0, 1))!= BCC_STATUS_SUCCESS){ 
                     print_bcc_status(bcc_error);
                     return false;
                 }
+                // sprintf(print_buffer, "%u\n", i*NUM_CELL_IC+j);
+                // print_lpuart(print_buffer);
             }else{
                 if ((bcc_error = set_cell_balance(bty, (bcc_cid_t)(i), j, 0, 0))!= BCC_STATUS_SUCCESS){ 
                     print_bcc_status(bcc_error);
@@ -341,7 +345,7 @@ bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, b
                     print_bcc_status(errors);
                     bcc_error = errors;
                 }
-                bty->cell_balancing[GET_INDEX(i, j)] = enable == true ? 1 : 0;
+                bty->cell_balancing[i * NUM_CELL_IC + j] = enable == true ? 1 : 0;
             }
         }
         return bcc_error;
@@ -356,11 +360,11 @@ bcc_status_t set_cell_balance(Battery * bty, bcc_cid_t cid, uint8_t cellIndex, b
         // set individuals
         if((bcc_error = BCC_CB_SetIndividual(&(bty->drvConfig), (bcc_cid_t)(cid+1), cellIndex, enable, 0)) != BCC_STATUS_SUCCESS) {
             bzero(print_buffer, sizeof(print_buffer));
-            sprintf(print_buffer, "Error IC %d, Cell %d: ", (int)(cid+1), (int)(cellIndex));
+            sprintf(print_buffer, "Error IC %d, Cell %d: ", (int)(cid), (int)(cellIndex));
             print_lpuart(print_buffer);
             return bcc_error;
         }
-        bty->cell_balancing[(uint8_t)cid*NUM_TOTAL_IC+cellIndex] = enable == true ? 1 : 0;
+        bty->cell_balancing[((uint8_t)cid)*NUM_CELL_IC+cellIndex] = enable == true ? 1 : 0;
     }
     return bcc_error;
 }
@@ -584,7 +588,7 @@ void print_voltage(Battery *bty){
         print_lpuart(print_buffer);
         for (uint8_t j = 0; j < NUM_CELL_IC; j++){
             if(j == 7){print_lpuart("\n");}
-            if(bty->cell_balancing[GET_INDEX(i, j)] == 1) print_lpuart("*");
+            if(bty->cell_balancing[i*NUM_CELL_IC+j] == 1) print_lpuart("*");
             sprintf(print_buffer, "C%u: %.3f | ", j, bty->cell_volt[GET_INDEX(i, j)]);
             print_lpuart(print_buffer);
         }
