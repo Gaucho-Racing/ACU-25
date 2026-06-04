@@ -27,6 +27,7 @@
 #include "acu.h"
 #include <string.h>
 #include "state.h"
+#include <ctype.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -364,7 +365,18 @@ void LPUART1_IRQHandler(void)
     if (search_ptr != NULL && (acu.is_VCP_override & OVERRIDE_STATE) != 0){
       if (strstr(search_ptr, " -i") != NULL) state = INIT;
       if (strstr(search_ptr, " -p") != NULL) state = PRECHARGE;
-      if (strstr(search_ptr, " -c") != NULL) state = CHARGE;
+      if (strstr(search_ptr, " -c") != NULL) {
+        state = CHARGE;
+        char* p = strstr(search_ptr, " -c");
+        while (*p) {
+          if (isdigit(*p)) {
+            long val = strtol(p, &p, 10);
+            acu.target_chg_current = constrain(val * 0.1f, 0, 14);
+            break;
+          }
+          p++;
+        }
+      }
       if (strstr(search_ptr, " -n") != NULL) state = NORMAL;
       if (strstr(search_ptr, " -s") != NULL) state = SHITDOWN;
     }

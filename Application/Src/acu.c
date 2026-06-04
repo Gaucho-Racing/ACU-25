@@ -86,6 +86,7 @@ void acu_init(ACU * acu){
     acu->acu_err_warns = 0;
     
     acu->target_chg_voltage = NUM_CELL_IC * NUM_TOTAL_IC * CELL_FULL_VOLTAGE;
+    acu->target_chg_current = 2.0f;
     acu->bat_soc = 0.0f;
 
     acu->is_VCP_override = 0;
@@ -130,7 +131,7 @@ bool acu_check(ACU * acu, bool startup){
             acu->acu_err_warns |= ACU_ERR_OVER_CURR;
         }
     }
-    else if(acu->ts_current > MAX_HV_CURRENT*0.8f){
+    else if(acu->ts_current > MAX_HV_CURRENT){
         print_lpuart("High Current Warning\n"); 
     }
 
@@ -247,7 +248,7 @@ int16_t magical_union_chgr_rcv(uint8_t data[], bool weird){
 
 void magical_union_chgr_send(uint8_t * buffer, float data){
     memset(&unicorn, 0, sizeof(unicorn));
-    int16_t rounded = roundf(data * 10.0f);
+    int16_t rounded = roundf(data);
     unicorn.u16 = rounded;
     buffer[0] = unicorn.byts[1];
     buffer[1] = unicorn.byts[0];
@@ -392,6 +393,10 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             acu->imd->status_warnings_alarms = magical_union_u16(data+4);
             acu->imd->status_device_activity = data[6];
             break;
+        case DCDC_Data:
+            acu->DCDC_voltage = magical_union_u16(data+2) * 0.001f;
+            acu->DCDC_current = data[5] * 0.1f;
+            break;
         default:
             break;
     }
@@ -435,7 +440,6 @@ void dequeue(ACU* acu){
         case 5: // ACU_Status_1
             TxHeader.Identifier = ACU_Status_1;
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
- 
             CAN_TxData[0] = (((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) & 0xFF);
             CAN_TxData[1] = ((((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) >> 8) & 0xFF);
             CAN_TxData[2] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) & 0xFF);
@@ -462,7 +466,9 @@ void dequeue(ACU* acu){
             CAN_TxData[5] = (uint8_t)(acu->acu_err_warns & 0xFF); // takes [OT, OV, UV, OC, UC, UV_20v, UV_GLV, UV_SDC]
             CAN_TxData[6] = acu->acu_err_warns & ACU_PRECHARGE >> 8; // takes precharge error to lsb
             CAN_TxData[6] |= (acu->relay_state & AIR_MINUS) >> 1;
-            CAN_TxData[6] |= (acu->relay_state & AIR_PLUS) >> 1;
+            if ((acu->relay_state & AIR_PLUS) != 0 && (acu->relay_state & AIR_PLUS_PLUS) != 0) {
+                CAN_TxData[6] |= 0b100;
+            }
             CAN_TxData[6] |= ((acu->relay_state & ACU_LATCH) ^ ACU_LATCH) << 3; 
 
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
@@ -826,6 +832,17 @@ void print_adc_data(ACU *acu){
     print_lpuart(print_buffer);
 }
 
+/// @brief just prints DCDC data
+/// @param acu
+void print_dcdc_data(ACU *acu){
+    print_lpuart("DCDC Data: -------------------------------\n");
+    bzero(print_buffer, sizeof(print_buffer));
+    sprintf(print_buffer, "voltage: %.3f | current: %.3f\n", 
+        acu->DCDC_voltage, acu->DCDC_current);
+    print_lpuart(print_buffer);
+}
+
+
 /// @brief prints imd data
 /// @param acu 
 void print_imd_data(ACU* acu){
@@ -1103,7 +1120,7 @@ void sdc_reset(){
 /// @brief updates acu.relay_state based on relay control pins levels
 /// @param acu
 void update_relay_state(ACU* acu){
-    acu->relay_state = 0;
+    acu->relay_state &= 0b11110000;
     if(LL_GPIO_IsInputPinSet(GPIOC, LL_GPIO_PIN_4)){
         acu->relay_state |= AIR_PLUS;
     }

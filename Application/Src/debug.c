@@ -92,6 +92,7 @@ void debug(){
 
   #if DUMP_ADC_DATA == 1
   print_adc_data(&acu);
+  print_dcdc_data(&acu);
   #endif
 
   #if DUMP_ERR_WARN == 1

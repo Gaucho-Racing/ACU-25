@@ -150,20 +150,25 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
 
     for(uint8_t i = 0; i < NUM_TOTAL_IC; i++){
         bcc_error = BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true); // pause b4 read
-        if(bcc_error != BCC_STATUS_SUCCESS) {
+        while(bcc_error != BCC_STATUS_SUCCESS) {
             print_bcc_status(bcc_error);
+            bcc_cooked_count++;
+            if(bcc_cooked_count == 0){
+                set_state(INIT);
+                print_lpuart("\nerror in BCC_CB_Pause: ");
+                print_bcc_status(bcc_error);
+                #if DEBUGG == 0
+                return bcc_error;
+                #endif
+            }
             bcc_error = BCC_CB_Pause(&(bty->drvConfig), (bcc_cid_t)(i+1), true);
         }
 
         // CELL VOLTAGES
         if(read_volt){
             bcc_error = BCC_Meas_StartAndWait(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_AVG_1);
-            if(bcc_error != BCC_STATUS_SUCCESS) {
+            while(bcc_error != BCC_STATUS_SUCCESS) {
                 print_bcc_status(bcc_error);
-            }
-            bcc_error = BCC_Meas_GetCellVoltages(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
-            
-            if(bcc_error != BCC_STATUS_SUCCESS) {
                 bcc_cooked_count++;
                 if(bcc_cooked_count == 0){
                     set_state(INIT);
@@ -173,6 +178,21 @@ bcc_status_t read_device_measurements(Battery * bty, uint8_t read_volt, uint8_t 
                     return bcc_error;
                     #endif
                 }
+                BCC_Meas_StartAndWait(&(bty->drvConfig), (bcc_cid_t)(i+1), BCC_AVG_1);
+            }
+            bcc_error = BCC_Meas_GetCellVoltages(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
+            
+            while(bcc_error != BCC_STATUS_SUCCESS) {
+                bcc_cooked_count++;
+                if(bcc_cooked_count == 0){
+                    set_state(INIT);
+                    print_lpuart("\nerror in BCC_Meas_GetCellVoltages: ");
+                    print_bcc_status(bcc_error);
+                    #if DEBUGG == 0
+                    return bcc_error;
+                    #endif
+                }
+                bcc_error = BCC_Meas_GetCellVoltages(&(bty->drvConfig), (bcc_cid_t)(i+1), measurements);
             }
             measurements[0] += 5000; // compensate for offset, idk why
             measurements[13] += 5000;
@@ -474,9 +494,9 @@ bool check_volt(Battery *bty) {
                     bty->battery_check_faults |= BATTERY_FAULT_CELL_OV;
                     success = 0;
                 }
-                sprintf(print_buffer, "Volt error IC%u C%u %f %u\n",
-                    i, j, bty->cell_volt[i*NUM_CELL_IC + j], bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]);
-                print_lpuart(print_buffer);
+                // sprintf(print_buffer, "Volt error IC%u C%u %f %u\n",
+                //     i, j, bty->cell_volt[i*NUM_CELL_IC + j], bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]);
+                // print_lpuart(print_buffer);
             }
 
             // min_volt check
@@ -488,9 +508,9 @@ bool check_volt(Battery *bty) {
                     bty->battery_check_faults |= BATTERY_FAULT_CELL_UV;
                     success = 0;
                 }
-                sprintf(print_buffer, "Volt error IC%u C%u %f %u\n",
-                    i, j, bty->cell_volt[i*NUM_CELL_IC + j], bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]);
-                print_lpuart(print_buffer);
+                // sprintf(print_buffer, "Volt error IC%u C%u %f %u\n",
+                //     i, j, bty->cell_volt[i*NUM_CELL_IC + j], bty->cell_volt_err_cnt[i*NUM_CELL_IC + j]);
+                // print_lpuart(print_buffer);
             }
 
             else{
@@ -536,20 +556,20 @@ bool battery_check(Battery *bty, bool fullcheck){
     // check temp
     if(cycle == NUM_TOTAL_IC - 1){ // only check when all temps are up to date
         success = check_temp(bty);
-        if(!success) {
-            bzero(print_buffer, sizeof(print_buffer));
-            sprintf(print_buffer, "%d errors from check_temp()\n", bty->cell_temp_errors);
-            print_lpuart(print_buffer);
-        }
+        // if(!success) {
+        //     bzero(print_buffer, sizeof(print_buffer));
+        //     sprintf(print_buffer, "%d errors from check_temp()\n", bty->cell_temp_errors);
+        //     print_lpuart(print_buffer);
+        // }
     }
 
     // check volts
     success = check_volt(bty);
-    if(!success) {
-        bzero(print_buffer, sizeof(print_buffer));
-        sprintf(print_buffer, "%d errors from check_volt()\n", bty->cell_volt_errors);
-        print_lpuart(print_buffer);
-    }
+    // if(!success) {
+    //     bzero(print_buffer, sizeof(print_buffer));
+    //     sprintf(print_buffer, "%d errors from check_volt()\n", bty->cell_volt_errors);
+    //     print_lpuart(print_buffer);
+    // }
     return success;
 }
 

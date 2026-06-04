@@ -28,8 +28,9 @@
 #define IC_MAX_TEMP 80
 
 //acu limits
-#define MAX_HV_CURRENT 135
-#define MIN_GLV_VOLT 4.0f // change this on final build
+#define MAX_HV_CURRENT 140
+#define WARN_HV_CURRENT 50
+#define MIN_GLV_VOLT 11.0f // should be 12.5, lower to stay compatible for 12v charging box supply
 #define MAX_GLV_VOLT 21.67f
 #define ERRMG_ISNS_VREF 0.2f
 #define STACK_VOLT_DIFF 2.0f
@@ -79,6 +80,7 @@
 #define NO_CHARGE  1U
 
 // relay state muxes
+#define AIR_PLUS_PLUS 0b10000 // delay after precharge to make DCDC happy
 #define AIR_PLUS   0b1000 // IR- : 0: Open, 1: Closed
 #define AIR_MINUS  0b0100 // IR+ : 0: Open, 1: Closed
 #define RELAY_PRE  0b0010 // Precharge 0: Open, 1: Closed
@@ -98,9 +100,9 @@
 #define EARTH_LIFT_OPENN    0b00000000001U
 
 // error margins
-#define GLV_SDC_LOW 3.0f
+#define GLV_SDC_LOW 8.0f
 #define SDC_HIGH 9.0f
-#define ERRMG_ACU_ERR 50
+#define ERRMG_ACU_ERR 20
 #define ERRMG_BMS_ERR 10
 
 // datatype
@@ -109,7 +111,7 @@
 
 // ADC Warning Thresholds
 #define UNDER_VOLTAGE_20V 15
-#define UNDER_VOLTAGE_GLV 15
+#define UNDER_VOLTAGE_GLV 11
 #define UNDER_VOLTAGE_SDCV 9
 
 #define PRECHARGE_THRESHOLD 0.95f // fraction of total cell voltage
@@ -149,6 +151,7 @@
 #define Precharge_ACU           0x200A03    // ECU sends PRECHARGE to ACU (CAN1)
 #define Config_Charge_ACU       0x200B03    // ECU sends Charger Config to ACU (CAN1)
 #define Config_Ops_ACU          0x200C03    // ECU sends Operation Config to ACU (CAN1)
+#define DCDC_Data               0x2A01202UL   // Output voltage and current of HV DCDC converter
 
 // CAN2
 #define Debug_FD_ACU            0x100103    // Debugger sends Debug FD to ACU (CAN2)

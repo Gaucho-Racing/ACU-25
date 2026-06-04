@@ -78,7 +78,9 @@ void shitdown(){
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);
+    acu.relay_state &= ~AIR_PLUS_PLUS;
     enqueue(ACU_Charger_Control, FDCAN3);
+    acu.target_chg_current = 2.0f;
 
     //indicates to battery to stop charging
     reset_discharge(&battery, false); // TODO: double check this
@@ -103,6 +105,7 @@ void init(){
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);
+    acu.relay_state &= ~AIR_PLUS_PLUS;
     acu_init(&acu);
 
     if(first_init == true){
@@ -171,6 +174,7 @@ void standby(){
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);
+    acu.relay_state &= ~AIR_PLUS_PLUS;
     reset_discharge(&battery, false);
     if(state_system_check(false, false) == false){
         print_lpuart("𝓕𝓾𝓬𝓴\n");
@@ -328,6 +332,15 @@ void precharge(){
     write_prechg(false); // open precharge relay
     print_lpuart("Precharge complete, closing AIR+\n");
 
+    // delayed turn-on flag for DCDC
+    start_time = HAL_GetTick();
+    while (HAL_GetTick() - start_time < 1000) {
+        read_device_measurements(&battery, true, true);
+        LL_mDelay(100);
+    }
+    
+    acu.relay_state |= AIR_PLUS_PLUS;
+
     if(goToCharge){
         acu.chg_ctrl = PLS_CHARGE;
         state = CHARGE;
@@ -443,8 +456,10 @@ void normal(){
     }
 
     float totalV = get_total_voltage(&acu);
-    if (fabsf(acu.ts_voltage - totalV) > 80U) {
+    if (fabsf(acu.ts_voltage - totalV) > 80.0f) {
         print_lpuart("∘ ∘ ∘ ( °ヮ° ) ? TS voltage mismatch");
+        sprintf(print_buffer, "%f\n", acu.ts_voltage);
+        print_lpuart(print_buffer);
         tsVoltErrCount++;
         if (tsVoltErrCount >= ERRMG_ACU_ERR) {
             tsVoltErrCount = ERRMG_ACU_ERR;

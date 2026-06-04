@@ -103,8 +103,8 @@ typedef struct {
     uint32_t cur_LastHighTime;
     uint32_t lastChrgRecieveTime;
 
-    // |x|x|x|x| 0: AIR+ | 1: AIR- | 2: Precharge | 3: ACU_latch (1: Closed | 0: Open)
-    uint8_t relay_state; 
+    // |x|x|x| 4: precharge really complete | 3: AIR+ | 2: AIR- | 1: Precharge | 0: ACU_latch (1: Closed | 0: Open)
+    uint8_t relay_state;
 
     // ACU errors/warnings
     uint8_t acuErrCount; // cummulative error counts
@@ -112,6 +112,9 @@ typedef struct {
 
     // ACU PRECHARGE via TX
     uint8_t ts_active; // 0: shutdown, 1: go TS Active/Precharge
+
+    // DCDC current and voltage
+    float DCDC_current, DCDC_voltage;
 
     // VCP override
     uint8_t is_VCP_override; // [x|x|x|x|x|x|state override|error disable]
@@ -163,6 +166,7 @@ void print_charger_data(ACU* acu);
 void print_errors_warning(ACU * acu);
 float get_total_voltage(ACU* acu);
 void print_relay_status(uint8_t relay);
+void print_dcdc_data(ACU *acu);
 
 // helpers
 uint8_t fconstrain(float value);
