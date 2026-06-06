@@ -30,7 +30,7 @@
 //acu limits
 #define MAX_HV_CURRENT 140
 #define WARN_HV_CURRENT 50
-#define MIN_GLV_VOLT 11.0f // should be 12.5, lower to stay compatible for 12v charging box supply
+#define MIN_GLV_VOLT 13.0f
 #define MAX_GLV_VOLT 21.67f
 #define ERRMG_ISNS_VREF 0.2f
 #define STACK_VOLT_DIFF 2.0f
@@ -100,7 +100,7 @@
 #define EARTH_LIFT_OPENN    0b00000000001U
 
 // error margins
-#define GLV_SDC_LOW 8.0f
+#define GLV_SDC_LOW 3.0f
 #define SDC_HIGH 9.0f
 #define ERRMG_ACU_ERR 20
 #define ERRMG_BMS_ERR 10
@@ -111,7 +111,7 @@
 
 // ADC Warning Thresholds
 #define UNDER_VOLTAGE_20V 15
-#define UNDER_VOLTAGE_GLV 11
+#define UNDER_VOLTAGE_GLV 13
 #define UNDER_VOLTAGE_SDCV 9
 
 #define PRECHARGE_THRESHOLD 0.95f // fraction of total cell voltage

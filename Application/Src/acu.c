@@ -596,7 +596,7 @@ void dequeue(ACU* acu){
             TxHeader_Charger.Identifier = ACU_Charger_Control;
             TxHeader_Charger.DataLength = FDCAN_DLC_BYTES_5;
             magical_union_chgr_send(CAN_TxData, acu->target_chg_voltage * 10.0f);
-            magical_union_chgr_send(CAN_TxData+2, acu->target_chg_current * 10.0f);
+            magical_union_chgr_send(CAN_TxData+2, acu->bty->max_chg_current * 10.0f);
             CAN_TxData[4] = acu->chg_ctrl;
             if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan3, &TxHeader_Charger, CAN_TxData) != HAL_OK) {
                 print_lpuart("ACU_Charger_Control failed...\n");
