@@ -1,4 +1,5 @@
 #include "acu.h"
+#include "fastmath.h"
 
 extern uint8_t get_state();
 extern void print_lpuart(char* arr);
@@ -31,6 +32,11 @@ data_union unicorn;
 #define CELL_CHGR_ARR_SIZE 339
 const float cell_charge_tbl[] = {4627.54,4625.92,4624.54,4622.87,4621.72,4619.81,4618.07,4617.07,4615.09,4613.42,4611.82,4609.86,4607.96,4605.25,4603.26,4602.59,4600.89,4598.53,4596.67,4595.12,4594.24,4592.32,4590.77,4587.59,4585.82,4584.2,4582.35,4581.52,4579.47,4578.09,4576.29,4575.26,4573.49,4571.63,4569.04,4566.68,4564.69,4562.33,4559.81,4557.66,4554.64,4552.49,4549.27,4548.14,4544.93,4542.8,4540.59,4538.9,4536.47,4534.02,4531.63,4528.95,4526.18,4524.42,4521.84,4517.77,4514.97,4512,4507.87,4505.07,4502.77,4499.3,4495.07,4491.43,4487.02,4484.23,4479.72,4476.8,4474.06,4471.92,4468.68,4463.54,4460.4,4456.37,4451.16,4447.1,4442.15,4438.49,4434.88,4433.17,4428.66,4425.35,4420.02,4415.89,4410.34,4404.8,4400.44,4394.9,4389,4383.45,4377.3,4372.22,4369.26,4366.32,4360.4,4354.34,4349.17,4342.36,4335.8,4332.84,4326.94,4319.25,4314.74,4306.69,4300.11,4293.77,4287.18,4279.64,4269.74,4263.75,4257.63,4252.46,4244.99,4237.17,4229.24,4221.43,4215.22,4206.2,4200.74,4190.76,4182.05,4168.75,4160.68,4157.14,4148.79,4139.86,4126.85,4121.08,4111.93,4102.47,4092.19,4082.73,4073.28,4066.18,4056.72,4049.31,4040.02,4031.06,4021.25,4012.52,4004.7,3995.53,3984.59,3977.14,3967.75,3955.26,3948.99,3944.32,3934.29,3925.43,3914.93,3906.42,3899.19,3890.84,3880.72,3863.73,3853.01,3843.41,3834.77,3825,3813.2,3800.69,3791.7,3781.13,3767.74,3755.12,3742.17,3734.3,3722.77,3710.72,3698.45,3684.64,3670.17,3655.25,3641.88,3633.24,3618.45,3608.95,3593.94,3572.7,3553.74,3538.82,3525.61,3513.72,3500.56,3485.51,3471.01,3460.58,3445.57,3431.73,3417.37,3394.98,3374.76,3356.35,3337.21,3305.94,3276.68,3249.46,3206.92,3173.72,3157.99,3128.49,3107.51,3088.68,3073.79,3059.66,3041.47,3019.46,3001.45,2981.72,2962.89,2942.42,2929.78,2907.75,2886.4,2867.57,2846.13,2823.46,2800.63,2780.89,2758.59,2736.76,2719.79,2697.4,2673.67,2651.65,2631.19,2601.09,2583.81,2564.08,2534.88,2517.89,2494.68,2464.21,2447.3,2425.29,2396.08,2379.55,2357.53,2335.24,2319.79,2284.45,2269.25,2245.64,2219.57,2204.49,2182.68,2152.23,2128.34,2103.06,2081.86,2052.75,2030.65,2009.46,1987.45,1956.71,1920.29,1895.96,1869.63,1849.59,1825.16,1801.06,1769.25,1728.15,1700.51,1676.13,1642.28,1616.11,1586.92,1560,1532.11,1503.54,1474.7,1443.06,1423.32,1402.86,1378.55,1357.84,1336.85,1316.76,1294.86,1271.84,1252.9,1233.73,1215.88,1196.98,1177.18,1162.4,1138.75,1120.65,1108.18,1093.26,1077.7,1053.41,1036.94,1021.58,1001.07,982.52,968.03,944.32,923,900.06,880.41,863.43,834.11,813.08,794.26,761.75,729.25,676.58,616.79,557,487.74,418.47,369.77,321.07,272.38,244.14,215.9,187.67,169.83,151.99,134.15,119.55,104.94,90.34,75.74,66,56.26,46.53,40.04,33.55,27.06,20.57,14.08,10.56,7.04,3.52,0};
 const float cell_volts_tbl[] = {2.5,2.505,2.51,2.515,2.52,2.525,2.53,2.535,2.54,2.545,2.55,2.555,2.56,2.565,2.57,2.575,2.58,2.585,2.59,2.595,2.6,2.605,2.61,2.615,2.62,2.625,2.63,2.635,2.64,2.645,2.65,2.655,2.66,2.665,2.67,2.675,2.68,2.685,2.69,2.695,2.7,2.705,2.71,2.715,2.72,2.725,2.73,2.735,2.74,2.745,2.75,2.755,2.76,2.765,2.77,2.775,2.78,2.785,2.79,2.795,2.8,2.805,2.81,2.815,2.82,2.825,2.83,2.835,2.84,2.845,2.85,2.855,2.86,2.865,2.87,2.875,2.88,2.885,2.89,2.895,2.9,2.905,2.91,2.915,2.92,2.925,2.93,2.935,2.94,2.945,2.95,2.955,2.96,2.965,2.97,2.975,2.98,2.985,2.99,2.995,3,3.005,3.01,3.015,3.02,3.025,3.03,3.035,3.04,3.045,3.05,3.055,3.06,3.065,3.07,3.075,3.08,3.085,3.09,3.095,3.1,3.105,3.11,3.115,3.12,3.125,3.13,3.135,3.14,3.145,3.15,3.155,3.16,3.165,3.17,3.175,3.18,3.185,3.19,3.195,3.2,3.205,3.21,3.215,3.22,3.225,3.23,3.235,3.24,3.245,3.25,3.255,3.26,3.265,3.27,3.275,3.28,3.285,3.29,3.295,3.3,3.305,3.31,3.315,3.32,3.325,3.33,3.335,3.34,3.345,3.35,3.355,3.36,3.365,3.37,3.375,3.38,3.385,3.39,3.395,3.4,3.405,3.41,3.415,3.42,3.425,3.43,3.435,3.44,3.445,3.45,3.455,3.46,3.465,3.47,3.475,3.48,3.485,3.49,3.495,3.5,3.505,3.51,3.515,3.52,3.525,3.53,3.535,3.54,3.545,3.55,3.555,3.56,3.565,3.57,3.575,3.58,3.585,3.59,3.595,3.6,3.605,3.61,3.615,3.62,3.625,3.63,3.635,3.64,3.645,3.65,3.655,3.66,3.665,3.67,3.675,3.68,3.685,3.69,3.695,3.7,3.705,3.71,3.715,3.72,3.725,3.73,3.735,3.74,3.745,3.75,3.755,3.76,3.765,3.77,3.775,3.78,3.785,3.79,3.795,3.8,3.805,3.81,3.815,3.82,3.825,3.83,3.835,3.84,3.845,3.85,3.855,3.86,3.865,3.87,3.875,3.88,3.885,3.89,3.895,3.9,3.905,3.91,3.915,3.92,3.925,3.93,3.935,3.94,3.945,3.95,3.955,3.96,3.965,3.97,3.975,3.98,3.985,3.99,3.995,4,4.005,4.01,4.015,4.02,4.025,4.03,4.035,4.04,4.045,4.05,4.055,4.06,4.065,4.07,4.075,4.08,4.085,4.09,4.095,4.1,4.105,4.11,4.115,4.12,4.125,4.13,4.135,4.14,4.145,4.15,4.155,4.16,4.165,4.17,4.175,4.18,4.185,4.19};
+
+// Fan/Pump curves
+#define PUMP_TEMP_ARR_SIZE 11
+const int32_t pump_temp_tbl[] = {0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100};
+const int32_t pump_volt_tbl[] = {0,  0,  0,  0,  0, 50, 70, 90, 120,120,120};
 
 /// @brief converts data stored in ACU to one that can be sent over CAN bus
 /// @param offset offset
@@ -85,7 +91,7 @@ void acu_init(ACU * acu){
     acu->acuErrCount = 0;
     acu->acu_err_warns = 0;
     
-    acu->target_chg_voltage = NUM_CELL_IC * NUM_TOTAL_IC * CELL_FULL_VOLTAGE;
+    acu->target_chg_voltage = NUM_CELL_IC * NUM_TOTAL_IC * CELL_FULL_VOLTAGE * 1.01f;
     acu->target_chg_current = 2.0f;
     acu->bat_soc = 0.0f;
 
@@ -336,6 +342,20 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
             acu->bty->min_volt_thresh = magical_union_u16(data) * 0.1f;
             acu->bty->max_temp_thresh = magical_union_u16(data+2) * 0.1f;
             break;  
+        case FANPUMP_DATA:
+            acu->fan_pump->meas_voltage[0] = data[0];
+            acu->fan_pump->meas_voltage[1] = data[4];
+            acu->fan_pump->meas_voltage[2] = data[6];
+            acu->fan_pump->meas_current[0] = data[1];
+            acu->fan_pump->meas_current[1] = data[5];
+            acu->fan_pump->meas_current[2] = data[7];
+            acu->fan_pump->RPM[0] = data[2] * 50;
+            acu->fan_pump->RPM[1] = data[3] * 50;
+            break;
+        case DTI_DATA_3:
+            acu->inverter_temp = (*(int16_t*)&data[0] + 5) / 10;
+            calculate_pump_voltage(acu);
+            break;
         case EM_Measurements_ACU: // @remark: double check this
             acu->em->em_current = magical_union_flt(data, 4, true);
             acu->em->em_voltage = magical_union_flt(data+4, 4, true);
@@ -343,30 +363,32 @@ void can_read(ACU * acu, FDCAN_GlobalTypeDef * which_can, uint32_t id, uint8_t *
         case EM_Data_1_ACU:
             acu->em->team_data[0] = magical_union_i32(data, true);
             acu->em->team_data[1] = magical_union_i32(data+4, true);
-            break;  
+            break;
         case EM_Data_2_ACU:
             acu->em->team_data[2] = magical_union_i32(data, true);
             acu->em->team_data[3] = magical_union_i32(data+4, true);
-            break;  
+            break;
         case EM_Status_ACU:
             acu->em->status = data[0];
             acu->em->energy = magical_union_flt(data+1, 4, true);
-            break;  
+            break;
         case EM_Temperature_ACU:
             uint8_t mux_signal = data[0] & 0b11100000;
             acu->em->num_sensors = (data[0] & 0b00011111) << 3;
 
-            acu->em->min_temp = (uint8_t)(data[1] * 0.5f);
-            acu->em->max_temp = (uint8_t)(data[2] * 0.5f);
+            acu->em->min_temp = data[1];
+            acu->em->max_temp = data[2];
 
-            acu->em->temps[mux_signal*5] = (float)(data[3] * 0.5f);
-            acu->em->temps[mux_signal*5+1] = (float)(data[4] * 0.5f);
+            acu->em->temps[mux_signal*5] = data[3];
+            acu->em->temps[mux_signal*5+1] = data[4];
             
             if(mux_signal != 6){
-                acu->em->temps[mux_signal*5+2] = (float)(data[5] * 0.5f);
-                acu->em->temps[mux_signal*5+3] = (float)(data[6] * 0.5f);
-                acu->em->temps[mux_signal*5+4] = (float)(data[7] * 0.5f);
+                acu->em->temps[mux_signal*5+2] = data[5];
+                acu->em->temps[mux_signal*5+3] = data[6];
+                acu->em->temps[mux_signal*5+4] = data[7];
             }
+
+            // enqueue(EM_Temperature_ACU, FDCAN2);
             break;  
         case IMD_Response_ACU:
             acu->imd->id = data[0];
@@ -442,8 +464,8 @@ void dequeue(ACU* acu){
             TxHeader.DataLength = FDCAN_DLC_BYTES_8;
             CAN_TxData[0] = (((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) & 0xFF);
             CAN_TxData[1] = ((((uint16_t)((acu->bty->battery_total_voltage) * 100.0f)) >> 8) & 0xFF);
-            CAN_TxData[2] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) & 0xFF);
-            CAN_TxData[3] = (uint8_t)((uint16_t)(acu->ts_voltage * 100.0f) >> 8) & 0xFF;
+            CAN_TxData[2] = (uint8_t)((uint16_t)(acu->ts_voltage * 10.0f) & 0xFF);
+            CAN_TxData[3] = (uint8_t)((uint16_t)(acu->ts_voltage * 10.0f) >> 8) & 0xFF;
             int16_t data_i16 = acu->ts_current * 100.0f;
             memcpy(&CAN_TxData[4], &data_i16, 2);
             // CAN_TxData[4] = (uint8_t)((int8_t)(acu->ts_current * 100.0f) & 0xFF);
@@ -478,7 +500,20 @@ void dequeue(ACU* acu){
             break;
         case 7: // ACU_Status_3
             CAN_1_flag = 0;
-            break;   
+            break;
+        case 8: // ACU_FANPUMP_CTRL
+            TxHeader.Identifier = ACU_FANPUMP_CTRL;
+            TxHeader.DataLength = FDCAN_DLC_BYTES_5;
+            CAN_TxData[0] = acu->fan_pump->target_voltage[0];
+            CAN_TxData[1] = acu->fan_pump->duty_cycle[0];
+            CAN_TxData[2] = acu->fan_pump->duty_cycle[1];
+            CAN_TxData[3] = acu->fan_pump->target_voltage[1];
+            CAN_TxData[4] = acu->fan_pump->target_voltage[2];
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CAN_TxData) != HAL_OK) {
+                print_lpuart("ACU_FANPUMP_CTRL failed...\n");
+            }
+            CAN_1_flag = 0;
+            break;
         default:
             CAN_1_flag = 0;
             break;
@@ -585,6 +620,14 @@ void dequeue(ACU* acu){
                 print_lpuart("ACU_Cell_Data_5 failed...\n");
             }
             CAN_2_flag = 0;
+            break;
+        case 9: // EM_Temperature_ACU
+            TxHeader_Data.Identifier = EM_Temperature_ACU;
+            TxHeader_Data.DataLength = FDCAN_DLC_BYTES_32;
+            memcpy(CAN_TxData, acu->em->temps, 32);
+            if (HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader_Data, CAN_TxData) != HAL_OK) {
+                print_lpuart("EM_Temperature_ACU failed...\n");
+            }
             break;
         default:
             CAN_2_flag = 0;
@@ -697,7 +740,14 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
             __enable_irq();  
             break;       
         case ACU_Status_3:
-            break;       
+            break;
+        case ACU_FANPUMP_CTRL:
+            if (primary_full) return;
+            __disable_irq();
+            prim_q[p_top] = 8;
+            p_top++; p_level++;
+            __enable_irq();
+            break;
         case ACU_Cell_Data_1:
             if(data_full)  {
                 return;
@@ -742,7 +792,14 @@ void enqueue(uint32_t id, FDCAN_GlobalTypeDef * which_can){
             data_q[d_top] = 8;
             d_top++; d_level++;
             __enable_irq();  
-            break;     
+            break;
+        // case EM_Temperature_ACU:
+        //     if(data_full) return;
+        //     __disable_irq();
+        //     data_q[d_top] = 9;
+        //     d_top++; d_level++;
+        //     __enable_irq();
+        //     break;
         case ACU_Charger_Control:
             if(charger_full)  {
                 return;
@@ -797,29 +854,37 @@ float map(float x, float in_min, float in_max, float out_min, float out_max) {
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
 
+/// @brief calculates state-of-charge of the tractive battery
+/// @param acu
 float calculate_acu_soc(ACU* acu){
-    float min_cell_open_volt = acu->bty->min_cell_volt + acu->ts_current*0.5f * CELL_INT_RESISTANCE;
-    // float zero_chg_volt = NUM_TOTAL_IC * 16U * CELL_EMPTY_VOLTAGE;
-    // float full_chg_volt = NUM_TOTAL_IC * 16U * CELL_FULL_VOLTAGE;
-    // acu->bat_soc += (map(cell_open_volt, zero_chg_volt, full_chg_volt, 0.0F, 255.0F) - acu->bat_soc) * 0.1;
-    // return acu->bat_soc;
+    float min_cell_open_volt = acu->bty->min_cell_volt + acu->ts_current * CELL_INT_RESISTANCE;
     uint16_t i = 1;
     for(; i < CELL_CHGR_ARR_SIZE; i++) {
         if(cell_volts_tbl[i] > min_cell_open_volt) break;
     }
-    float minCellCharge = cell_charge_tbl[0] - map(min_cell_open_volt, cell_volts_tbl[i-1], cell_volts_tbl[i], cell_charge_tbl[i-1], cell_charge_tbl[i]);
+    // float minCellCharge = cell_charge_tbl[0] - map(min_cell_open_volt, cell_volts_tbl[i-1], cell_volts_tbl[i], cell_charge_tbl[i-1], cell_charge_tbl[i]);
+    float minCellCharge = cell_charge_tbl[0] - lookupTblf(cell_volts_tbl, cell_charge_tbl, CELL_CHGR_ARR_SIZE, min_cell_open_volt);
     acu->bat_soc += (map(minCellCharge, 0.0f, cell_charge_tbl[0], 0.0f, 1.0f) - acu->bat_soc) * 0.1;
     return acu->bat_soc;
 }
 
+/// @brief calculates state-of-charge of the GLV battery
+/// @param acu
 float calculate_glv_soc(ACU* acu){
     uint16_t i = 1;
     float GLV_batt_single_volt = acu->voltage_12v * 0.2f;
     for(; i < CELL_CHGR_ARR_SIZE; i++) {
         if(cell_volts_tbl[i] > GLV_batt_single_volt) break;
     }
-    float minCellCharge = cell_charge_tbl[0] - map(GLV_batt_single_volt, cell_volts_tbl[i-1], cell_volts_tbl[i], cell_charge_tbl[i-1], cell_charge_tbl[i]);
+    // float minCellCharge = cell_charge_tbl[0] - map(GLV_batt_single_volt, cell_volts_tbl[i-1], cell_volts_tbl[i], cell_charge_tbl[i-1], cell_charge_tbl[i]);
+    float minCellCharge = cell_charge_tbl[0] - lookupTblf(cell_volts_tbl, cell_charge_tbl, CELL_CHGR_ARR_SIZE, GLV_batt_single_volt);
     return map(minCellCharge, 0.0f, cell_charge_tbl[0], 0.0f, 1.0f);
+}
+
+/// @brief calculates pump voltage
+/// @param acu
+void calculate_pump_voltage(ACU* acu){
+    acu->fan_pump->target_voltage[1] = lookupTbl(pump_temp_tbl, pump_volt_tbl, PUMP_TEMP_ARR_SIZE, acu->inverter_temp);
 }
 
 /// @brief just prints adc_data

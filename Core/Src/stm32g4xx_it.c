@@ -244,7 +244,10 @@ void FDCAN1_IT0_IRQHandler(void)
 void SPI2_IRQHandler(void)
 {
   /* USER CODE BEGIN SPI2_IRQn 0 */
-  if (TPL_RxBufferLevel == 255U) return;
+  if (TPL_RxBufferLevel == 255U) {
+    print_lpuart("SPI buffer full!\n");
+    return;
+  }
   /* USER CODE END SPI2_IRQn 0 */
   /* USER CODE BEGIN SPI2_IRQn 1 */
   if (LL_SPI_IsActiveFlag_RXNE(SPI2)){

@@ -42,7 +42,7 @@ uint8_t bcc_read_string(uint8_t *buffer, uint16_t length){
         __enable_irq();
     }
     return 0;
-  }
+}
   
   /// @brief for bcc spi send
   /// @param data 
@@ -625,7 +625,7 @@ void print_voltage(Battery *bty){
 
 // print errors
 void print_errors_warning_bty(Battery *bty){
-    sprintf(print_buffer, "BMS Errors: %03u -------------------------\n", bcc_cooked_count-1);
+    sprintf(print_buffer, "BMS Errors: %03u -------------------------\n", (uint16_t)(bcc_cooked_count-1));
     print_lpuart(print_buffer);
     if (bty->battery_check_faults & BATTERY_FAULT_CELL_OV) print_lpuart("Error: Battery Overvoltage\n");
     if (bty->battery_check_faults & BATTERY_FAULT_CELL_UV) print_lpuart("Error: Battery Undervoltage\n");

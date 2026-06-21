@@ -15,12 +15,12 @@
 
 #define SPI_LOOP_TIMEOUT 500
 
-#define CELL_INT_RESISTANCE 0.006f
+#define CELL_INT_RESISTANCE 0.004f
 #define CELL_EMPTY_VOLTAGE 2.8f
 #define CELL_FULL_VOLTAGE 4.19f
 
 #define CELL_MAX_VOLT 4.2f
-#define CELL_MIN_VOLT 2.5f
+#define CELL_MIN_VOLT 2.0f
 
 #define CELL_MIN_TEMP -300.0f
 #define CELL_MAX_TEMP 60.0f
@@ -102,8 +102,8 @@
 // error margins
 #define GLV_SDC_LOW 3.0f
 #define SDC_HIGH 9.0f
-#define ERRMG_ACU_ERR 20
-#define ERRMG_BMS_ERR 10
+#define ERRMG_ACU_ERR 50
+#define ERRMG_BMS_ERR 20
 
 // datatype
 #define UNSIGNED_16 0
@@ -131,6 +131,8 @@
 #define ACU_Status_3            0x300902    // FLAG = 7 (CAN1)
 #define ACU_DC_DC_Status        0x301202    // DEPRECATED
 
+#define ACU_FANPUMP_CTRL        0x39992B    // FLAG = 8 (CAN1)
+
 // CAN2
 // ACU_Ping_Debug               0x300201    // FLAG = 1 (CAN2)
 // ACU_Ping_ECU                 0x300202    // FLAG = 2 (CAN2)
@@ -151,7 +153,9 @@
 #define Precharge_ACU           0x200A03    // ECU sends PRECHARGE to ACU (CAN1)
 #define Config_Charge_ACU       0x200B03    // ECU sends Charger Config to ACU (CAN1)
 #define Config_Ops_ACU          0x200C03    // ECU sends Operation Config to ACU (CAN1)
-#define DCDC_Data               0x2A01202UL   // Output voltage and current of HV DCDC converter
+#define DCDC_Data               0x2A01202UL // Output voltage and current of HV DCDC converter
+#define FANPUMP_DATA            0x2BAAAFFUL // Output voltage, current, and RPM of each fan & pump
+#define DTI_DATA_3              0x2216      // DTI controller & motor temperature
 
 // CAN2
 #define Debug_FD_ACU            0x100103    // Debugger sends Debug FD to ACU (CAN2)
@@ -164,7 +168,7 @@
 #define EM_Data_1_ACU           0x30D       // EM sends EM Team Data 1 to ACU (CAN3)
 #define EM_Data_2_ACU           0x30E       // EM sends EM Team Data 2 to ACU (CAN3)
 #define EM_Status_ACU           0x40D       // EM sends EM Status to ACU (CAN3)
-#define EM_Temperature_ACU      0x60D       // EM sends EM Temperature to ACU (CAN3)
+#define EM_Temperature_ACU      0x60D       // EM sends EM Temperature to ACU (CAN3), also forwarded to CAN2
 
 #define IMD_Response_ACU        0x23        // IMD sends IMD response to ACU (CAN3)
 #define IMD_Isolation_ACU       0x18FF02F4  // IMD sends IMD iso info to ACU (CAN3) (prev 0x18EFF4FE)

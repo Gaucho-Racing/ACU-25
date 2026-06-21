@@ -70,6 +70,7 @@ ACU acu;
 Battery battery;
 Charger charger;
 EM eMeter;
+FanPumpCtrl fan_pump;
 
 // ADC Data
 uint16_t adc_data[ADC_SIZE]; // 0: ts_current, 1: ts_voltage, 2: sdc_volt_w, 3: sdc_volt_v, 4:volt_12v, 5: water_sense
@@ -253,6 +254,7 @@ int main(void)
   acu.bty = &battery;
   acu.chgr = &charger;
   acu.em = &eMeter;
+  acu.fan_pump = &fan_pump;
 
   /* Enable the SPI peripherals */
   BCC_MCU_WriteCsbPin(0, 1);
@@ -390,6 +392,7 @@ int main(void)
     cps++;
     if(HAL_GetTick() - prev >= 1000){ // debug every 1 second
       while(HAL_GetTick() - prev >= 1000)prev += 1000;
+      enqueue(ACU_FANPUMP_CTRL, FDCAN1);
       #if DEBUG_MODE == 0
       debug();
       sprintf(print_buffer, "%ucps\n", cps);

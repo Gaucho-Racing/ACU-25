@@ -50,7 +50,6 @@ bcc_status_t BCC_MCU_TransferTpl(const uint8_t drvInstance, uint8_t txBuf[], uin
     memcpy(buffer, txBuf, BCC_MSG_SIZE);
 
     // send
-    
     if(bcc_send_string(txBuf, BCC_MSG_SIZE) != 0) {
         return BCC_STATUS_SPI_FAIL;
     }

@@ -36,7 +36,7 @@ typedef struct {
     uint8_t num_sensors;
 
     uint8_t status; /* Map: 0: violation, 1: logging*/
-    float temps[32]; // degree: celcius, all temps sent as unsigned bytes
+    uint8_t temps[32]; // degree: celcius*0.5
     int32_t team_data[4]; // team data messages, probably not needed
 
 } EM;
@@ -73,10 +73,19 @@ typedef struct {
 } Charger;
 
 typedef struct {
+    uint8_t target_voltage[3]; // *100mV
+    uint8_t meas_voltage[3]; // *100mV
+    uint8_t meas_current[3]; // *100mA
+    uint8_t duty_cycle[2]; // 0~200
+    uint16_t RPM[2];
+} FanPumpCtrl;
+
+typedef struct {
     Battery * bty;
     Charger * chgr;
     IMD * imd;
     EM * em;
+    FanPumpCtrl * fan_pump;
 
     // Config Charge Parameters (ACU to sends via TX to Charger)
     float target_chg_voltage; 
@@ -115,6 +124,9 @@ typedef struct {
 
     // DCDC current and voltage
     float DCDC_current, DCDC_voltage;
+
+    // DTI inverter temperature
+    int16_t inverter_temp;
 
     // VCP override
     uint8_t is_VCP_override; // [x|x|x|x|x|x|state override|error disable]
@@ -173,9 +185,10 @@ uint8_t fconstrain(float value);
 void prepare_can_send(uint8_t offset, float source, uint8_t type);
 float map(float x, float in_min, float in_max, float out_min, float out_max);
 
-// SOC calculation functions
+// calculation functions
 float calculate_acu_soc(ACU* acu);
 float calculate_glv_soc(ACU* acu);
+void calculate_pump_voltage(ACU* acu);
 
 // GPIO functions
 void sdc_reset();

@@ -208,6 +208,7 @@ void precharge(){
     write_prechg(false);
     write_IRneg(false);
     write_IRpos(false);
+    acu.relay_state &= ~AIR_PLUS_PLUS;
 
     // reset SDC latch and wait for voltage to stablize
     sdc_reset();
@@ -234,19 +235,21 @@ void precharge(){
     uint32_t start_time = HAL_GetTick();
     // close AIR-
     write_IRneg(true); // starting precharge
+    LL_mDelay(50);
     // Close precharge relay
     write_prechg(true);
 
     // keep looping until ts_voltage reaches 0.95 of total cell voltage
     while (acu.ts_voltage < get_total_voltage(&acu) * PRECHARGE_THRESHOLD) {
-        read_device_measurements(&battery, true, true);
+        // read_device_measurements(&battery, true, true);
         sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
         print_lpuart(print_buffer);
-        LL_mDelay(10);
+        // LL_mDelay(10);
         if (!state_system_check(true, false)) {
             print_lpuart("¯\\_(ツ)_/¯ PreCharge state_system_check() => Shutdown\n");
             #if DEBUGG == 0
             state = state == INIT ? INIT : SHITDOWN;
+            // state = SHITDOWN;
             return;
             #endif
         }
@@ -287,7 +290,7 @@ void precharge(){
     uint8_t goToCharge = 0; // change this to false on final build
 
     // 1 second to check if we go to charge
-    while (HAL_GetTick() - start_time < 2000) {
+    while (HAL_GetTick() - start_time < 1100) {
         read_device_measurements(&battery, true, true);
         sprintf(print_buffer, "TS voltage: %.3f / %.3f\n", acu.ts_voltage, acu.bty->battery_total_voltage);
         print_lpuart(print_buffer);
@@ -334,7 +337,7 @@ void precharge(){
 
     // delayed turn-on flag for DCDC
     start_time = HAL_GetTick();
-    while (HAL_GetTick() - start_time < 1000) {
+    while (HAL_GetTick() - start_time < 2000) {
         read_device_measurements(&battery, true, true);
         LL_mDelay(100);
     }
@@ -395,7 +398,7 @@ void charge(){
     if(HAL_GetTick() - last_send_time > 990){
         last_send_time = HAL_GetTick();
         if(battery.max_cell_volt > battery.max_volt_thresh-0.06f){
-            battery.max_chg_current = map(battery.max_cell_volt, battery.max_volt_thresh-0.06f, battery.max_volt_thresh-0.01f, acu.target_chg_current, 0);
+            battery.max_chg_current = map(battery.max_cell_volt, battery.max_volt_thresh-0.06f, battery.max_volt_thresh, acu.target_chg_current, 0);
             battery.max_chg_current = constrain(battery.max_chg_current, 0.0f, acu.target_chg_current);
         } else {
             battery.max_chg_current = acu.target_chg_current;
@@ -515,7 +518,7 @@ bool state_system_check(bool full_check, bool startup){
 
     // print_errors_warning(&acu);
     if (b_check){
-        write_bms_ok(state);
+        write_bms_ok(true);
         // print_lpuart("BMS ok <3\n");
     }
     else {
